@@ -66,7 +66,7 @@ export default function CityPage({ cityData }: CityPageProps) {
               </h1>
 
               <h2 className="text-sm sm:text-lg text-slate-200 mb-8 max-w-2xl mx-auto leading-relaxed">
-  Audit Fiscal (<strong>Impôt sur le Revenu, IFI, Revenus Fonciers...</strong>) & Stratégies (<strong>Malraux, Monument Historique, Déficit Foncier, PER, Girardin Industriel, FCPI, FIP ...</strong>) : Bénéficiez d'un plan d'optimisation chiffré, simple et immédiatement applicable.
+              Bilan Patrimonial & Optimisation Fiscale (<strong>Impôt sur le Revenu, IFI, Revenus Fonciers...</strong>) & Stratégies (<strong>Malraux, Monument Historique, Déficit Foncier, PER, Girardin Industriel, FCPI, FIP ...</strong>) : Bénéficiez d'un plan d'optimisation chiffré, simple et immédiatement applicable.
 </h2>
               <div className="flex flex-col gap-3 mb-6">
                 <a
@@ -123,7 +123,7 @@ export default function CityPage({ cityData }: CityPageProps) {
                   rel="noopener noreferrer"
                   className="block w-full bg-[#C5A059] text-white px-6 py-4 rounded-lg font-bold uppercase text-lg hover:bg-[#B89048] shadow-lg transition mb-4"
                 >
-                  Choisir un créneau disponible
+                  RÉSERVER MON BILAN OFFERT
                 </a>
 
                 <div className="flex items-center justify-center gap-2 text-slate-600 mb-4">
