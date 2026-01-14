@@ -12,3 +12,11 @@
     font-display: swap;
   }
 }
+
+/* Force hide Bolt Badge */
+[class*="bolt"], [class*="made-with"], a[href*="bolt.new"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

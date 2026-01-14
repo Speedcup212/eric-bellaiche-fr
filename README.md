@@ -1,5 +1,49 @@
 # 🎉 SITE FINAL - PRÊT À DÉPLOYER
 
+## 🚀 DÉPLOIEMENT GITHUB + NETLIFY
+
+### Étape 1 : Commit et Push vers GitHub
+
+```bash
+# Ajouter tous les fichiers modifiés
+git add .
+
+# Créer un commit
+git commit -m "Configuration pour déploiement Netlify"
+
+# Pousser vers GitHub
+git push origin main
+```
+
+### Étape 2 : Déployer sur Netlify
+
+1. **Aller sur [Netlify](https://www.netlify.com/)** et se connecter
+2. **Cliquer sur "Add new site"** → **"Import an existing project"**
+3. **Connecter GitHub** et sélectionner votre dépôt
+4. **Configuration automatique** :
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+   - (Ces paramètres sont déjà dans `netlify.toml`)
+5. **Cliquer sur "Deploy site"**
+6. **Attendre le déploiement** (2-3 minutes)
+7. **Votre site est en ligne !** 🎉
+
+### Configuration Netlify
+
+Le fichier `netlify.toml` est déjà configuré avec :
+- ✅ Commande de build : `npm run build`
+- ✅ Dossier de publication : `dist`
+- ✅ Redirections SPA (Single Page Application)
+- ✅ Version Node.js : 18
+
+### Variables d'environnement (si nécessaire)
+
+Si vous avez des variables d'environnement (comme des clés API), ajoutez-les dans Netlify :
+1. Aller dans **Site settings** → **Environment variables**
+2. Ajouter vos variables (ex: `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY`)
+
+---
+
 ## ✅ VERSION COMPLÈTE ET FONCTIONNELLE
 
 **Ton site est 100% prêt avec :**
