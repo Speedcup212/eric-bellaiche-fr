@@ -24,7 +24,7 @@ export default function CityPage({ cityData }: CityPageProps) {
               />
              <div className="flex-1">
   <h1 className="text-base sm:text-2xl font-bold text-[#0F2B46] tracking-tight leading-tight"><span className="font-extrabold">Cabinet</span> Eric Bellaiche</h1>
-  <p className="text-xs sm:text-sm text-slate-600 font-medium leading-tight">Cabinet de <strong>Gestion Privée</strong> · Accompagnement <strong>France Entière</strong> · Visio & Signature Électronique</p>
+  <p className="text-xs sm:text-sm text-slate-600 font-medium leading-tight">Cabinet de <strong>Gestion De Patrimoine</strong> · Accompagnement <strong>France Entière</strong> · Visio & Signature Électronique</p>
 </div>
             </div>
             <div className="flex gap-2 sm:gap-4 items-center">
@@ -50,23 +50,16 @@ export default function CityPage({ cityData }: CityPageProps) {
       </header>
       {/* Hero Section Ultra-Premium */}
       {/* Hero Section Ultra-Premium */}
-      <section className="pt-20 sm:pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="pt-28 sm:pt-36 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="flex flex-col items-center lg:items-start gap-3 mb-6 mt-12 lg:mt-12">
-                <div className="inline-flex items-start gap-2 bg-white/95 text-[#0F2B46] px-4 py-2 rounded-full text-sm font-semibold text-center border-2 border-[#C5A059] shadow-lg">
-                  <Award className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#C5A059]" />
-                  <span>Membre de la Chambre Nationale des Conseils Experts Financiers</span>
-                </div>
-              </div>
-              
               <h1 className="text-[1.75rem] md:text-[2.25rem] font-bold text-white leading-[1.2] drop-shadow-lg">
                 Je vous aide à <strong>réduire vos impôts</strong> et <strong>optimiser</strong> vos <strong>investissements Financiers & Immobiliers</strong>
               </h1>
 
               <h2 className="text-sm sm:text-lg text-slate-200 mb-8 max-w-2xl mx-auto leading-relaxed">
-              Bilan Patrimonial & Optimisation Fiscale (<strong>Impôt sur le Revenu, IFI, Revenus Fonciers...</strong>) & Stratégies (<strong>Malraux, Monument Historique, Déficit Foncier, PER, Girardin Industriel, FCPI, FIP ...</strong>) : Bénéficiez d'un plan d'optimisation chiffré, simple et immédiatement applicable.
+              Bilan Patrimonial & Optimisation Fiscale (<strong>Impôt sur le Revenu, IFI, Revenus Fonciers...</strong>) & Stratégies (<strong>Malraux, Monument Historique, Déficit Foncier, PER, assurance-vie, FCPI, OR, ETF ...</strong>) : Bénéficiez d'un plan d'optimisation chiffré, simple et immédiatement applicable.
 </h2>
               <div className="flex flex-col gap-3 mb-6">
                 <a
