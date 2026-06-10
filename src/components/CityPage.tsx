@@ -55,11 +55,11 @@ export default function CityPage({ cityData }: CityPageProps) {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-[1.75rem] md:text-[2.25rem] font-bold text-white leading-[1.2] drop-shadow-lg">
-                Je vous aide à <strong>réduire vos impôts</strong> et <strong>optimiser</strong> vos <strong>investissements Financiers & Immobiliers</strong>
+                Conseiller en gestion de patrimoine en ligne
               </h1>
 
               <h2 className="text-sm sm:text-lg text-slate-200 mb-8 max-w-2xl mx-auto leading-relaxed">
-              Bilan Patrimonial & Optimisation Fiscale (<strong>Impôt sur le Revenu, IFI, Revenus Fonciers...</strong>) & Stratégies (<strong>Malraux, Monument Historique, Déficit Foncier, PER, assurance-vie, FCPI, OR, ETF ...</strong>) : Bénéficiez d'un plan d'optimisation chiffré, simple et immédiatement applicable.
+              SCPI, assurance-vie, PER, fiscalité, immobilier et transmission : un accompagnement patrimonial structuré, conforme et adapté à votre situation.
 </h2>
               <div className="flex flex-col gap-3 mb-6">
                 <a
