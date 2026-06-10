@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import CityPage from '../components/CityPage';
-import JsonLd from '../components/JsonLd';
 import { cities } from '../data/cities';
 
 function setOrCreateMeta(name: string, content: string) {
@@ -66,10 +65,5 @@ export default function HomePage() {
     setOrCreateCanonical('https://eric-bellaiche.fr/');
   }, []);
 
-  return (
-    <>
-      <JsonLd />
-      <CityPage cityData={cities.grenoble} />
-    </>
-  );
+  return <CityPage cityData={cities.grenoble} />;
 }
