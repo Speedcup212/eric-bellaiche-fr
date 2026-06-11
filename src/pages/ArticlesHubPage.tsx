@@ -42,8 +42,19 @@ function setOrCreateCanonical(href: string) {
   }
 }
 
-const META_TITLE = 'Articles patrimoniaux — SCPI, fiscalité, retraite et immobilier';
-const META_DESC = 'Analyses patrimoniales pédagogiques sur les SCPI, l\'assurance-vie, le PER, la fiscalité, l\'immobilier, la retraite et la transmission avec Eric Bellaiche, CGP-CIF inscrit ORIAS n°13001580.';
+const META_TITLE = 'Articles patrimoniaux — SCPI, fiscalité, assurance-vie, PER, immobilier, retraite, transmission';
+const META_DESC = 'Analyses pédagogiques signées Eric Bellaiche, CGP-CIF : SCPI, fiscalité, assurance-vie, PER, immobilier, retraite, transmission. 25 articles longs avec FAQ, tableaux et exemples concrets.';
+
+const HERO_STYLES = `
+  .hub-hero {
+    padding: 5rem 0 4rem;
+  }
+  @media (max-width: 640px) {
+    .hub-hero {
+      padding: 3rem 0 2.5rem;
+    }
+  }
+`;
 
 export default function ArticlesHubPage() {
   useEffect(() => {
@@ -60,7 +71,9 @@ export default function ArticlesHubPage() {
 
   return (
     <>
-      {/* Hub uses a simpler JSON-LD — just for this listing page */}
+      <style>{HERO_STYLES}</style>
+
+      {/* JSON-LD for hub page */}
       <JsonLdArticle
         article={{
           slug: 'articles',
@@ -94,40 +107,104 @@ export default function ArticlesHubPage() {
         ]}
       />
 
-      {/* Navigation */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0.75rem 0' }}>
+      {/* ─── Navigation ─── */}
+      <nav style={{ background: '#0B1220', borderBottom: '1px solid #1e293b', padding: '0.75rem 0' }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <a href="/" style={{ fontWeight: 700, color: '#0F2B46', fontSize: '1rem', textDecoration: 'none' }}>Eric Bellaiche</a>
-          <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>&middot;</span>
+          <a href="/" style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '1rem', textDecoration: 'none' }}>
+            Eric Bellaiche
+          </a>
+          <span style={{ color: '#475569', fontSize: '0.75rem' }}>&middot;</span>
           <a href="/" style={{ color: '#64748b', fontSize: '0.875rem', textDecoration: 'none' }}>Accueil</a>
+          <span style={{ color: '#475569', fontSize: '0.75rem' }}>&middot;</span>
+          <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Articles</span>
         </div>
       </nav>
 
-      {/* Hero */}
-      <header style={{ background: 'linear-gradient(135deg, #0F2B46 0%, #1a3f64 100%)', color: '#fff', padding: '5rem 0 4rem' }}>
-        <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1rem' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.2, marginBottom: '1.25rem' }}>
+      {/* ─── Hero ─── */}
+      <header
+        className="hub-hero"
+        style={{
+          background: 'linear-gradient(135deg, #0B1220 0%, #111827 50%, #0f1729 100%)',
+          color: '#f1f5f9',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Decorative subtle gradient overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30%',
+            right: '-10%',
+            width: '40%',
+            height: '80%',
+            background: 'radial-gradient(ellipse, rgba(212,168,79,0.04) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1rem', position: 'relative' }}>
+          {/* Icon */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '3rem',
+              height: '3rem',
+              borderRadius: '0.75rem',
+              background: 'rgba(212,168,79,0.1)',
+              marginBottom: '1.5rem',
+              fontSize: '1.35rem',
+            }}
+          >
+            &#x1F4DA;
+          </div>
+
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.2, marginBottom: '1rem' }}>
             Articles patrimoniaux
           </h1>
-          <p style={{ fontSize: '1.0625rem', color: '#cbd5e1', maxWidth: '48rem', lineHeight: 1.7 }}>
-            Analyses pédagogiques pour mieux comprendre les SCPI, l'assurance-vie, le PER, la fiscalité patrimoniale,
-            l'immobilier, la retraite et la transmission.
+
+          <p style={{ fontSize: '1.0625rem', color: '#94a3b8', maxWidth: '48rem', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+            SCPI, fiscalité, assurance-vie, PER, immobilier, retraite et transmission : des analyses pédagogiques
+            pour structurer vos décisions patrimoniales.
           </p>
+
+          {/* Badge */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {['Analyses', 'Pédagogie', 'Patrimoine', 'CGP-CIF'].map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  display: 'inline-block',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#94a3b8',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  padding: '0.25rem 0.7rem',
+                  borderRadius: '2rem',
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         </div>
       </header>
 
-      {/* Articles grid */}
+      {/* ─── Hub content (search, filters, stats, cards) ─── */}
       <ArticlesHub />
 
-      {/* Footer */}
-      <footer style={{ background: '#0F2B46', color: '#94a3b8', padding: '2rem 0', fontSize: '0.875rem' }}>
+      {/* ─── Footer ─── */}
+      <footer style={{ background: '#0B1220', borderTop: '1px solid #1e293b', color: '#64748b', padding: '2.5rem 0', fontSize: '0.875rem' }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1rem', textAlign: 'center' }}>
-          <p style={{ marginBottom: '0.75rem' }}>
-            <a href="/" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>eric-bellaiche.fr</a>
-            <span style={{ margin: '0 0.5rem' }}>&bull;</span>
-            <a href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Retour au cabinet</a>
-          </p>
-          <p>&copy; 2025 Eric Bellaiche &mdash; CGP-CIF &bull; ORIAS 13001580</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <a href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Accueil</a>
+            <a href="/eric-bellaiche-cgp-cif/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Qui suis-je</a>
+            <a href="/conseiller-scpi/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Conseiller SCPI</a>
+          </div>
+          <p>&copy; {new Date().getFullYear()} Eric Bellaiche &mdash; CGP-CIF &bull; ORIAS 13001580</p>
         </div>
       </footer>
     </>
