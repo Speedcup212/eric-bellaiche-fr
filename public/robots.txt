@@ -1,4 +1,23 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.eric-bellaiche.fr/sitemap.xml
+# Moteurs IA et recherche augmentée
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+Sitemap: https://eric-bellaiche.fr/sitemap.xml
