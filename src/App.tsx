@@ -10,6 +10,7 @@ const RennesPageWrapper = lazy(() => import('./pages/RennesPageWrapper'));
 const AixPageWrapper = lazy(() => import('./pages/AixPageWrapper'));
 const NantesPageWrapper = lazy(() => import('./pages/NantesPageWrapper'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
+const CgpCifRedirect = lazy(() => import('./pages/CgpCifRedirect'));
 
 export default function App() {
   return (
@@ -25,6 +26,8 @@ export default function App() {
           <Route path="/conseil-investissement-aix-en-provence" element={<AixPageWrapper />} />
           <Route path="/conseil-investissement-nantes" element={<NantesPageWrapper />} />
           <Route path="/merci" element={<ThankYouPage />} />
+          <Route path="/eric-bellaiche-cgp-cif" element={<CgpCifRedirect />} />
+          <Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>

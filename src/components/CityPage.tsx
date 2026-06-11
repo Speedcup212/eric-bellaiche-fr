@@ -514,7 +514,10 @@ export default function CityPage({ cityData }: CityPageProps) {
               <h3 className="text-white font-bold text-lg mb-4">Eric Bellaiche</h3>
               <p className="text-sm mb-4">
                 Conseil en <strong>Gestion De Patrimoine</strong><br />
-                Membre CNCEF - CIF n°D016571
+                Membre CNCEF - CIF n&deg;D016571
+              </p>
+              <p className="text-sm">
+                <a href="/eric-bellaiche-cgp-cif/" className="text-[#C5A059] hover:text-white transition-colors">En savoir plus sur Eric Bellaiche, CGP-CIF</a>
               </p>
             </div>
             <div>
