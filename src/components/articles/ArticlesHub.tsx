@@ -377,7 +377,6 @@ export default function ArticlesHub() {
           {[
             { value: totalArticles, label: 'Articles patrimoniaux', sub: 'analyses pédagogiques' },
             { value: `${themesCount}`, label: 'Grandes thématiques', sub: 'SCPI, fiscalité, immobilier…' },
-            { value: '2 000+', label: 'Mots par article', sub: 'contenus longs et structurés' },
             { value: '✅', label: 'FAQ, tableaux & exemples', sub: 'pédagogie patrimoniale' },
           ].map((stat) => (
             <div
