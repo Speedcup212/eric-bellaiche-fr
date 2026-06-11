@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import ConsentBanner from './components/ConsentBanner';
 
@@ -12,7 +12,8 @@ const NantesPageWrapper = lazy(() => import('./pages/NantesPageWrapper'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 const CgpCifRedirect = lazy(() => import('./pages/CgpCifRedirect'));
 const ConseillerScpiRedirect = lazy(() => import('./pages/ConseillerScpiRedirect'));
-const ArticlesRedirect = lazy(() => import('./pages/ArticlesRedirect'));
+const ArticlePageWrapper = lazy(() => import('./pages/ArticlePageWrapper'));
+const ArticlesHubPage = lazy(() => import('./pages/ArticlesHubPage'));
 
 export default function App() {
   return (
@@ -32,8 +33,20 @@ export default function App() {
           <Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} />
           <Route path="/conseiller-scpi" element={<ConseillerScpiRedirect />} />
           <Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
-          <Route path="/articles" element={<ArticlesRedirect />} />
-          <Route path="/articles/*" element={<ArticlesRedirect />} />
+          {/* Articles hub */}
+          <Route path="/articles" element={<ArticlesHubPage />} />
+          {/* Individual articles rendered from content layer (with static HTML fallback in public/) */}
+          <Route path="/articles/conseiller-scpi" element={<ArticlePageWrapper slug="conseiller-scpi" />} />
+          <Route path="/articles/conseiller-scpi/*" element={<ArticlePageWrapper slug="conseiller-scpi" />} />
+          <Route path="/articles/audit-patrimonial-en-ligne" element={<ArticlePageWrapper slug="audit-patrimonial-en-ligne" />} />
+          <Route path="/articles/audit-patrimonial-en-ligne/*" element={<ArticlePageWrapper slug="audit-patrimonial-en-ligne" />} />
+          <Route path="/articles/scpi-fiscalite" element={<ArticlePageWrapper slug="scpi-fiscalite" />} />
+          <Route path="/articles/scpi-fiscalite/*" element={<ArticlePageWrapper slug="scpi-fiscalite" />} />
+          <Route path="/articles/scpi-assurance-vie-ou-direct" element={<ArticlePageWrapper slug="scpi-assurance-vie-ou-direct" />} />
+          <Route path="/articles/scpi-assurance-vie-ou-direct/*" element={<ArticlePageWrapper slug="scpi-assurance-vie-ou-direct" />} />
+          <Route path="/articles/per-ou-assurance-vie" element={<ArticlePageWrapper slug="per-ou-assurance-vie" />} />
+          <Route path="/articles/per-ou-assurance-vie/*" element={<ArticlePageWrapper slug="per-ou-assurance-vie" />} />
+          {/* Catch-all */}
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>
