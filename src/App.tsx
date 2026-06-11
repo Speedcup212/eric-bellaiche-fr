@@ -15,6 +15,34 @@ const ConseillerScpiRedirect = lazy(() => import('./pages/ConseillerScpiRedirect
 const ArticlePageWrapper = lazy(() => import('./pages/ArticlePageWrapper'));
 const ArticlesHubPage = lazy(() => import('./pages/ArticlesHubPage'));
 
+const articleSlugs = [
+  'conseiller-scpi',
+  'audit-patrimonial-en-ligne',
+  'scpi-fiscalite',
+  'scpi-assurance-vie-ou-direct',
+  'per-ou-assurance-vie',
+  'scpi-a-credit',
+  'scpi-demembrement',
+  'scpi-retraite',
+  'scpi-revenus-complementaires',
+  'scpi-succession-transmission',
+  'per-fiscalite',
+  'assurance-vie-fiscalite',
+  'assurance-vie-apres-70-ans',
+  'reduire-impot-sans-risque-excessif',
+  'fiscalite-revenus-fonciers',
+  'lmnp-ou-location-nue',
+  'sci-ir-ou-sci-is',
+  'immobilier-locatif-fiscalite',
+  'deficit-foncier',
+  'investissement-locatif-retraite',
+  'conseiller-patrimoine-en-ligne',
+  'structurer-son-patrimoine',
+  'preparer-retraite-patrimoine',
+  'transmission-patrimoine-famille-recomposee',
+  'erreurs-gestion-patrimoine',
+];
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -35,17 +63,13 @@ export default function App() {
           <Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
           {/* Articles hub */}
           <Route path="/articles" element={<ArticlesHubPage />} />
-          {/* Individual articles rendered from content layer (with static HTML fallback in public/) */}
-          <Route path="/articles/conseiller-scpi" element={<ArticlePageWrapper slug="conseiller-scpi" />} />
-          <Route path="/articles/conseiller-scpi/*" element={<ArticlePageWrapper slug="conseiller-scpi" />} />
-          <Route path="/articles/audit-patrimonial-en-ligne" element={<ArticlePageWrapper slug="audit-patrimonial-en-ligne" />} />
-          <Route path="/articles/audit-patrimonial-en-ligne/*" element={<ArticlePageWrapper slug="audit-patrimonial-en-ligne" />} />
-          <Route path="/articles/scpi-fiscalite" element={<ArticlePageWrapper slug="scpi-fiscalite" />} />
-          <Route path="/articles/scpi-fiscalite/*" element={<ArticlePageWrapper slug="scpi-fiscalite" />} />
-          <Route path="/articles/scpi-assurance-vie-ou-direct" element={<ArticlePageWrapper slug="scpi-assurance-vie-ou-direct" />} />
-          <Route path="/articles/scpi-assurance-vie-ou-direct/*" element={<ArticlePageWrapper slug="scpi-assurance-vie-ou-direct" />} />
-          <Route path="/articles/per-ou-assurance-vie" element={<ArticlePageWrapper slug="per-ou-assurance-vie" />} />
-          <Route path="/articles/per-ou-assurance-vie/*" element={<ArticlePageWrapper slug="per-ou-assurance-vie" />} />
+          {/* All articles rendered from content layer */}
+          {articleSlugs.map((slug) => (
+            <Route key={slug} path={`/articles/${slug}`} element={<ArticlePageWrapper slug={slug} />} />
+          ))}
+          {articleSlugs.map((slug) => (
+            <Route key={`${slug}-wildcard`} path={`/articles/${slug}/*`} element={<ArticlePageWrapper slug={slug} />} />
+          ))}
           {/* Catch-all */}
           <Route path="*" element={<HomePage />} />
         </Routes>

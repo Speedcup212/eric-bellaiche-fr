@@ -1,17 +1,38 @@
 import { ArticleContent } from '../../content/articles/articleTypes';
-
-const styles = {
-  wrapper: { background: '#eff6ff', borderLeft: '4px solid #2563eb', borderRadius: '0 0.75rem 0.75rem 0', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' } as React.CSSProperties,
-  label: { fontWeight: 700, color: '#1e40af', fontSize: '0.8rem', textTransform: 'uppercase' as const, letterSpacing: '0.03em', marginBottom: '0.4rem' },
-  text: { color: '#1e40af', fontSize: '0.9375rem', margin: 0 },
-};
+import { Icon, ICONS } from './ArticleIcons';
 
 export default function ArticleSummary({ article }: { article: ArticleContent }) {
   if (!article.shortAnswer) return null;
+
   return (
-    <div style={styles.wrapper}>
-      <div style={styles.label}>Réponse courte</div>
-      <p style={styles.text}>{article.shortAnswer}</p>
+    <div style={{
+      background: '#f0f7ff',
+      borderLeft: '4px solid #C5A059',
+      borderRadius: '0 0.75rem 0.75rem 0',
+      padding: '1.5rem 1.75rem',
+    }}>
+      <span style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        fontWeight: 700,
+        color: '#0F2B46',
+        fontSize: '0.8125rem',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+        marginBottom: '0.5rem',
+      }}>
+        <Icon icon={ICONS.summary} size={18} color="#C5A059" />
+        Réponse courte
+      </span>
+      <p style={{
+        color: '#1e3a5f',
+        fontSize: '1rem',
+        lineHeight: 1.7,
+        margin: 0,
+      }}>
+        {article.shortAnswer}
+      </p>
     </div>
   );
 }

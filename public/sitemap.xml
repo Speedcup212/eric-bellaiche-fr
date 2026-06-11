@@ -17,7 +17,7 @@
   </url>
   <url>
     <loc>https://eric-bellaiche.fr/articles/</loc>
-    <changefreq>monthly</changefreq>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
@@ -42,6 +42,106 @@
   </url>
   <url>
     <loc>https://eric-bellaiche.fr/articles/per-ou-assurance-vie/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-a-credit/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-demembrement/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-retraite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-revenus-complementaires/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-succession-transmission/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/per-fiscalite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/assurance-vie-fiscalite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/assurance-vie-apres-70-ans/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/reduire-impot-sans-risque-excessif/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/fiscalite-revenus-fonciers/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/lmnp-ou-location-nue/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/sci-ir-ou-sci-is/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/immobilier-locatif-fiscalite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/deficit-foncier/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/investissement-locatif-retraite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/conseiller-patrimoine-en-ligne/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/structurer-son-patrimoine/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/preparer-retraite-patrimoine/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/transmission-patrimoine-famille-recomposee/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/erreurs-gestion-patrimoine/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
