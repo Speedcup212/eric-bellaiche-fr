@@ -16,6 +16,36 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://eric-bellaiche.fr/articles/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/conseiller-scpi/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/audit-patrimonial-en-ligne/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-fiscalite/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/scpi-assurance-vie-ou-direct/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eric-bellaiche.fr/articles/per-ou-assurance-vie/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://eric-bellaiche.fr/conseil-investissement-grenoble</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

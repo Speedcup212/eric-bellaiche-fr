@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Articles patrimoniaux &mdash; SCPI, fiscalité, retraite et immobilier</title>
+    <meta name="description" content="Analyses patrimoniales pédagogiques sur les SCPI, l'assurance-vie, le PER, la fiscalité, l'immobilier, la retraite et la transmission avec Eric Bellaiche, CGP-CIF inscrit ORIAS n&deg;13001580." />
+    <link rel="canonical" href="https://eric-bellaiche.fr/articles/" />
+
+    <meta property="og:title" content="Articles patrimoniaux &mdash; SCPI, fiscalité, retraite et immobilier" />
+    <meta property="og:description" content="Analyses patrimoniales pédagogiques sur les SCPI, l'assurance-vie, le PER, la fiscalité, l'immobilier, la retraite et la transmission avec Eric Bellaiche, CGP-CIF inscrit ORIAS n&deg;13001580." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://eric-bellaiche.fr/articles/" />
+    <meta property="og:site_name" content="Eric Bellaiche" />
+    <meta property="og:locale" content="fr_FR" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Articles patrimoniaux &mdash; SCPI, fiscalité, retraite et immobilier" />
+    <meta name="twitter:description" content="Analyses patrimoniales pédagogiques sur les SCPI, l'assurance-vie, le PER, la fiscalité, l'immobilier, la retraite et la transmission avec Eric Bellaiche, CGP-CIF inscrit ORIAS n&deg;13001580." />
+
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#0F2B46" />
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        body { background: #F8F9FA; color: #1e293b; }
+        a { color: inherit; text-decoration: none; }
+        img { max-width: 100%; height: auto; display: block; }
+
+        .container { max-width: 80rem; margin: 0 auto; padding: 0 1rem; }
+        @media (min-width: 640px) { .container { padding: 0 1.5rem; } }
+        @media (min-width: 1024px) { .container { padding: 0 2rem; } }
+
+        .text-center { text-align: center; }
+
+        /* Hero */
+        .hero { background: linear-gradient(135deg, #0F2B46 0%, #1a3f64 100%); color: #fff; padding: 5rem 0 4rem; }
+        .hero h1 { font-size: 2rem; font-weight: 800; line-height: 1.2; margin-bottom: 1.25rem; }
+        .hero p { font-size: 1.0625rem; color: #cbd5e1; max-width: 48rem; line-height: 1.7; }
+        @media (min-width: 768px) { .hero h1 { font-size: 2.5rem; } .hero { padding: 6rem 0 4.5rem; } }
+        .hero-badge { display: inline-block; background: rgba(197, 160, 89, 0.18); color: #C5A059; font-size: 0.8rem; font-weight: 600; padding: 0.4rem 1rem; border-radius: 9999px; margin-bottom: 1.5rem; letter-spacing: 0.02em; }
+
+        /* Section */
+        .section { padding: 3.5rem 0; }
+        .section-alt { background: #fff; }
+        .section h2 { font-size: 1.5rem; font-weight: 700; color: #0F2B46; margin-bottom: 1.5rem; line-height: 1.3; }
+        @media (min-width: 768px) { .section h2 { font-size: 1.75rem; } .section { padding: 4.5rem 0; } }
+        .section p { font-size: 1rem; color: #475569; line-height: 1.7; margin-bottom: 0; }
+
+        /* Introduction */
+        .intro-box { background: #fff; border-radius: 1rem; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); }
+        .intro-box p { font-size: 1.0625rem; margin-bottom: 0; }
+
+        /* Article cards */
+        .article-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+        @media (min-width: 640px) { .article-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1024px) { .article-grid { grid-template-columns: repeat(3, 1fr); } }
+        .article-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem 1.25rem; display: flex; flex-direction: column; transition: border-color 0.15s, box-shadow 0.15s; }
+        .article-card:hover { border-color: #C5A059; box-shadow: 0 2px 8px rgba(197, 160, 89, 0.12); }
+        .article-card .card-title { font-weight: 700; color: #0F2B46; font-size: 1rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        .article-card .card-desc { font-size: 0.875rem; color: #64748b; margin-bottom: 0.75rem; line-height: 1.6; flex: 1; }
+        .article-card .card-link { display: inline-flex; align-items: center; gap: 0.35rem; color: #C5A059; font-weight: 600; font-size: 0.875rem; transition: color 0.15s; }
+        .article-card .card-link:hover { color: #B89048; }
+        .article-card .card-link::after { content: "→"; font-size: 1rem; }
+
+        /* CTA */
+        .cta { background: linear-gradient(135deg, #0F2B46 0%, #1a3f64 100%); color: #fff; padding: 3.5rem 0; text-align: center; }
+        .cta h2 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem; }
+        .cta p { color: #94a3b8; margin-bottom: 2rem; font-size: 1.0625rem; max-width: 32rem; margin-left: auto; margin-right: auto; }
+        @media (min-width: 768px) { .cta h2 { font-size: 1.75rem; } .cta { padding: 4.5rem 0; } }
+        .btn-primary { display: inline-flex; align-items: center; gap: 0.5rem; background: #C5A059; color: #fff; font-weight: 700; font-size: 1.0625rem; padding: 1rem 2.5rem; border-radius: 0.5rem; text-transform: uppercase; transition: background 0.15s; }
+        .btn-primary:hover { background: #B89048; }
+
+        /* Responsive spacing */
+        @media (max-width: 639px) { .hero h1 { font-size: 1.625rem; } .section { padding: 2.5rem 0; } }
+    </style>
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-N2JLWKH');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-932681130"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'AW-932681130');
+    </script>
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "name": "Articles patrimoniaux — SCPI, fiscalité, retraite et immobilier",
+      "url": "https://eric-bellaiche.fr/articles/",
+      "description": "Analyses patrimoniales pédagogiques sur les SCPI, l'assurance-vie, le PER, la fiscalité, l'immobilier, la retraite et la transmission avec Eric Bellaiche, CGP-CIF inscrit ORIAS n°13001580.",
+      "about": {
+        "@type": "Person",
+        "name": "Eric Bellaiche"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Quels sujets sont abordés dans les articles patrimoniaux ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Les articles couvrent les SCPI, l'assurance-vie, le PER, la fiscalité patrimoniale, l'immobilier, la préparation de la retraite et la transmission. Chaque analyse est rédigée dans une perspective pédagogique et ne constitue pas un conseil personnalisé."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Les articles remplacent-ils un conseil personnalisé ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Non. Les contenus publiés ont une vocation informative et pédagogique. Ils ne remplacent pas une analyse personnalisée de votre situation patrimoniale par un CGP-CIF inscrit à l'ORIAS."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Qui rédige les articles patrimoniaux ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Les articles sont rédigés par Eric Bellaiche, conseiller en gestion de patrimoine et conseiller en investissements financiers (CGP-CIF) inscrit ORIAS n°13001580, dans le cadre de sa mission d'information et de pédagogie patrimoniale."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Les articles sont-ils mis à jour régulièrement ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Les articles sont actualisés en fonction des évolutions fiscales, réglementaires et de marché. Chaque contenu mentionne les informations applicables à sa date de publication. Il est recommandé de vérifier la date de mise à jour de chaque article."
+          }
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N2JLWKH"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Navigation -->
+    <nav style="background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 0;">
+        <div class="container" style="display: flex; align-items: center; gap: 1rem;">
+            <a href="/" style="font-weight: 700; color: #0F2B46; font-size: 1rem;">Eric Bellaiche</a>
+            <span style="color: #94a3b8; font-size: 0.75rem;">&middot;</span>
+            <a href="/" style="color: #64748b; font-size: 0.875rem;">Accueil</a>
+            <span style="color: #94a3b8; font-size: 0.75rem;">&middot;</span>
+            <span style="color: #0F2B46; font-size: 0.875rem; font-weight: 600;">Articles</span>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="container">
+            <div class="hero-badge">Analyses &bull; Pédagogie &bull; Patrimoine</div>
+            <h1>Articles patrimoniaux</h1>
+            <p>Retrouvez des analyses pédagogiques pour mieux comprendre les SCPI, l&rsquo;assurance-vie, le PER, la fiscalité patrimoniale, l&rsquo;immobilier, la retraite et la transmission. Ces contenus sont informatifs et ne remplacent pas une analyse personnalisée de votre situation.</p>
+        </div>
+    </header>
+
+    <!-- Articles listing -->
+    <section class="section section-alt">
+        <div class="container">
+            <div class="intro-box" style="margin-bottom: 2rem;">
+                <p>Retrouvez ci-dessous l&rsquo;ensemble des articles patrimoniaux rédigés par Eric Bellaiche, CGP-CIF. Chaque analyse vous aide à mieux comprendre une thématique patrimoniale avant d&rsquo;engager une réflexion personnalisée avec un conseiller.</p>
+            </div>
+            <div class="article-grid">
+                <article class="article-card">
+                    <h2 class="card-title">Conseiller SCPI</h2>
+                    <p class="card-desc">Pourquoi se faire accompagner avant d&rsquo;investir en SCPI&nbsp;? Analyse des critères&nbsp;: fiscalité, horizon, liquidité, profil investisseur.</p>
+                    <a href="/articles/conseiller-scpi/" class="card-link">Lire l&rsquo;article</a>
+                </article>
+                <article class="article-card">
+                    <h2 class="card-title">Audit patrimonial en ligne</h2>
+                    <p class="card-desc">Structurer ses décisions avant d&rsquo;investir&nbsp;: vision globale, fiscalité, retraite, immobilier, transmission.</p>
+                    <a href="/articles/audit-patrimonial-en-ligne/" class="card-link">Lire l&rsquo;article</a>
+                </article>
+                <article class="article-card">
+                    <h2 class="card-title">SCPI et fiscalité</h2>
+                    <p class="card-desc">Les points à analyser avant une souscription&nbsp;: revenus fonciers, TMI, prélèvements sociaux, démembrement.</p>
+                    <a href="/articles/scpi-fiscalite/" class="card-link">Lire l&rsquo;article</a>
+                </article>
+                <article class="article-card">
+                    <h2 class="card-title">SCPI en direct ou via assurance-vie</h2>
+                    <p class="card-desc">Comment comparer les modes de détention&nbsp;: frais, fiscalité, liquidité, horizon, succession.</p>
+                    <a href="/articles/scpi-assurance-vie-ou-direct/" class="card-link">Lire l&rsquo;article</a>
+                </article>
+                <article class="article-card">
+                    <h2 class="card-title">PER ou assurance-vie</h2>
+                    <p class="card-desc">Comprendre les différences avant de choisir son enveloppe retraite.</p>
+                    <a href="/articles/per-ou-assurance-vie/" class="card-link">Lire l&rsquo;article</a>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta" id="prendre-rendez-vous">
+        <div class="container">
+            <h2>Vous souhaitez un éclairage personnalisé&nbsp;?</h2>
+            <p>Réservez un créneau gratuit pour échanger avec Eric Bellaiche sur votre situation patrimoniale.</p>
+            <a href="https://calendly.com/eric-bellaiche/consultation-avec-eric-bellaiche-clone" target="_blank" rel="noopener noreferrer" class="btn-primary">
+                Prendre rendez-vous
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="background: #0F2B46; color: #94a3b8; padding: 2rem 0; font-size: 0.875rem;">
+        <div class="container" style="text-align: center;">
+            <p style="margin-bottom: 0.75rem;">
+                <a href="/" style="color: #fff; font-weight: 600;">eric-bellaiche.fr</a>
+                &nbsp;&bull;&nbsp;
+                <a href="/" style="color: #94a3b8;">Accueil du cabinet Eric Bellaiche</a>
+            </p>
+            <p>&copy; 2025 Eric Bellaiche &mdash; CGP-CIF &bull; ORIAS 13001580</p>
+        </div>
+    </footer>
+</body>
+</html>

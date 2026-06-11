@@ -532,7 +532,7 @@ export default function CityPage({ cityData }: CityPageProps) {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-8 pt-8 text-center text-sm">
-            <p>© 2025 Eric Bellaiche - Tous droits réservés • <a href="/Mentions légales.pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Mentions légales</a> • <a href="/Site web durabiilitè.pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Politique de durabilité</a></p>
+            <p>© 2025 Eric Bellaiche - Tous droits réservés • <a href="/Mentions légales.pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Mentions légales</a> • <a href="/Site web durabiilitè.pdf" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Politique de durabilité</a> • <a href="/articles/" className="hover:text-white transition-colors">Articles patrimoniaux</a></p>
         </div>
         </div>
       </footer>
