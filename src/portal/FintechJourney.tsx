@@ -20,24 +20,47 @@ const stagePaths: Record<JourneyStage, string> = {
   done: '/espace-client/synthese',
 };
 
-export function JourneyProgress({ current, esgEnabled = true }: { current: JourneyStage; esgEnabled?: boolean }) {
+export interface JourneySubstep {
+  current: number;
+  total: number;
+  label?: string;
+}
+
+export function JourneyProgress({ current, esgEnabled = true, substep }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep }) {
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
-  const currentIndex = visible.findIndex((stage) => stage.key === current);
+  const currentIndex = Math.max(0, visible.findIndex((stage) => stage.key === current));
   const dossierId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dossier') : null;
+  const activeStage = visible[currentIndex];
+  const fraction = substep && substep.total > 0 ? Math.min(1, Math.max(0, substep.current / substep.total)) : current === 'done' ? 1 : 0.35;
+  const globalPct = Math.min(100, Math.max(1, Math.round(((currentIndex + fraction) / visible.length) * 100)));
 
   return (
-    <div className="rounded-2xl border border-[#dbe4ef] bg-white p-3 shadow-sm sm:p-4">
+    <div className="sticky top-[72px] z-40 mb-6 rounded-2xl border border-[#cbd8e7] bg-white/95 p-3 shadow-[0_14px_36px_-24px_rgba(11,31,58,0.55)] backdrop-blur-xl sm:p-4">
+      <div className="flex items-start justify-between gap-4 px-1 pb-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6f8198]">Étape {currentIndex + 1} sur {visible.length} · {activeStage?.label}</p>
+          {substep ? (
+            <p className="mt-1 truncate text-sm font-semibold text-[#0b1f3a]">Partie {substep.current} sur {substep.total}{substep.label ? ` · ${substep.label}` : ''}</p>
+          ) : (
+            <p className="mt-1 text-sm font-semibold text-[#0b1f3a]">Votre parcours patrimonial sécurisé</p>
+          )}
+        </div>
+        <div className="shrink-0 rounded-full bg-[#e9f0f8] px-3 py-1 text-xs font-bold text-[#173967]">{globalPct}%</div>
+      </div>
+      <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[#e7edf5]">
+        <div className="h-full rounded-full bg-gradient-to-r from-[#173967] to-[#4a78a8] transition-all duration-300" style={{ width: `${globalPct}%` }} />
+      </div>
       <div className="flex items-center gap-1.5 sm:gap-2">
         {visible.map((stage, index) => {
           const complete = index < currentIndex;
           const active = index === currentIndex;
           const href = complete && dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;
           const stageContent = (
-            <div className={`flex items-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:bg-[#dfeaf7] hover:shadow-sm' : ''}`}>
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-[#eef3f9] text-[#7f8da1]'}`}>
+            <div className={`flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'bg-[#f6f8fb] text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:bg-[#dfeaf7] hover:shadow-sm' : ''}`}>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-white text-[#7f8da1]'}`}>
                 {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
               </span>
-              <span className="hidden truncate text-xs font-semibold sm:block">{stage.label}</span>
+              <span className="hidden truncate text-xs font-semibold md:block">{stage.label}</span>
             </div>
           );
 
@@ -46,19 +69,19 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
               <div className="min-w-0 flex-1">
                 {href ? <Link to={href} aria-label={`Revenir à l’étape ${stage.label}`}>{stageContent}</Link> : stageContent}
               </div>
-              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-blue-300' : 'bg-[#dbe4ef]'}`} />}
+              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-[#91acd0]' : 'bg-[#dbe4ef]'}`} />}
             </div>
           );
         })}
       </div>
-      {currentIndex > 0 && <p className="mt-2 px-1 text-[11px] text-[#7f8da1]">Vous pouvez revenir à une étape précédente en cliquant dessus.</p>}
+      {currentIndex > 0 && <p className="mt-2 px-1 text-[11px] text-[#7f8da1]">Les étapes déjà terminées restent accessibles tant que le dossier n’a pas été transmis définitivement.</p>}
     </div>
   );
 }
 
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
   return (
-    <div className="mb-6 mt-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
+    <div className="mb-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white">
           {icon ?? <Sparkles className="h-5 w-5" />}
@@ -85,9 +108,9 @@ export function QuestionHeader({ current, total, label, title, description }: { 
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">{label ?? `Question ${current} sur ${total}`}</p>
           <h3 className="mt-3 max-w-3xl text-xl font-semibold leading-8 text-white sm:text-2xl">{title}</h3>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100/75">{description}</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100/80">{description}</p>
         </div>
-        <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-blue-100 sm:flex">
+        <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-blue-100 sm:flex">
           <LockKeyhole className="h-5 w-5" />
         </div>
       </div>
