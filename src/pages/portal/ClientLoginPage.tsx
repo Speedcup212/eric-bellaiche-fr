@@ -25,12 +25,28 @@ export default function ClientLoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
-      const token = searchParams.get('token') || localStorage.getItem('cgp_pending_invite_token');
-      if (token) {
-        const { error: claimError } = await supabase.rpc('claim_client_invite', { p_token: token });
+
+      const explicitToken = searchParams.get('token');
+      const pendingToken = localStorage.getItem('cgp_pending_invite_token');
+
+      if (explicitToken) {
+        const { error: claimError } = await supabase.rpc('claim_client_invite', { p_token: explicitToken });
         if (claimError) throw claimError;
         localStorage.removeItem('cgp_pending_invite_token');
+      } else if (pendingToken) {
+        const { error: claimError } = await supabase.rpc('claim_client_invite', { p_token: pendingToken });
+        if (claimError) {
+          const { data: existingDossiers, error: progressError } = await supabase
+            .from('portal_progress')
+            .select('dossier_id')
+            .limit(1);
+          localStorage.removeItem('cgp_pending_invite_token');
+          if (progressError || !existingDossiers?.length) throw claimError;
+        } else {
+          localStorage.removeItem('cgp_pending_invite_token');
+        }
       }
+
       const next = searchParams.get('next');
       navigate(next && next.startsWith('/espace-client') ? next : '/espace-client', { replace: true });
     } catch (error) {
