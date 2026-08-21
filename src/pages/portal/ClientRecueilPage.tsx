@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, CheckCircle2, Coins, Leaf, Target } from 'lucide-react';
+import { Briefcase, CheckCircle2, Coins, Leaf, Target } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, QuestionHeader, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
@@ -24,7 +24,7 @@ type ObjectiveDetail = { horizon: string; note: string; labelOther: string };
 
 const steps = [
   { title: 'Vos objectifs patrimoniaux', description: 'Sélectionnez les objectifs qui motivent votre démarche. Pour chacun, indiquez l’horizon envisagé et ajoutez si nécessaire une précision utile au cabinet.', icon: Target },
-  { title: 'Votre situation professionnelle', description: 'Ces informations permettent d’apprécier la stabilité et l’origine de vos revenus dans le cadre de l’analyse patrimoniale.', icon: BriefcaseBusiness },
+  { title: 'Votre situation professionnelle', description: 'Ces informations permettent d’apprécier la stabilité et l’origine de vos revenus dans le cadre de l’analyse patrimoniale.', icon: Briefcase },
   { title: 'Votre capacité financière', description: 'Indiquez les montants que vous estimez disponibles. Ils servent à vérifier que les futures recommandations restent cohérentes avec votre situation.', icon: Coins },
   { title: 'Vos préférences de durabilité', description: 'Indiquez simplement si vous souhaitez intégrer des critères environnementaux ou sociaux. Si vous répondez Oui, un questionnaire dédié vous sera proposé après le profil investisseur.', icon: Leaf },
 ] as const;
@@ -45,7 +45,6 @@ export default function ClientRecueilPage() {
   const [apport, setApport] = useState('');
   const [esg, setEsg] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(rows, dossierId), [rows, dossierId]);
@@ -55,10 +54,6 @@ export default function ClientRecueilPage() {
       setRows(progressRows);
       const row = selectedProgress(progressRows, dossierId);
       if (!row) return;
-      if (row.documents_status !== 'completed') {
-        navigate(dossierHref('/espace-client/documents', row.dossier_id), { replace: true });
-        return;
-      }
       setEsg(row.esg_opt_in);
       if (row.recueil_status !== 'validated') await supabase.rpc('start_my_recueil', { p_dossier_id: row.dossier_id });
       const [{ data: obj }, { data: pro }, { data: cap }] = await Promise.all([
@@ -85,10 +80,16 @@ export default function ClientRecueilPage() {
       setEpargnePrecaution(cap?.epargne_precaution_cible?.toString() ?? '');
       setApport(cap?.apport_immobilier_possible?.toString() ?? '');
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId, navigate]);
+  }, [dossierId]);
 
   const updateObjectiveDetail = (code: string, patch: Partial<ObjectiveDetail>) => {
-    setObjectiveDetails((current) => ({ ...current, [code]: { horizon: '', note: '', labelOther: '', ...(current[code] ?? {}), ...patch } }));
+    setObjectiveDetails((current) => ({
+      ...current,
+      [code]: {
+        ...(current[code] ?? { horizon: '', note: '', labelOther: '' }),
+        ...patch,
+      },
+    }));
   };
 
   const toggleObjective = (code: string) => {
@@ -155,7 +156,8 @@ export default function ClientRecueilPage() {
 
   const next = async () => {
     if (!progress) return;
-    setBusy(true); setErrorMessage(''); setMessage('');
+    setBusy(true);
+    setErrorMessage('');
     try {
       await saveCurrent();
       if (stepIndex < steps.length - 1) {
@@ -179,8 +181,8 @@ export default function ClientRecueilPage() {
 
   const previous = () => {
     if (!progress) return;
-    setErrorMessage(''); setMessage('');
-    if (stepIndex === 0) navigate(dossierHref('/espace-client/documents', progress.dossier_id));
+    setErrorMessage('');
+    if (stepIndex === 0) navigate(dossierHref('/espace-client', progress.dossier_id));
     else setStepIndex((value) => value - 1);
   };
 
@@ -190,13 +192,13 @@ export default function ClientRecueilPage() {
   const CurrentIcon = currentStep.icon;
 
   if (locked) {
-    return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Votre recueil a déjà été validé. Les informations sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Recueil validé</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre avec votre profil investisseur.</p></div></div><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
+    return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil a déjà été validé. Les informations sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Recueil validé</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre avec votre profil investisseur.</p></div></div><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
   }
 
   return (
     <div>
       <JourneyProgress current="recueil" esgEnabled={esg !== false} />
-      <PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Répondez en quatre écrans simples. Chaque partie est enregistrée lorsque vous cliquez sur Continuer." icon={<CurrentIcon className="h-5 w-5" />} />
+      <PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Répondez en quatre écrans simples. Chaque partie est enregistrée lorsque vous cliquez sur Continuer." icon={<CurrentIcon className="h-5 w-5" />} />
 
       <WizardCard>
         <QuestionHeader current={stepIndex + 1} total={steps.length} label={`Partie ${stepIndex + 1} sur ${steps.length}`} title={currentStep.title} description={currentStep.description} />
@@ -226,7 +228,6 @@ export default function ClientRecueilPage() {
 
           {stepIndex === 3 && <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><button type="button" onClick={() => setEsg(true)} className={`rounded-2xl border p-5 text-left transition ${esg === true ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 hover:border-slate-400'}`}><p className="font-semibold">Oui, je souhaite les préciser</p><p className={`mt-2 text-sm leading-6 ${esg === true ? 'text-slate-300' : 'text-slate-500'}`}>Un questionnaire dédié vous sera proposé après le profil investisseur.</p></button><button type="button" onClick={() => setEsg(false)} className={`rounded-2xl border p-5 text-left transition ${esg === false ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 hover:border-slate-400'}`}><p className="font-semibold">Non, je ne souhaite pas en exprimer</p><p className={`mt-2 text-sm leading-6 ${esg === false ? 'text-slate-300' : 'text-slate-500'}`}>Aucun questionnaire de durabilité supplémentaire ne vous sera présenté.</p></button></div><SecureNote>Ce choix ne détermine pas votre profil de risque. Il concerne uniquement la prise en compte de préférences de durabilité dans les solutions étudiées.</SecureNote></div>}
 
-          {message && <p className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}
           {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         </div>
         <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={stepIndex === steps.length - 1 ? 'Valider et continuer' : 'Continuer'} busy={busy} />
