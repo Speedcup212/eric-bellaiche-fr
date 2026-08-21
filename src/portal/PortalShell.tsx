@@ -43,9 +43,9 @@ export default function PortalShell() {
   };
 
   return (
-    <div className="min-h-screen bg-[#eef3f9] text-[#0b1f3a]">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_14%_0%,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(23,57,103,0.10),transparent_32%)]" />
-      <header className="relative border-b border-[#dbe4ef] bg-white/90 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#edf3fa] text-[#0b1f3a]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_14%_0%,rgba(59,130,246,0.14),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(23,57,103,0.12),transparent_32%)]" />
+      <header className="sticky top-0 z-50 border-b border-[#dbe4ef] bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => navigate('/espace-client')} className="text-left">
             <div className="flex items-center gap-3">
@@ -67,7 +67,7 @@ export default function PortalShell() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
+      <main className="relative mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Outlet />
       </main>
     </div>
