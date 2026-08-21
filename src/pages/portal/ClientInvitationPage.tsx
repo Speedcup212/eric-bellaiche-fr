@@ -90,7 +90,7 @@ export default function ClientInvitationPage() {
         <div className="hidden text-white lg:block">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cyan-200 backdrop-blur"><Sparkles className="h-3.5 w-3.5" /> Accès personnel sécurisé</div>
           <h1 className="mt-7 max-w-xl text-5xl font-semibold leading-[1.05] tracking-tight">Votre accompagnement commence ici.</h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">Créez votre mot de passe, puis suivez un parcours simple : documents, recueil, profil investisseur et, si vous le souhaitez, préférences de durabilité.</p>
+          <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">Créez votre mot de passe, puis suivez un parcours simple : recueil d’informations, profil investisseur, préférences de durabilité si vous souhaitez en exprimer, puis transmission des documents en fin de parcours.</p>
           <div className="mt-8 space-y-3 text-sm text-slate-300"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-emerald-300"><CheckCircle2 className="h-4 w-4" /></span> Une seule étape affichée à la fois</div><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-cyan-300"><ShieldCheck className="h-4 w-4" /></span> Données enregistrées et protégées</div></div>
         </div>
 
