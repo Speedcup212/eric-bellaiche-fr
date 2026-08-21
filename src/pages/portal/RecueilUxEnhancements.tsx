@@ -30,11 +30,6 @@ export default function RecueilUxEnhancements() {
     let stopped = false;
     let accountEmail = '';
 
-    void supabase.auth.getUser().then(({ data }) => {
-      accountEmail = data.user?.email ?? '';
-      enhance();
-    });
-
     const enhance = () => {
       if (stopped) return;
       const labels = Array.from(document.querySelectorAll<HTMLLabelElement>('label'));
@@ -59,7 +54,10 @@ export default function RecueilUxEnhancements() {
         validate();
       }
 
-      if (mobileLabel && !document.querySelector('[data-secure-email-field="1"]')) {
+      const existingEmail = document.querySelector<HTMLInputElement>('[data-secure-email-field="1"] input');
+      if (existingEmail && accountEmail) existingEmail.value = accountEmail;
+
+      if (mobileLabel && accountEmail && !document.querySelector('[data-secure-email-field="1"]')) {
         const emailLabel = document.createElement('label');
         emailLabel.dataset.secureEmailField = '1';
         emailLabel.className = 'text-sm font-semibold text-slate-700';
@@ -68,10 +66,13 @@ export default function RecueilUxEnhancements() {
         emailInput.type = 'email';
         emailInput.readOnly = true;
         emailInput.value = accountEmail;
-        emailInput.placeholder = 'Adresse liée à votre accès sécurisé';
         emailInput.className = 'mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none';
-        emailInput.title = 'Cette adresse correspond à votre accès sécurisé. Elle ne peut pas être saisie avec une faute dans le recueil.';
+        emailInput.title = 'Cette adresse correspond à votre accès sécurisé.';
         emailLabel.append(emailInput);
+        const help = document.createElement('span');
+        help.className = 'mt-1.5 block text-xs font-normal leading-5 text-slate-500';
+        help.textContent = 'Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie.';
+        emailLabel.append(help);
         mobileLabel.insertAdjacentElement('afterend', emailLabel);
       }
 
@@ -90,8 +91,13 @@ export default function RecueilUxEnhancements() {
       }
     };
 
+    void supabase.auth.getUser().then(({ data }) => {
+      accountEmail = data.user?.email ?? '';
+      enhance();
+    });
+
     const observer = new MutationObserver(enhance);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
     enhance();
 
     return () => {
