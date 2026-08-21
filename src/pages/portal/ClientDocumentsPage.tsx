@@ -10,16 +10,19 @@ interface RegulatoryDocument { id: string; type_document: string; statut: string
 
 const categories = [
   ['avis_imposition', 'Avis d’imposition'],
-  ['identite', 'Pièce d’identité'],
-  ['justificatif_domicile', 'Justificatif de domicile de moins de 3 mois'],
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
   ['patrimoine_financier', 'Épargne / placements / relevés'],
   ['patrimoine_immobilier', 'Patrimoine immobilier'],
   ['autre', 'Autre document'],
 ] as const;
 
+const legacyCategoryLabels: Record<string, string> = {
+  identite: 'Pièce d’identité',
+  justificatif_domicile: 'Justificatif de domicile',
+};
+
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
-function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
+function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? legacyCategoryLabels[value] ?? value.replaceAll('_', ' '); }
 
 export default function ClientDocumentsPage() {
   const [searchParams] = useSearchParams();
@@ -136,7 +139,6 @@ export default function ClientDocumentsPage() {
                 <label className="text-sm font-semibold text-slate-700">Type de document<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 <label className="text-sm font-semibold text-slate-700">Fichier<input id="client-document-file" type="file" required onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" /></label>
               </div>
-              {category === 'justificatif_domicile' && <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">Le justificatif de domicile doit dater de moins de 3 mois.</div>}
               <SecureNote>Formats acceptés : PDF, DOCX, XLSX, JPG et PNG. Taille maximale : 20 Mo par fichier.</SecureNote>
               {message && <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
               {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
