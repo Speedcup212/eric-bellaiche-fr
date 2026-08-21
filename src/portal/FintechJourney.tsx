@@ -15,7 +15,7 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
   const currentIndex = visible.findIndex((stage) => stage.key === current);
   return (
-    <div className="mb-8 rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm backdrop-blur-xl sm:p-4">
+    <div className="rounded-2xl border border-[#dbe4ef] bg-white p-3 shadow-sm sm:p-4">
       <div className="flex items-center gap-1.5 sm:gap-2">
         {visible.map((stage, index) => {
           const complete = index < currentIndex;
@@ -23,14 +23,14 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
           return (
             <div key={stage.key} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
               <div className="min-w-0 flex-1">
-                <div className={`flex items-center gap-2 rounded-xl px-2 py-2 sm:px-3 ${active ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/10' : complete ? 'bg-emerald-50 text-emerald-800' : 'text-slate-400'}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/15' : complete ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                <div className={`flex items-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'text-[#9aa9bc]'}`}>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-[#eef3f9] text-[#7f8da1]'}`}>
                     {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
                   </span>
                   <span className="hidden truncate text-xs font-semibold sm:block">{stage.label}</span>
                 </div>
               </div>
-              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
+              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-blue-300' : 'bg-[#dbe4ef]'}`} />}
             </div>
           );
         })}
@@ -41,41 +41,41 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
 
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
   return (
-    <div className="mb-8">
+    <div className="mb-6 mt-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/10">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10">
           {icon ?? <Sparkles className="h-5 w-5" />}
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">{title}</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f8da1]">{eyebrow}</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#0b1f3a] sm:text-3xl">{title}</h2>
         </div>
       </div>
-      <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">{description}</p>
+      <p className="mt-4 max-w-3xl text-sm leading-6 text-[#5b6b82] sm:text-base">{description}</p>
     </div>
   );
 }
 
 export function WizardCard({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_-32px_rgba(15,23,42,0.28)] ${className}`}>{children}</section>;
+  return <section className={`overflow-hidden rounded-[28px] border border-[#dbe4ef] bg-white shadow-[0_26px_70px_-34px_rgba(11,31,58,0.30)] ${className}`}>{children}</section>;
 }
 
 export function QuestionHeader({ current, total, label, title, description }: { current: number; total: number; label?: string; title: string; description: string }) {
   const pct = total > 0 ? Math.max(4, Math.round((current / total) * 100)) : 0;
   return (
-    <div className="border-b border-slate-100 bg-gradient-to-br from-white via-white to-slate-50/80 px-6 py-6 sm:px-9 sm:py-8">
+    <div className="border-b border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white sm:px-9 sm:py-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{label ?? `Question ${current} sur ${total}`}</p>
-          <h3 className="mt-3 max-w-3xl text-xl font-semibold leading-8 text-slate-950 sm:text-2xl">{title}</h3>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">{label ?? `Question ${current} sur ${total}`}</p>
+          <h3 className="mt-3 max-w-3xl text-xl font-semibold leading-8 text-white sm:text-2xl">{title}</h3>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100/75">{description}</p>
         </div>
-        <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm sm:flex">
+        <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-blue-100 sm:flex">
           <LockKeyhole className="h-5 w-5" />
         </div>
       </div>
-      <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 transition-all duration-300" style={{ width: `${pct}%` }} />
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-blue-300 via-blue-400 to-sky-300 transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -83,15 +83,15 @@ export function QuestionHeader({ current, total, label, title, description }: { 
 
 export function WizardFooter({ onPrevious, onNext, previousLabel = 'Précédent', nextLabel = 'Continuer', nextDisabled = false, busy = false, hidePrevious = false }: { onPrevious?: () => void; onNext: () => void; previousLabel?: string; nextLabel?: string; nextDisabled?: boolean; busy?: boolean; hidePrevious?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-5 sm:px-9">
+    <div className="flex items-center justify-between gap-3 border-t border-[#e7edf5] bg-[#f7f9fc] px-6 py-5 sm:px-9">
       <div>
         {!hidePrevious && onPrevious ? (
-          <button type="button" onClick={onPrevious} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-950">
+          <button type="button" onClick={onPrevious} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#5b6b82] transition hover:bg-white hover:text-[#0b1f3a]">
             <ArrowLeft className="h-4 w-4" /> {previousLabel}
           </button>
         ) : <span />}
       </div>
-      <button type="button" disabled={nextDisabled || busy} onClick={onNext} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40">
+      <button type="button" disabled={nextDisabled || busy} onClick={onNext} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#0b1f3a]/15 transition hover:-translate-y-0.5 hover:bg-[#173967] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40">
         {busy ? 'Enregistrement…' : nextLabel} <ArrowRight className="h-4 w-4" />
       </button>
     </div>
@@ -100,8 +100,8 @@ export function WizardFooter({ onPrevious, onNext, previousLabel = 'Précédent'
 
 export function ChoiceButton({ selected, children, onClick, disabled = false }: { selected: boolean; children: ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left text-sm leading-6 transition sm:px-5 ${selected ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'} disabled:cursor-not-allowed disabled:opacity-60`}>
-      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-white/40 bg-white text-slate-950' : 'border-slate-300 bg-white'}`}>
+    <button type="button" disabled={disabled} onClick={onClick} className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left text-sm leading-6 transition sm:px-5 ${selected ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10' : 'border-[#dbe4ef] bg-[#fbfdff] text-[#33465f] hover:-translate-y-0.5 hover:border-[#6f8fb4] hover:bg-white hover:shadow-md'} disabled:cursor-not-allowed disabled:opacity-60`}>
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-white/30 bg-white text-[#0b1f3a]' : 'border-[#b8c5d5] bg-white'}`}>
         {selected && <Check className="h-3.5 w-3.5" />}
       </span>
       <span className="font-medium">{children}</span>
@@ -110,5 +110,5 @@ export function ChoiceButton({ selected, children, onClick, disabled = false }: 
 }
 
 export function SecureNote({ children }: { children: ReactNode }) {
-  return <div className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-500"><LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />{children}</div>;
+  return <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-[#f2f7fd] px-3 py-2.5 text-xs leading-5 text-[#5b6b82]"><LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#355f8d]" />{children}</div>;
 }

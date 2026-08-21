@@ -29,7 +29,7 @@ export default function PortalShell() {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#f3f6fb] flex items-center justify-center text-slate-500">Ouverture de votre espace sécurisé…</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-[#eef3f9] text-[#5b6b82]">Ouverture de votre espace sécurisé…</div>;
   }
 
   if (!session) {
@@ -43,31 +43,31 @@ export default function PortalShell() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f3f6fb] text-slate-950">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_15%_0%,rgba(14,165,233,0.16),transparent_34%),radial-gradient(circle_at_85%_0%,rgba(79,70,229,0.12),transparent_30%)]" />
-      <header className="relative border-b border-white/70 bg-white/75 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#eef3f9] text-[#0b1f3a]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_14%_0%,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(23,57,103,0.10),transparent_32%)]" />
+      <header className="relative border-b border-[#dbe4ef] bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => navigate('/espace-client')} className="text-left">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/10">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10">
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Cabinet Eric Bellaiche</p>
-                <h1 className="text-base font-semibold tracking-tight text-slate-950 sm:text-lg">Mon dossier patrimonial</h1>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#7f8da1]">Cabinet Eric Bellaiche</p>
+                <h1 className="text-base font-semibold tracking-tight text-[#0b1f3a] sm:text-lg">Mon dossier patrimonial</h1>
               </div>
             </div>
           </button>
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-slate-400 sm:block">Connexion sécurisée</span>
-            <button onClick={signOut} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-950">
+            <span className="hidden text-xs text-[#7f8da1] sm:block">Connexion sécurisée</span>
+            <button onClick={signOut} className="inline-flex items-center gap-2 rounded-xl border border-[#dbe4ef] bg-white px-3 py-2 text-sm font-semibold text-[#5b6b82] shadow-sm transition hover:border-[#9fb1c7] hover:text-[#0b1f3a]">
               <LogOut className="h-4 w-4" /> Quitter
             </button>
           </div>
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+      <main className="relative mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
         <Outlet />
       </main>
     </div>
