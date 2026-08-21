@@ -4,10 +4,10 @@ import { ArrowLeft, ArrowRight, Check, LockKeyhole, Sparkles } from 'lucide-reac
 export type JourneyStage = 'documents' | 'recueil' | 'qpi' | 'esg' | 'done';
 
 const stages: Array<{ key: JourneyStage; label: string }> = [
-  { key: 'documents', label: 'Documents' },
   { key: 'recueil', label: 'Recueil' },
   { key: 'qpi', label: 'Profil' },
   { key: 'esg', label: 'Durabilité' },
+  { key: 'documents', label: 'Documents' },
   { key: 'done', label: 'Transmission' },
 ];
 
