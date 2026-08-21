@@ -3,7 +3,7 @@ import { CheckCircle2, Download, FileCheck2, FileUp, Loader2, UploadCloud } from
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
-import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 interface SourceDocument { id: string; categorie: string; nom_fichier: string; storage_bucket: string | null; storage_path: string | null; statut_analyse: string; created_at: string; }
 interface RegulatoryDocument { id: string; type_document: string; statut: string; storage_bucket: string | null; storage_path_pdf: string | null; storage_path_docx: string | null; date_generation: string | null; }
@@ -46,10 +46,14 @@ export default function ClientDocumentsPage() {
       setProgressRows(rows);
       const row = selectedProgress(rows, dossierId);
       if (!row) return;
+      if (row.next_step !== 'DOCUMENTS' && row.documents_status !== 'completed' && row.next_step !== 'TERMINE') {
+        navigate(nextStepHref(row), { replace: true });
+        return;
+      }
       await supabase.rpc('start_my_documents', { p_dossier_id: row.dossier_id });
       await loadDocuments(row);
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId]);
+  }, [dossierId, navigate]);
 
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -64,7 +68,7 @@ export default function ClientDocumentsPage() {
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
       const input = document.getElementById('client-document-file') as HTMLInputElement | null; if (input) input.value = '';
-      setMessage('Document transmis. Vous pouvez en ajouter un autre ou poursuivre le parcours.');
+      setMessage('Document transmis. Vous pouvez en ajouter un autre avant de finaliser votre dossier.');
       await loadDocuments(progress);
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
   };
@@ -75,7 +79,7 @@ export default function ClientDocumentsPage() {
     try {
       const { error } = await supabase.rpc('complete_my_documents', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
-      navigate(dossierHref('/espace-client/recueil', progress.dossier_id));
+      navigate(dossierHref('/espace-client/synthese', progress.dossier_id));
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setFinishBusy(false); }
   };
 
@@ -86,11 +90,12 @@ export default function ClientDocumentsPage() {
   };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
+  const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';
 
   return (
     <div>
       <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Étape 1" title="Transmettre vos documents" description="Commencez par déposer les justificatifs utiles. Ils permettront au cabinet de préremplir et de contrôler les informations de votre dossier avant l’analyse patrimoniale." icon={<UploadCloud className="h-5 w-5" />} />
+      <PageIntro eyebrow="Dernière étape" title="Transmettre vos documents" description="Vous avez terminé les questionnaires. Déposez maintenant les justificatifs préparés afin que le cabinet puisse rapprocher vos déclarations des pièces utiles et finaliser le contrôle de votre dossier." icon={<UploadCloud className="h-5 w-5" />} />
       <WizardCard>
         <div className="px-6 py-7 sm:px-9 sm:py-9">
           <h3 className="text-xl font-semibold text-slate-950">Ajouter un justificatif</h3>
@@ -110,7 +115,7 @@ export default function ClientDocumentsPage() {
           <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents transmis</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} déjà enregistré${sources.length > 1 ? 's' : ''}.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
           {sources.length > 0 && <div className="mt-5 divide-y divide-slate-200/70 rounded-2xl border border-slate-200 bg-white px-4">{sources.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{doc.nom_fichier}</p><p className="mt-1 text-xs text-slate-400">{categoryLabel(doc.categorie)}</p></div>{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}</div>)}</div>}
         </div>
-        <WizardFooter onPrevious={() => navigate('/espace-client')} onNext={() => void finish()} previousLabel="Retour au dossier" nextLabel="J’ai terminé — Continuer" nextDisabled={sources.length === 0} busy={finishBusy} />
+        <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel="Finaliser et transmettre" nextDisabled={sources.length === 0} busy={finishBusy} />
       </WizardCard>
       {regulatory.length > 0 && <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><p className="text-sm font-semibold text-slate-800">Documents réglementaires disponibles</p></div><div className="mt-3 space-y-2">{regulatory.map((doc) => { const path = doc.storage_path_pdf || doc.storage_path_docx; return <div key={doc.id} className="flex items-center justify-between text-sm"><span className="capitalize text-slate-600">{doc.type_document.replaceAll('_', ' ')}</span>{path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || REGULATORY_DOCUMENTS_BUCKET, path)} className="inline-flex items-center gap-1.5 font-semibold text-slate-800"><Download className="h-4 w-4" /> Ouvrir</button>}</div>; })}</div></div>}
     </div>
