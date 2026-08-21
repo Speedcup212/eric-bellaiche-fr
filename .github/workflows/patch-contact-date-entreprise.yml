@@ -1,0 +1,61 @@
+name: Patch contact and professional fields
+on:
+  push:
+    branches: [fix/contact-date-entreprise]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/contact-date-entreprise
+          fetch-depth: 0
+      - name: Patch recueil
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          replacements = [
+            ("mobile: '', telephone_bureau: ''", "mobile: '', email: '', telephone_bureau: ''"),
+            ("supabase.from('investisseurs').select('civilite,prenom,nom,nom_naissance,date_naissance,lieu_naissance,pays_naissance,nationalite,mobile,telephone_bureau,telephone_domicile,numero_fiscal')", "supabase.from('investisseurs').select('civilite,prenom,nom,nom_naissance,date_naissance,lieu_naissance,pays_naissance,nationalite,mobile,email,telephone_bureau,telephone_domicile,numero_fiscal')"),
+            ("if ([form.civilite, form.prenom, form.nom, form.date_naissance, form.lieu_naissance, form.pays_naissance, form.nationalite, form.mobile].some(isBlank))", "if ([form.civilite, form.prenom, form.nom, form.date_naissance, form.lieu_naissance, form.pays_naissance, form.nationalite, form.mobile, form.email].some(isBlank))"),
+            ("if (identityNeedsBirthName && isBlank(form.nom_naissance)) throw new Error('Indiquez votre nom de naissance. Ce champ est obligatoire lorsque la civilité est Mme.');", "if (identityNeedsBirthName && isBlank(form.nom_naissance)) throw new Error('Indiquez votre nom de naissance. Ce champ est obligatoire lorsque la civilité est Mme.');\n      if (!isValidMobile(form.mobile)) throw new Error('Indiquez un numéro de mobile valide. Les numéros manifestement fictifs comme 0000000000 sont refusés.');\n      if (!isValidEmail(form.email)) throw new Error('Indiquez une adresse e-mail valide, par exemple nom@domaine.fr.');"),
+            ("throw new Error('Renseignez votre société / employeur et votre date d’entrée dans l’entreprise ou de début d’activité.');", "throw new Error('Renseignez votre entreprise et votre mois d’entrée dans l’entreprise ou de début d’activité.');"),
+            ("<Field label=\"Mobile\" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} />", "<Field label=\"Mobile\" required type=\"tel\" value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder=\"06 12 34 56 78 ou +33 6 12 34 56 78\" /><Field label=\"E-mail\" required type=\"email\" value={form.email} onChange={(v) => patchCurrent({ email: v })} placeholder=\"nom@domaine.fr\" />"),
+            ("<Field label=\"Société / employeur\" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} />", "<Field label=\"Entreprise\" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} />"),
+            ("<Field label=\"Depuis quelle date travaillez-vous dans cette entreprise / activité ?\" required={professionalNeedsEmployer} type=\"date\" value={form.date_entree} onChange={(v) => patchCurrent({ date_entree: v })} />", "<Field label=\"Depuis quel mois travaillez-vous dans cette entreprise / activité ?\" required={professionalNeedsEmployer} type=\"month\" value={monthInputValue(form.date_entree)} onChange={(v) => patchCurrent({ date_entree: v })} />"),
+          ]
+          for old, new in replacements:
+            if old not in s:
+              raise SystemExit(f'Motif introuvable: {old[:100]}')
+            s = s.replace(old, new, 1)
+          marker = "function isBlank(value: unknown): boolean { return value === null || value === undefined || String(value).trim() === ''; }"
+          helpers = """function isBlank(value: unknown): boolean { return value === null || value === undefined || String(value).trim() === ''; }
+function isValidMobile(value: unknown): boolean {
+  const compact = String(value ?? '').trim().replace(/[\\s().-]/g, '');
+  const digits = compact.replace(/\\D/g, '');
+  const obviousInvalid = ['0000000000', '0123456789', '1234567890'];
+  if (obviousInvalid.includes(digits) || (/^(\\d)\\1+$/.test(digits) && digits.length >= 8)) return false;
+  if (/^0[67]\\d{8}$/.test(compact)) return true;
+  if (/^\\+33[67]\\d{8}$/.test(compact)) return true;
+  return /^\\+[1-9]\\d{7,14}$/.test(compact);
+}
+function isValidEmail(value: unknown): boolean {
+  const email = String(value ?? '').trim();
+  return email.length <= 254 && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email);
+}
+function monthInputValue(value: unknown): string { return String(value ?? '').slice(0, 7); }"""
+          if marker not in s:
+            raise SystemExit('Marker helper introuvable')
+          s = s.replace(marker, helpers, 1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Sécuriser mobile et e-mail et simplifier la date professionnelle"
+          git push origin fix/contact-date-entreprise
