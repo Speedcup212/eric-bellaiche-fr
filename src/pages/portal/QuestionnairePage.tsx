@@ -1,43 +1,79 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Pencil } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import QuestionnairePageBase from './QuestionnairePageBase';
+import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
-import { fetchPortalProgress, messageFromError, selectedProgress } from '../../portal/portalHelpers';
+import { fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 type Mode = 'QPI' | 'ESG';
 
 export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [searchParams] = useSearchParams();
-  const [ready, setReady] = useState(false);
+  const navigate = useNavigate();
+  const [progress, setProgress] = useState<PortalProgress | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const dossierId = searchParams.get('dossier');
 
   useEffect(() => {
     let active = true;
-    void (async () => {
-      try {
-        const rows = await fetchPortalProgress();
-        const progress = selectedProgress(rows, dossierId);
-        if (progress && !progress.transmitted_at) {
-          const status = mode === 'QPI' ? progress.qpi_status : progress.esg_status;
-          const sessionId = mode === 'QPI' ? progress.qpi_session_id : progress.esg_session_id;
-          if (sessionId && ['completed', 'validated'].includes(status)) {
-            const { error } = await supabase.rpc('reopen_questionnaire_session', { p_session_id: sessionId });
-            if (error) throw error;
-          }
-        }
-        if (active) setReady(true);
-      } catch (error) {
-        if (active) {
-          setErrorMessage(messageFromError(error));
-          setReady(true);
-        }
-      }
-    })();
+    void fetchPortalProgress()
+      .then((rows) => {
+        if (!active) return;
+        setProgress(selectedProgress(rows, dossierId));
+      })
+      .catch((error) => { if (active) setErrorMessage(messageFromError(error)); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [dossierId, mode]);
 
-  if (!ready) return <p className="text-sm text-slate-500">Ouverture du questionnaire…</p>;
-  if (errorMessage) return <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>;
+  const edit = async () => {
+    if (!progress || progress.transmitted_at) return;
+    const sessionId = mode === 'QPI' ? progress.qpi_session_id : progress.esg_session_id;
+    if (!sessionId) return;
+    setBusy(true);
+    setErrorMessage('');
+    try {
+      const { error } = await supabase.rpc('reopen_questionnaire_session', { p_session_id: sessionId });
+      if (error) throw error;
+      setEditing(true);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <p className="text-sm text-slate-500">Chargement du questionnaire…</p>;
+  if (errorMessage && !progress) return <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>;
+  if (!progress) return <p className="text-sm text-slate-500">Dossier introuvable.</p>;
+
+  const status = mode === 'QPI' ? progress.qpi_status : progress.esg_status;
+  const completed = ['completed', 'validated'].includes(status);
+  const title = mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité';
+  const eyebrow = mode === 'QPI' ? 'Étape 2' : 'Étape 3';
+  const stage = mode === 'QPI' ? 'qpi' : 'esg';
+
+  if (!editing && completed && !progress.transmitted_at) {
+    return <div>
+      <JourneyProgress current={stage} esgEnabled={progress.esg_opt_in !== false} />
+      <PageIntro eyebrow={eyebrow} title={title} description="Ce questionnaire est terminé. Vous pouvez encore modifier vos réponses tant que le dossier n’a pas été transmis définitivement au cabinet." icon={<CheckCircle2 className="h-5 w-5" />} />
+      <WizardCard className="p-8">
+        <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800">
+          <p className="font-semibold">Questionnaire validé</p>
+          <p className="mt-1 text-sm leading-6">Après une modification, vous devrez parcourir et valider de nouveau le questionnaire afin d’actualiser le résultat et la traçabilité.</p>
+        </div>
+        {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mes réponses'}</button>
+          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Continuer</button>
+        </div>
+      </WizardCard>
+    </div>;
+  }
+
   return <QuestionnairePageBase mode={mode} />;
 }
