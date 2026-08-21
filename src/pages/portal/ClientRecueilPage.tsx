@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Save } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { BriefcaseBusiness, CheckCircle2, Coins, Leaf, Target } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { JourneyProgress, PageIntro, QuestionHeader, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
-import { fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 const objectiveOptions = [
   ['optimisation_fiscale', 'Optimiser la fiscalité'],
@@ -19,10 +20,22 @@ const objectiveOptions = [
   ['autre', 'Autre objectif'],
 ] as const;
 
+type ObjectiveDetail = { horizon: string; note: string; labelOther: string };
+
+const steps = [
+  { title: 'Vos objectifs patrimoniaux', description: 'Sélectionnez les objectifs qui motivent votre démarche. Pour chacun, indiquez l’horizon envisagé et ajoutez si nécessaire une précision utile au cabinet.', icon: Target },
+  { title: 'Votre situation professionnelle', description: 'Ces informations permettent d’apprécier la stabilité et l’origine de vos revenus dans le cadre de l’analyse patrimoniale.', icon: BriefcaseBusiness },
+  { title: 'Votre capacité financière', description: 'Indiquez les montants que vous estimez disponibles. Ils servent à vérifier que les futures recommandations restent cohérentes avec votre situation.', icon: Coins },
+  { title: 'Vos préférences de durabilité', description: 'Indiquez simplement si vous souhaitez intégrer des critères environnementaux ou sociaux. Si vous répondez Oui, un questionnaire dédié vous sera proposé après le profil investisseur.', icon: Leaf },
+] as const;
+
 export default function ClientRecueilPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<PortalProgress[]>([]);
+  const [stepIndex, setStepIndex] = useState(0);
   const [objectives, setObjectives] = useState<string[]>([]);
+  const [objectiveDetails, setObjectiveDetails] = useState<Record<string, ObjectiveDetail>>({});
   const [profession, setProfession] = useState('');
   const [societe, setSociete] = useState('');
   const [secteur, setSecteur] = useState('');
@@ -42,14 +55,28 @@ export default function ClientRecueilPage() {
       setRows(progressRows);
       const row = selectedProgress(progressRows, dossierId);
       if (!row) return;
+      if (row.documents_status !== 'completed') {
+        navigate(dossierHref('/espace-client/documents', row.dossier_id), { replace: true });
+        return;
+      }
       setEsg(row.esg_opt_in);
-      await supabase.rpc('start_my_recueil', { p_dossier_id: row.dossier_id });
+      if (row.recueil_status !== 'validated') await supabase.rpc('start_my_recueil', { p_dossier_id: row.dossier_id });
       const [{ data: obj }, { data: pro }, { data: cap }] = await Promise.all([
-        supabase.from('objectifs_patrimoniaux').select('code_objectif').eq('dossier_id', row.dossier_id),
+        supabase.from('objectifs_patrimoniaux').select('code_objectif,libelle_autre,horizon_annees,commentaire').eq('dossier_id', row.dossier_id).eq('portee', row.role_dossier),
         supabase.from('situations_professionnelles').select('profession_actuelle,societe,secteur_activite,statut').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).maybeSingle(),
         supabase.from('capacites_financieres').select('capacite_epargne_mensuelle,epargne_precaution_cible,apport_immobilier_possible').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).maybeSingle(),
       ]);
-      setObjectives((obj ?? []).map((item) => item.code_objectif));
+      const objectiveRows = obj ?? [];
+      setObjectives(objectiveRows.map((item) => item.code_objectif));
+      const detailMap: Record<string, ObjectiveDetail> = {};
+      for (const item of objectiveRows) {
+        detailMap[item.code_objectif] = {
+          horizon: item.horizon_annees?.toString() ?? '',
+          note: item.commentaire ?? '',
+          labelOther: item.libelle_autre ?? '',
+        };
+      }
+      setObjectiveDetails(detailMap);
       setProfession(pro?.profession_actuelle ?? '');
       setSociete(pro?.societe ?? '');
       setSecteur(pro?.secteur_activite ?? '');
@@ -58,52 +85,91 @@ export default function ClientRecueilPage() {
       setEpargnePrecaution(cap?.epargne_precaution_cible?.toString() ?? '');
       setApport(cap?.apport_immobilier_possible?.toString() ?? '');
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId]);
+  }, [dossierId, navigate]);
 
-  const save = async (validate = false) => {
+  const updateObjectiveDetail = (code: string, patch: Partial<ObjectiveDetail>) => {
+    setObjectiveDetails((current) => ({ ...current, [code]: { horizon: '', note: '', labelOther: '', ...(current[code] ?? {}), ...patch } }));
+  };
+
+  const toggleObjective = (code: string) => {
+    setObjectives((current) => current.includes(code) ? current.filter((value) => value !== code) : [...current, code]);
+    if (!objectiveDetails[code]) updateObjectiveDetail(code, {});
+  };
+
+  const saveObjectives = async (row: PortalProgress) => {
+    if (objectives.length === 0) throw new Error('Sélectionnez au moins un objectif pour continuer.');
+    for (const code of objectives) {
+      const horizon = Number(objectiveDetails[code]?.horizon);
+      if (!Number.isFinite(horizon) || horizon <= 0) throw new Error('Indiquez un horizon en années pour chaque objectif sélectionné.');
+      if (code === 'autre' && !objectiveDetails[code]?.labelOther.trim()) throw new Error('Précisez votre autre objectif.');
+    }
+    const { error: deleteError } = await supabase.from('objectifs_patrimoniaux').delete().eq('dossier_id', row.dossier_id).eq('portee', row.role_dossier);
+    if (deleteError) throw deleteError;
+    const { error } = await supabase.from('objectifs_patrimoniaux').insert(objectives.map((code) => ({
+      dossier_id: row.dossier_id,
+      portee: row.role_dossier,
+      code_objectif: code,
+      libelle_autre: code === 'autre' ? objectiveDetails[code]?.labelOther.trim() || null : null,
+      horizon_annees: Number(objectiveDetails[code]?.horizon),
+      commentaire: objectiveDetails[code]?.note.trim() || null,
+    })));
+    if (error) throw error;
+  };
+
+  const saveProfessional = async (row: PortalProgress) => {
+    const { error } = await supabase.from('situations_professionnelles').upsert({
+      dossier_id: row.dossier_id,
+      investisseur_id: row.investisseur_id,
+      profession_actuelle: profession.trim() || null,
+      societe: societe.trim() || null,
+      secteur_activite: secteur.trim() || null,
+      statut: statutPro.trim() || null,
+    }, { onConflict: 'dossier_id,investisseur_id' });
+    if (error) throw error;
+  };
+
+  const saveCapacity = async (row: PortalProgress) => {
+    const { error } = await supabase.from('capacites_financieres').upsert({
+      dossier_id: row.dossier_id,
+      investisseur_id: row.investisseur_id,
+      capacite_epargne_mensuelle: epargneMensuelle ? Number(epargneMensuelle) : null,
+      epargne_precaution_cible: epargnePrecaution ? Number(epargnePrecaution) : null,
+      apport_immobilier_possible: apport ? Number(apport) : null,
+    }, { onConflict: 'dossier_id,investisseur_id' });
+    if (error) throw error;
+  };
+
+  const saveEsg = async (row: PortalProgress) => {
+    if (esg === null) throw new Error('Indiquez si vous souhaitez exprimer des préférences de durabilité.');
+    const { error } = await supabase.rpc('set_my_esg_opt_in', { p_dossier_id: row.dossier_id, p_opt_in: esg });
+    if (error) throw error;
+  };
+
+  const saveCurrent = async () => {
     if (!progress) return;
-    setBusy(true);
-    setMessage('');
-    setErrorMessage('');
+    if (stepIndex === 0) await saveObjectives(progress);
+    if (stepIndex === 1) await saveProfessional(progress);
+    if (stepIndex === 2) await saveCapacity(progress);
+    if (stepIndex === 3) await saveEsg(progress);
+  };
+
+  const next = async () => {
+    if (!progress) return;
+    setBusy(true); setErrorMessage(''); setMessage('');
     try {
-      const { error: deleteObjectivesError } = await supabase.from('objectifs_patrimoniaux').delete().eq('dossier_id', progress.dossier_id).eq('portee', progress.role_dossier);
-      if (deleteObjectivesError) throw deleteObjectivesError;
-      if (objectives.length > 0) {
-        const { error } = await supabase.from('objectifs_patrimoniaux').insert(objectives.map((code) => ({ dossier_id: progress.dossier_id, portee: progress.role_dossier, code_objectif: code })));
-        if (error) throw error;
+      await saveCurrent();
+      if (stepIndex < steps.length - 1) {
+        setStepIndex((value) => value + 1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
-      const { error: proError } = await supabase.from('situations_professionnelles').upsert({
-        dossier_id: progress.dossier_id,
-        investisseur_id: progress.investisseur_id,
-        profession_actuelle: profession || null,
-        societe: societe || null,
-        secteur_activite: secteur || null,
-        statut: statutPro || null,
-      }, { onConflict: 'dossier_id,investisseur_id' });
-      if (proError) throw proError;
-
-      const { error: capError } = await supabase.from('capacites_financieres').upsert({
-        dossier_id: progress.dossier_id,
-        investisseur_id: progress.investisseur_id,
-        capacite_epargne_mensuelle: epargneMensuelle ? Number(epargneMensuelle) : null,
-        epargne_precaution_cible: epargnePrecaution ? Number(epargnePrecaution) : null,
-        apport_immobilier_possible: apport ? Number(apport) : null,
-      }, { onConflict: 'dossier_id,investisseur_id' });
-      if (capError) throw capError;
-
-      if (esg === null) throw new Error('Merci d’indiquer si vous souhaitez exprimer des préférences de durabilité.');
-      const { error: esgError } = await supabase.rpc('set_my_esg_opt_in', { p_dossier_id: progress.dossier_id, p_opt_in: esg });
-      if (esgError) throw esgError;
-
-      if (validate) {
-        const { error: validateError } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
-        if (validateError) throw validateError;
-        setMessage('Votre partie du Recueil est validée. Le QPI devient disponible dès que les autres investisseurs éventuels ont également validé leur partie.');
-      } else {
-        setMessage('Vos informations ont été enregistrées.');
-      }
+      const { error: validateError } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
+      if (validateError) throw validateError;
       const refreshed = await fetchPortalProgress();
       setRows(refreshed);
+      const nextProgress = selectedProgress(refreshed, progress.dossier_id);
+      if (nextProgress?.next_step === 'QPI') navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id));
+      else navigate('/espace-client');
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -111,67 +177,60 @@ export default function ClientRecueilPage() {
     }
   };
 
-  const toggleObjective = (code: string) => {
-    setObjectives((current) => current.includes(code) ? current.filter((value) => value !== code) : [...current, code]);
+  const previous = () => {
+    if (!progress) return;
+    setErrorMessage(''); setMessage('');
+    if (stepIndex === 0) navigate(dossierHref('/espace-client/documents', progress.dossier_id));
+    else setStepIndex((value) => value - 1);
   };
 
-  if (!progress) return <p className="text-slate-600">Aucun dossier sélectionné.</p>;
-
+  if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
   const locked = progress.recueil_status === 'validated';
+  const currentStep = steps[stepIndex];
+  const CurrentIcon = currentStep.icon;
+
+  if (locked) {
+    return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Votre recueil a déjà été validé. Les informations sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Recueil validé</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre avec votre profil investisseur.</p></div></div><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
+  }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Recueil d’informations patrimoniales</p>
-        <h2 className="mt-2 text-3xl font-semibold">Vos informations</h2>
-        <p className="mt-3 max-w-3xl text-slate-600">Les données issues de vos justificatifs sont vérifiées séparément par le cabinet. Vous complétez ici les informations déclaratives utiles à l’accompagnement.</p>
-      </div>
+    <div>
+      <JourneyProgress current="recueil" esgEnabled={esg !== false} />
+      <PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Répondez en quatre écrans simples. Chaque partie est enregistrée lorsque vous cliquez sur Continuer." icon={<CurrentIcon className="h-5 w-5" />} />
 
-      {locked && <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm">Le Recueil du dossier est validé. Les données sont désormais figées pour préserver la traçabilité.</p></div>}
+      <WizardCard>
+        <QuestionHeader current={stepIndex + 1} total={steps.length} label={`Partie ${stepIndex + 1} sur ${steps.length}`} title={currentStep.title} description={currentStep.description} />
+        <div className="px-6 py-7 sm:px-9 sm:py-9">
+          {stepIndex === 0 && (
+            <div className="space-y-6">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {objectiveOptions.map(([code, label]) => {
+                  const selected = objectives.includes(code);
+                  return <button type="button" key={code} onClick={() => toggleObjective(code)} className={`flex items-center gap-3 rounded-2xl border p-4 text-left text-sm font-semibold transition ${selected ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}><span className={`flex h-6 w-6 items-center justify-center rounded-full border ${selected ? 'border-white/30 bg-white text-slate-950' : 'border-slate-300'}`}>{selected ? '✓' : ''}</span>{label}</button>;
+                })}
+              </div>
+              {objectives.length > 0 && <div className="space-y-4 border-t border-slate-100 pt-6">
+                <div><h4 className="font-semibold text-slate-950">Horizon et précisions</h4><p className="mt-1 text-sm leading-6 text-slate-500">Complétez ces informations pour chaque objectif sélectionné. L’horizon est obligatoire ; la note est facultative.</p></div>
+                {objectives.map((code) => {
+                  const label = objectiveOptions.find(([value]) => value === code)?.[1] ?? code;
+                  const detail = objectiveDetails[code] ?? { horizon: '', note: '', labelOther: '' };
+                  return <div key={code} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5"><p className="font-semibold text-slate-800">{label}</p>{code === 'autre' && <label className="mt-4 block text-sm font-semibold text-slate-700">Précisez l’objectif<input value={detail.labelOther} onChange={(e) => updateObjectiveDetail(code, { labelOther: e.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400" placeholder="Ex. financer les études des enfants" /></label>}<div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]"><label className="text-sm font-semibold text-slate-700">Horizon (années)<input type="number" min="0.5" step="0.5" value={detail.horizon} onChange={(e) => updateObjectiveDetail(code, { horizon: e.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400" placeholder="Ex. 8" /></label><label className="text-sm font-semibold text-slate-700">Notes / précisions<textarea value={detail.note} onChange={(e) => updateObjectiveDetail(code, { note: e.target.value })} rows={3} className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400" placeholder="Échéance, montant, contexte, priorité…" /></label></div></div>;
+                })}
+              </div>}
+            </div>
+          )}
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-        <h3 className="text-lg font-semibold">Objectifs patrimoniaux</h3>
-        <p className="mt-2 text-sm text-slate-500">Sélectionnez au moins un objectif.</p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {objectiveOptions.map(([code, label]) => (
-            <label key={code} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 hover:border-slate-400">
-              <input type="checkbox" disabled={locked} checked={objectives.includes(code)} onChange={() => toggleObjective(code)} className="mt-1" />
-              <span className="text-sm font-medium">{label}</span>
-            </label>
-          ))}
+          {stepIndex === 1 && <div className="grid gap-5 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Profession actuelle<input value={profession} onChange={(e) => setProfession(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ex. Cadre commercial" /></label><label className="text-sm font-semibold text-slate-700">Employeur / société<input value={societe} onChange={(e) => setSociete(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Secteur d’activité<input value={secteur} onChange={(e) => setSecteur(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Statut / contrat<input value={statutPro} onChange={(e) => setStatutPro(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" placeholder="CDI, indépendant, retraité…" /></label></div>}
+
+          {stepIndex === 2 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-3"><label className="text-sm font-semibold text-slate-700">Épargne mensuelle disponible (€)<input type="number" min="0" value={epargneMensuelle} onChange={(e) => setEpargneMensuelle(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Épargne de précaution cible (€)<input type="number" min="0" value={epargnePrecaution} onChange={(e) => setEpargnePrecaution(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Apport immobilier possible (€)<input type="number" min="0" value={apport} onChange={(e) => setApport(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-slate-400 focus:bg-white" /></label></div><SecureNote>Indiquez des montants réalistes à date. Le cabinet pourra les rapprocher des justificatifs transmis et vous demander une précision si nécessaire.</SecureNote></div>}
+
+          {stepIndex === 3 && <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><button type="button" onClick={() => setEsg(true)} className={`rounded-2xl border p-5 text-left transition ${esg === true ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 hover:border-slate-400'}`}><p className="font-semibold">Oui, je souhaite les préciser</p><p className={`mt-2 text-sm leading-6 ${esg === true ? 'text-slate-300' : 'text-slate-500'}`}>Un questionnaire dédié vous sera proposé après le profil investisseur.</p></button><button type="button" onClick={() => setEsg(false)} className={`rounded-2xl border p-5 text-left transition ${esg === false ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 hover:border-slate-400'}`}><p className="font-semibold">Non, je ne souhaite pas en exprimer</p><p className={`mt-2 text-sm leading-6 ${esg === false ? 'text-slate-300' : 'text-slate-500'}`}>Aucun questionnaire de durabilité supplémentaire ne vous sera présenté.</p></button></div><SecureNote>Ce choix ne détermine pas votre profil de risque. Il concerne uniquement la prise en compte de préférences de durabilité dans les solutions étudiées.</SecureNote></div>}
+
+          {message && <p className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}
+          {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-        <h3 className="text-lg font-semibold">Situation professionnelle</h3>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium">Profession<input disabled={locked} value={profession} onChange={(e) => setProfession(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-          <label className="text-sm font-medium">Employeur / société<input disabled={locked} value={societe} onChange={(e) => setSociete(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-          <label className="text-sm font-medium">Secteur d’activité<input disabled={locked} value={secteur} onChange={(e) => setSecteur(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-          <label className="text-sm font-medium">Statut / contrat<input disabled={locked} value={statutPro} onChange={(e) => setStatutPro(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-        <h3 className="text-lg font-semibold">Capacité financière</h3>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <label className="text-sm font-medium">Épargne mensuelle disponible (€)<input type="number" min="0" disabled={locked} value={epargneMensuelle} onChange={(e) => setEpargneMensuelle(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-          <label className="text-sm font-medium">Épargne de précaution cible (€)<input type="number" min="0" disabled={locked} value={epargnePrecaution} onChange={(e) => setEpargnePrecaution(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-          <label className="text-sm font-medium">Apport immobilier possible (€)<input type="number" min="0" disabled={locked} value={apport} onChange={(e) => setApport(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-        <h3 className="text-lg font-semibold">Préférences de durabilité</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Souhaitez-vous exprimer des préférences en matière de durabilité ? Si vous répondez Oui, le questionnaire ESG s’ouvrira uniquement après le questionnaire de profil investisseur. Si vous répondez Non, il ne sera pas proposé.</p>
-        <div className="mt-5 flex gap-3">
-          {[true, false].map((value) => <button type="button" disabled={locked} key={String(value)} onClick={() => setEsg(value)} className={`rounded-xl border px-5 py-3 text-sm font-semibold ${esg === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white'}`}>{value ? 'Oui' : 'Non'}</button>)}
-        </div>
-      </section>
-
-      {message && <p className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}
-      {errorMessage && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
-      {!locked && <div className="flex flex-wrap gap-3"><button disabled={busy} onClick={() => void save(false)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold"><Save className="h-4 w-4" /> Enregistrer</button><button disabled={busy} onClick={() => void save(true)} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white">Valider ma partie du Recueil</button></div>}
+        <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={stepIndex === steps.length - 1 ? 'Valider et continuer' : 'Continuer'} busy={busy} />
+      </WizardCard>
     </div>
   );
 }
