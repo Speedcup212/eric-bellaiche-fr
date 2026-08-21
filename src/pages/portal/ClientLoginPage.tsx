@@ -52,8 +52,8 @@ export default function ClientLoginPage() {
           <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
             <LockKeyhole className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-semibold">Connexion à votre espace client</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Accédez à votre recueil, vos questionnaires et vos documents réglementaires.</p>
+          <h1 className="text-2xl font-semibold">Accéder à mon dossier patrimonial</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Retrouvez l’étape en cours et reprenez votre dossier là où vous l’avez laissé.</p>
         </div>
         <form onSubmit={submit} className="space-y-5">
           <label className="block text-sm font-medium text-slate-700">
@@ -66,10 +66,10 @@ export default function ClientLoginPage() {
           </label>
           {errorMessage && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
           <button disabled={busy} className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">
-            {busy ? 'Connexion…' : 'Se connecter'}
+            {busy ? 'Connexion…' : 'Reprendre mon dossier'}
           </button>
         </form>
-        <p className="mt-6 text-center text-xs leading-5 text-slate-500">La création initiale de l’accès se fait exclusivement depuis le lien d’invitation envoyé par le cabinet.</p>
+        <p className="mt-6 text-center text-xs leading-5 text-slate-500">Le premier accès se fait uniquement depuis le lien personnel transmis par le cabinet.</p>
       </div>
     </div>
   );
