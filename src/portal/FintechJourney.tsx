@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, LockKeyhole, Sparkles } from 'lucide-react';
 
 export type JourneyStage = 'documents' | 'recueil' | 'qpi' | 'esg' | 'done';
@@ -11,30 +12,46 @@ const stages: Array<{ key: JourneyStage; label: string }> = [
   { key: 'done', label: 'Transmission' },
 ];
 
+const stagePaths: Record<JourneyStage, string> = {
+  recueil: '/espace-client/recueil',
+  qpi: '/espace-client/profil-investisseur',
+  esg: '/espace-client/esg',
+  documents: '/espace-client/documents',
+  done: '/espace-client/synthese',
+};
+
 export function JourneyProgress({ current, esgEnabled = true }: { current: JourneyStage; esgEnabled?: boolean }) {
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
   const currentIndex = visible.findIndex((stage) => stage.key === current);
+  const dossierId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dossier') : null;
+
   return (
     <div className="rounded-2xl border border-[#dbe4ef] bg-white p-3 shadow-sm sm:p-4">
       <div className="flex items-center gap-1.5 sm:gap-2">
         {visible.map((stage, index) => {
           const complete = index < currentIndex;
           const active = index === currentIndex;
+          const href = complete && dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;
+          const stageContent = (
+            <div className={`flex items-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:bg-[#dfeaf7] hover:shadow-sm' : ''}`}>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-[#eef3f9] text-[#7f8da1]'}`}>
+                {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+              </span>
+              <span className="hidden truncate text-xs font-semibold sm:block">{stage.label}</span>
+            </div>
+          );
+
           return (
             <div key={stage.key} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
               <div className="min-w-0 flex-1">
-                <div className={`flex items-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'text-[#9aa9bc]'}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-[#eef3f9] text-[#7f8da1]'}`}>
-                    {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                  </span>
-                  <span className="hidden truncate text-xs font-semibold sm:block">{stage.label}</span>
-                </div>
+                {href ? <Link to={href} aria-label={`Revenir à l’étape ${stage.label}`}>{stageContent}</Link> : stageContent}
               </div>
               {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-blue-300' : 'bg-[#dbe4ef]'}`} />}
             </div>
           );
         })}
       </div>
+      {currentIndex > 0 && <p className="mt-2 px-1 text-[11px] text-[#7f8da1]">Vous pouvez revenir à une étape précédente en cliquant dessus.</p>}
     </div>
   );
 }
