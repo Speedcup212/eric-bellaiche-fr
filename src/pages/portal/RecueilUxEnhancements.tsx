@@ -135,7 +135,11 @@ export default function RecueilUxEnhancements() {
         const commit = () => {
           const month = monthSelect.value;
           const year = yearSelect.value;
-          setReactInputValue(input, month && year ? `${year}-${month}` : '');
+          if (month && year) {
+            setReactInputValue(input, `${year}-${month}`);
+          } else if (input.value) {
+            setReactInputValue(input, '');
+          }
         };
         monthSelect.addEventListener('change', commit);
         yearSelect.addEventListener('change', commit);
@@ -151,7 +155,7 @@ export default function RecueilUxEnhancements() {
       if (match) {
         if (yearSelect && yearSelect.value !== match[1]) yearSelect.value = match[1];
         if (monthSelect && monthSelect.value !== match[2]) monthSelect.value = match[2];
-      } else if (input.value && input.dataset.dateSanitized !== '1') {
+      } else if (input.dataset.dateSanitized !== '1') {
         input.dataset.dateSanitized = '1';
         setReactInputValue(input, '');
         if (yearSelect) yearSelect.value = '';
