@@ -1,6 +1,21 @@
 import { useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
+const frenchMonths = [
+  ['01', 'Janvier'],
+  ['02', 'Février'],
+  ['03', 'Mars'],
+  ['04', 'Avril'],
+  ['05', 'Mai'],
+  ['06', 'Juin'],
+  ['07', 'Juillet'],
+  ['08', 'Août'],
+  ['09', 'Septembre'],
+  ['10', 'Octobre'],
+  ['11', 'Novembre'],
+  ['12', 'Décembre'],
+] as const;
+
 function normalizedMobile(value: string): { compact: string; digits: string } {
   const compact = value.trim().replace(/[\s().-]/g, '');
   return { compact, digits: compact.replace(/\D/g, '') };
@@ -25,10 +40,90 @@ function replaceLabelText(label: HTMLLabelElement, from: string, to: string) {
   }
 }
 
+function setReactInputValue(input: HTMLInputElement, value: string) {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  descriptor?.set?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function createOption(value: string, label: string): HTMLOptionElement {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
 export default function RecueilUxEnhancements() {
   useEffect(() => {
     let stopped = false;
     let accountEmail = '';
+
+    const enhanceDateEntry = (labels: HTMLLabelElement[]) => {
+      const oldDateLabel = labels.find((label) => label.textContent?.includes('Depuis quelle date travaillez-vous dans cette entreprise / activité ?'));
+      if (oldDateLabel) replaceLabelText(oldDateLabel, 'Depuis quelle date travaillez-vous dans cette entreprise / activité ?', 'Date d’entrée dans l’entreprise : mois / année');
+
+      const dateLabel = labels.find((label) => label.textContent?.includes('Date d’entrée dans l’entreprise : mois / année'));
+      const input = dateLabel?.querySelector<HTMLInputElement>('input');
+      if (!dateLabel || !input) return;
+
+      input.style.display = 'none';
+      input.tabIndex = -1;
+      input.setAttribute('aria-hidden', 'true');
+
+      let wrapper = dateLabel.querySelector<HTMLDivElement>('[data-french-month-year="1"]');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.dataset.frenchMonthYear = '1';
+        wrapper.className = 'mt-2 grid grid-cols-2 gap-2';
+
+        const monthBox = document.createElement('div');
+        const monthCaption = document.createElement('span');
+        monthCaption.className = 'block text-xs font-medium text-slate-600';
+        monthCaption.textContent = 'Mois';
+        const monthSelect = document.createElement('select');
+        monthSelect.dataset.monthSelect = '1';
+        monthSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white';
+        monthSelect.append(createOption('', 'Choisir le mois'));
+        for (const [code, name] of frenchMonths) monthSelect.append(createOption(code, name));
+        monthBox.append(monthCaption, monthSelect);
+
+        const yearBox = document.createElement('div');
+        const yearCaption = document.createElement('span');
+        yearCaption.className = 'block text-xs font-medium text-slate-600';
+        yearCaption.textContent = 'Année';
+        const yearSelect = document.createElement('select');
+        yearSelect.dataset.yearSelect = '1';
+        yearSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white';
+        yearSelect.append(createOption('', 'Choisir l’année'));
+        const currentYear = new Date().getFullYear();
+        for (let year = currentYear; year >= 1940; year -= 1) yearSelect.append(createOption(String(year), String(year)));
+        yearBox.append(yearCaption, yearSelect);
+
+        const commit = () => {
+          const month = monthSelect.value;
+          const year = yearSelect.value;
+          setReactInputValue(input, month && year ? `${year}-${month}` : '');
+        };
+        monthSelect.addEventListener('change', commit);
+        yearSelect.addEventListener('change', commit);
+
+        wrapper.append(monthBox, yearBox);
+        dateLabel.append(wrapper);
+      }
+
+      const monthSelect = wrapper.querySelector<HTMLSelectElement>('[data-month-select="1"]');
+      const yearSelect = wrapper.querySelector<HTMLSelectElement>('[data-year-select="1"]');
+      const match = /^(\d{4})-(0[1-9]|1[0-2])/.exec(input.value);
+      if (match) {
+        if (yearSelect && yearSelect.value !== match[1]) yearSelect.value = match[1];
+        if (monthSelect && monthSelect.value !== match[2]) monthSelect.value = match[2];
+      } else if (input.value) {
+        setReactInputValue(input, '');
+        if (yearSelect) yearSelect.value = '';
+        if (monthSelect) monthSelect.value = '';
+      }
+    };
 
     const enhance = () => {
       if (stopped) return;
@@ -79,16 +174,7 @@ export default function RecueilUxEnhancements() {
       const companyLabel = labels.find((label) => label.textContent?.includes('Société / employeur'));
       if (companyLabel) replaceLabelText(companyLabel, 'Société / employeur', 'Entreprise');
 
-      const dateLabel = labels.find((label) => label.textContent?.includes('Depuis quelle date travaillez-vous dans cette entreprise / activité ?'));
-      if (dateLabel) {
-        replaceLabelText(dateLabel, 'Depuis quelle date travaillez-vous dans cette entreprise / activité ?', 'Depuis quel mois travaillez-vous dans cette entreprise / activité ?');
-        const input = dateLabel.querySelector<HTMLInputElement>('input');
-        if (input && input.type !== 'month') {
-          const current = input.value;
-          input.type = 'month';
-          if (current) input.value = current.slice(0, 7);
-        }
-      }
+      enhanceDateEntry(labels);
     };
 
     void supabase.auth.getUser().then(({ data }) => {
