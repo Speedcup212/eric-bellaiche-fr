@@ -18,14 +18,25 @@ export interface PortalProgress {
   next_step: 'DOCUMENTS' | 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
 }
 
+function friendlyTechnicalMessage(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('invalid input syntax for type date') || normalized.includes('date professionnelle invalide')) {
+    return 'La date saisie n’est pas valide. Vérifiez le mois et l’année puis réessayez.';
+  }
+  if (normalized.includes('permission denied')) {
+    return 'Cette action n’a pas pu être enregistrée. Actualisez la page puis réessayez. Si le problème persiste, contactez le cabinet.';
+  }
+  return message;
+}
+
 export function messageFromError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
+  if (error instanceof Error) return friendlyTechnicalMessage(error.message);
+  if (typeof error === 'string') return friendlyTechnicalMessage(error);
   if (error && typeof error === 'object' && 'message' in error) {
     const value = (error as { message?: unknown }).message;
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') return friendlyTechnicalMessage(value);
   }
-  return 'Une erreur inattendue est survenue.';
+  return 'Une erreur inattendue est survenue. Actualisez la page puis réessayez.';
 }
 
 export function dossierHref(path: string, dossierId: string): string {
