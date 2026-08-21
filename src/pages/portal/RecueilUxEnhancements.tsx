@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
 const monthCodes = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'] as const;
+const recueilStepLabels = ['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Réglementaire', 'Patrimoine'] as const;
 
 function normalizedMobile(value: string): { compact: string; digits: string } {
   const compact = value.trim().replace(/[\s().-]/g, '');
@@ -75,6 +76,25 @@ export default function RecueilUxEnhancements() {
         parent.dataset.premiumChoiceQuestion = '1';
         parent.classList.add('rounded-2xl', 'bg-[#0b1f3a]', 'p-3', 'text-white', 'shadow-sm', 'ring-1', 'ring-[#173967]/15');
         paragraph.className = 'text-sm font-semibold text-white';
+      }
+    };
+
+    const enhanceRecueilNavigation = () => {
+      const groups = Array.from(document.querySelectorAll<HTMLDivElement>('main div.flex.flex-wrap.gap-2'));
+      for (const group of groups) {
+        const buttons = Array.from(group.children).filter((child): child is HTMLButtonElement => child instanceof HTMLButtonElement);
+        if (buttons.length !== recueilStepLabels.length) continue;
+        const normalized = buttons.map((button) => (button.textContent ?? '').replace('✓', '').trim().match(/^\d+/)?.[0] ?? '');
+        if (!normalized.every((value, index) => value === String(index + 1))) continue;
+        group.classList.add('flex-nowrap', 'overflow-x-auto', 'pb-1');
+        buttons.forEach((button, index) => {
+          const done = (button.textContent ?? '').includes('✓');
+          const desired = `${done ? '✓ ' : ''}${index + 1}. ${recueilStepLabels[index]}`;
+          if (button.textContent !== desired) button.textContent = desired;
+          button.classList.add('shrink-0', 'whitespace-nowrap');
+          button.title = recueilStepLabels[index];
+        });
+        break;
       }
     };
 
@@ -210,6 +230,7 @@ export default function RecueilUxEnhancements() {
       if (companyLabel) replaceLabelText(companyLabel, 'Société / employeur', 'Entreprise');
 
       enhanceDateEntry(labels);
+      enhanceRecueilNavigation();
       styleQuestions(labels);
     };
 
@@ -227,7 +248,8 @@ export default function RecueilUxEnhancements() {
     });
 
     const observer = new MutationObserver(scheduleEnhance);
-    observer.observe(document.body, { childList: true, subtree: true });
+    const root = document.querySelector('main') ?? document.body;
+    observer.observe(root, { childList: true, subtree: true });
     scheduleEnhance();
 
     return () => {
