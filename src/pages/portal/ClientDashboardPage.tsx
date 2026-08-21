@@ -3,7 +3,7 @@ import { ArrowRight, Check, CheckCircle2, ChevronDown, FileCheck2, ShieldCheck }
 import { Link } from 'react-router-dom';
 import { JourneyProgress, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
-import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, stepLabel, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, type PortalProgress } from '../../portal/portalHelpers';
 
 function JourneyLine({ number, title, detail, done, active, href }: { number: number; title: string; detail: string; done: boolean; active: boolean; href?: string }) {
   const inner = (
