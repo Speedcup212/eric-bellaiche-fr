@@ -41,7 +41,7 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
 
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
   return (
-    <div className="mb-6">
+    <div className="mb-6 mt-6">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10">
           {icon ?? <Sparkles className="h-5 w-5" />}
