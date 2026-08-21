@@ -119,7 +119,7 @@ export default function ClientDashboardPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-[#0b1f3a]">Documents à préparer pour la fin du parcours</h3>
-                    <p className="mt-1.5 text-sm leading-6 text-[#5b6b82]">Gardez à portée de main vos principaux justificatifs : avis d’imposition, relevés de placements, crédits, éléments immobiliers et pièce d’identité. Le dépôt se fera lors de l’étape « Documents ».</p>
+                    <p className="mt-1.5 text-sm leading-6 text-[#5b6b82]">Gardez à portée de main vos principaux justificatifs : avis d’imposition, pièce d’identité, justificatif de domicile de moins de 3 mois, relevés de placements, crédits et éléments immobiliers. Le dépôt se fera lors de l’étape « Documents ».</p>
                   </div>
                 </div>
               </div>
