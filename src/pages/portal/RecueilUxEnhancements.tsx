@@ -1,20 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
-const frenchMonths = [
-  ['01', 'Janvier'],
-  ['02', 'Février'],
-  ['03', 'Mars'],
-  ['04', 'Avril'],
-  ['05', 'Mai'],
-  ['06', 'Juin'],
-  ['07', 'Juillet'],
-  ['08', 'Août'],
-  ['09', 'Septembre'],
-  ['10', 'Octobre'],
-  ['11', 'Novembre'],
-  ['12', 'Décembre'],
-] as const;
+const monthCodes = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'] as const;
 
 function normalizedMobile(value: string): { compact: string; digits: string } {
   const compact = value.trim().replace(/[\s().-]/g, '');
@@ -54,10 +41,42 @@ function createOption(value: string, label: string): HTMLOptionElement {
   return option;
 }
 
+function directChild<T extends Element>(element: Element, tagName: string): T | null {
+  return (Array.from(element.children).find((child) => child.tagName === tagName.toUpperCase()) as T | undefined) ?? null;
+}
+
 export default function RecueilUxEnhancements() {
   useEffect(() => {
     let stopped = false;
+    let frame = 0;
     let accountEmail = '';
+
+    const styleQuestions = (labels: HTMLLabelElement[]) => {
+      for (const label of labels) {
+        if (label.closest('[data-french-month-year="1"]')) continue;
+        const input = directChild<HTMLInputElement>(label, 'input');
+        const textarea = directChild<HTMLTextAreaElement>(label, 'textarea');
+        if (!input && !textarea) continue;
+        if (label.dataset.premiumQuestion === '1') continue;
+        label.dataset.premiumQuestion = '1';
+        label.className = 'block rounded-2xl bg-[#0b1f3a] p-3 text-sm font-semibold text-white shadow-sm ring-1 ring-[#173967]/15';
+        const control = input ?? textarea;
+        control?.classList.add('text-slate-800');
+      }
+
+      const paragraphs = Array.from(document.querySelectorAll<HTMLParagraphElement>('main p'));
+      for (const paragraph of paragraphs) {
+        const parent = paragraph.parentElement;
+        if (!parent || parent.dataset.premiumChoiceQuestion === '1') continue;
+        const directButtons = Array.from(parent.children).some((child) => child.tagName === 'DIV' && child.querySelector('button'));
+        if (!directButtons) continue;
+        const text = paragraph.textContent?.trim() ?? '';
+        if (!text || text.length > 220) continue;
+        parent.dataset.premiumChoiceQuestion = '1';
+        parent.classList.add('rounded-2xl', 'bg-[#0b1f3a]', 'p-3', 'text-white', 'shadow-sm', 'ring-1', 'ring-[#173967]/15');
+        paragraph.className = 'text-sm font-semibold text-white';
+      }
+    };
 
     const enhanceDateEntry = (labels: HTMLLabelElement[]) => {
       const oldDateLabel = labels.find((label) => label.textContent?.includes('Depuis quelle date travaillez-vous dans cette entreprise / activité ?'));
@@ -67,6 +86,8 @@ export default function RecueilUxEnhancements() {
       const input = dateLabel?.querySelector<HTMLInputElement>('input');
       if (!dateLabel || !input) return;
 
+      dateLabel.dataset.premiumQuestion = '1';
+      dateLabel.className = 'block rounded-2xl bg-[#0b1f3a] p-3 text-sm font-semibold text-white shadow-sm ring-1 ring-[#173967]/15';
       input.style.display = 'none';
       input.tabIndex = -1;
       input.setAttribute('aria-hidden', 'true');
@@ -75,7 +96,14 @@ export default function RecueilUxEnhancements() {
       if (!wrapper) {
         wrapper = document.createElement('div');
         wrapper.dataset.frenchMonthYear = '1';
-        wrapper.className = 'mt-2 grid grid-cols-[1fr_auto_1fr] items-end gap-2';
+        wrapper.className = 'mt-3 rounded-xl bg-white p-3 text-slate-700';
+
+        const help = document.createElement('p');
+        help.className = 'mb-2 text-xs font-normal leading-5 text-slate-500';
+        help.textContent = 'Sélectionnez le mois puis l’année. Exemple : 05/2015.';
+
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-[1fr_auto_1fr] items-end gap-2';
 
         const monthBox = document.createElement('div');
         const monthCaption = document.createElement('span');
@@ -83,9 +111,9 @@ export default function RecueilUxEnhancements() {
         monthCaption.textContent = 'Mois';
         const monthSelect = document.createElement('select');
         monthSelect.dataset.monthSelect = '1';
-        monthSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white';
-        monthSelect.append(createOption('', 'Choisir le mois'));
-        for (const [code] of frenchMonths) monthSelect.append(createOption(code, code));
+        monthSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#6f8fb4] focus:bg-white';
+        monthSelect.append(createOption('', 'MM'));
+        for (const code of monthCodes) monthSelect.append(createOption(code, code));
         monthBox.append(monthCaption, monthSelect);
 
         const yearBox = document.createElement('div');
@@ -94,11 +122,15 @@ export default function RecueilUxEnhancements() {
         yearCaption.textContent = 'Année';
         const yearSelect = document.createElement('select');
         yearSelect.dataset.yearSelect = '1';
-        yearSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white';
-        yearSelect.append(createOption('', 'Choisir l’année'));
+        yearSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#6f8fb4] focus:bg-white';
+        yearSelect.append(createOption('', 'AAAA'));
         const currentYear = new Date().getFullYear();
         for (let year = currentYear; year >= 1940; year -= 1) yearSelect.append(createOption(String(year), String(year)));
         yearBox.append(yearCaption, yearSelect);
+
+        const separator = document.createElement('span');
+        separator.className = 'pb-3 text-lg font-semibold text-slate-500';
+        separator.textContent = '/';
 
         const commit = () => {
           const month = monthSelect.value;
@@ -108,10 +140,8 @@ export default function RecueilUxEnhancements() {
         monthSelect.addEventListener('change', commit);
         yearSelect.addEventListener('change', commit);
 
-        const separator = document.createElement('span');
-        separator.className = 'pb-3 text-base font-semibold text-slate-500';
-        separator.textContent = '/';
-        wrapper.append(monthBox, separator, yearBox);
+        row.append(monthBox, separator, yearBox);
+        wrapper.append(help, row);
         dateLabel.append(wrapper);
       }
 
@@ -121,7 +151,8 @@ export default function RecueilUxEnhancements() {
       if (match) {
         if (yearSelect && yearSelect.value !== match[1]) yearSelect.value = match[1];
         if (monthSelect && monthSelect.value !== match[2]) monthSelect.value = match[2];
-      } else if (input.value) {
+      } else if (input.value && input.dataset.dateSanitized !== '1') {
+        input.dataset.dateSanitized = '1';
         setReactInputValue(input, '');
         if (yearSelect) yearSelect.value = '';
         if (monthSelect) monthSelect.value = '';
@@ -130,7 +161,7 @@ export default function RecueilUxEnhancements() {
 
     const enhance = () => {
       if (stopped) return;
-      const labels = Array.from(document.querySelectorAll<HTMLLabelElement>('label'));
+      const labels = Array.from(document.querySelectorAll<HTMLLabelElement>('main label'));
 
       const mobileLabel = labels.find((label) => label.textContent?.trim().startsWith('Mobile'));
       const mobileInput = mobileLabel?.querySelector<HTMLInputElement>('input');
@@ -139,13 +170,9 @@ export default function RecueilUxEnhancements() {
         mobileInput.inputMode = 'tel';
         mobileInput.placeholder = '06 12 34 56 78 ou +33 6 12 34 56 78';
         const validate = () => {
-          if (!mobileInput.value) {
-            mobileInput.setCustomValidity('Indiquez votre numéro de mobile.');
-          } else if (!isValidMobile(mobileInput.value)) {
-            mobileInput.setCustomValidity('Numéro de mobile invalide. Les numéros fictifs comme 0000000000 sont refusés.');
-          } else {
-            mobileInput.setCustomValidity('');
-          }
+          if (!mobileInput.value) mobileInput.setCustomValidity('Indiquez votre numéro de mobile.');
+          else if (!isValidMobile(mobileInput.value)) mobileInput.setCustomValidity('Numéro de mobile invalide. Les numéros fictifs comme 0000000000 sont refusés.');
+          else mobileInput.setCustomValidity('');
         };
         mobileInput.addEventListener('input', validate);
         mobileInput.addEventListener('blur', () => { validate(); if (!mobileInput.checkValidity()) mobileInput.reportValidity(); });
@@ -153,12 +180,13 @@ export default function RecueilUxEnhancements() {
       }
 
       const existingEmail = document.querySelector<HTMLInputElement>('[data-secure-email-field="1"] input');
-      if (existingEmail && accountEmail) existingEmail.value = accountEmail;
+      if (existingEmail && accountEmail && existingEmail.value !== accountEmail) existingEmail.value = accountEmail;
 
       if (mobileLabel && accountEmail && !document.querySelector('[data-secure-email-field="1"]')) {
         const emailLabel = document.createElement('label');
         emailLabel.dataset.secureEmailField = '1';
-        emailLabel.className = 'text-sm font-semibold text-slate-700';
+        emailLabel.dataset.premiumQuestion = '1';
+        emailLabel.className = 'block rounded-2xl bg-[#0b1f3a] p-3 text-sm font-semibold text-white shadow-sm ring-1 ring-[#173967]/15';
         emailLabel.append(document.createTextNode('E-mail *'));
         const emailInput = document.createElement('input');
         emailInput.type = 'email';
@@ -168,7 +196,7 @@ export default function RecueilUxEnhancements() {
         emailInput.title = 'Cette adresse correspond à votre accès sécurisé.';
         emailLabel.append(emailInput);
         const help = document.createElement('span');
-        help.className = 'mt-1.5 block text-xs font-normal leading-5 text-slate-500';
+        help.className = 'mt-1.5 block text-xs font-normal leading-5 text-blue-100';
         help.textContent = 'Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie.';
         emailLabel.append(help);
         mobileLabel.insertAdjacentElement('afterend', emailLabel);
@@ -178,20 +206,30 @@ export default function RecueilUxEnhancements() {
       if (companyLabel) replaceLabelText(companyLabel, 'Société / employeur', 'Entreprise');
 
       enhanceDateEntry(labels);
+      styleQuestions(labels);
+    };
+
+    const scheduleEnhance = () => {
+      if (stopped || frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        enhance();
+      });
     };
 
     void supabase.auth.getUser().then(({ data }) => {
       accountEmail = data.user?.email ?? '';
-      enhance();
+      scheduleEnhance();
     });
 
-    const observer = new MutationObserver(enhance);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-    enhance();
+    const observer = new MutationObserver(scheduleEnhance);
+    observer.observe(document.body, { childList: true, subtree: true });
+    scheduleEnhance();
 
     return () => {
       stopped = true;
       observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
 
