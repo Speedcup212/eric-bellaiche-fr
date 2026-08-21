@@ -25,25 +25,42 @@ export default function ClientInvitationPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loadingInvite, setLoadingInvite] = useState(Boolean(token));
   const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!token) return;
     localStorage.setItem('cgp_pending_invite_token', token);
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return;
-      const { error } = await supabase.rpc('claim_client_invite', { p_token: token });
-      if (!error) {
-        localStorage.removeItem('cgp_pending_invite_token');
-        navigate('/espace-client', { replace: true });
+
+    const initialize = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        const { error } = await supabase.rpc('claim_client_invite', { p_token: token });
+        if (!error) {
+          localStorage.removeItem('cgp_pending_invite_token');
+          navigate('/espace-client', { replace: true });
+          return;
+        }
       }
-    });
+
+      const { data, error } = await supabase.functions.invoke('activate-client', {
+        body: { action: 'lookup', token },
+      });
+
+      if (error) throw new Error(await functionErrorMessage(error));
+      if (!data?.email) throw new Error('Invitation invalide ou expirée');
+      setEmail(String(data.email));
+    };
+
+    void initialize()
+      .catch((error) => setErrorMessage(messageFromError(error)))
+      .finally(() => setLoadingInvite(false));
   }, [navigate, token]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token) return;
+    if (!token || !email) return;
 
     setBusy(true);
     setErrorMessage('');
@@ -67,7 +84,7 @@ export default function ClientInvitationPage() {
       await supabase.auth.signOut();
 
       const { error: activationError } = await supabase.functions.invoke('activate-client', {
-        body: { token, email: cleanEmail, password },
+        body: { action: 'activate', token, email: cleanEmail, password },
       });
 
       if (activationError) throw new Error(await functionErrorMessage(activationError));
@@ -112,14 +129,30 @@ export default function ClientInvitationPage() {
         </p>
         <form onSubmit={submit} className="mt-7 space-y-5">
           <label className="block text-sm font-medium text-slate-700">Adresse email
-            <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900" />
+            <input
+              type="email"
+              required
+              readOnly
+              autoComplete="username"
+              value={email}
+              placeholder={loadingInvite ? 'Vérification de l’invitation…' : ''}
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-600 outline-none"
+            />
           </label>
           <label className="block text-sm font-medium text-slate-700">Créer votre mot de passe
-            <input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900" />
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+            />
           </label>
           {errorMessage && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
-          <button disabled={busy} className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">
-            {busy ? 'Activation…' : 'Commencer mon dossier'}
+          <button disabled={busy || loadingInvite || !email} className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">
+            {busy ? 'Activation…' : loadingInvite ? 'Vérification…' : 'Commencer mon dossier'}
           </button>
         </form>
         <p className="mt-6 text-sm text-slate-500">
