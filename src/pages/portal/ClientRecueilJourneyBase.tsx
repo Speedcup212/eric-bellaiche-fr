@@ -16,7 +16,7 @@ const sections: Array<{ code: SectionCode; title: string; description: string }>
   { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'tax', title: 'Fiscalité', description: 'Reportez les principales données de votre avis d’imposition et, le cas échéant, de votre IFI.' },
   { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
-  { code: 'patrimony', title: 'Patrimoine immobilier et financier', description: 'Déclarez vos biens immobiliers et vos placements. Laissez les listes vides si vous n’en détenez pas.' },
+  { code: 'patrimony', title: 'Patrimoine immobilier et financier', description: 'Déclarez vos comptes courants, vos biens immobiliers et vos placements. Pour les liquidités, distinguez ce que vous détenez de ce que vous acceptez réellement de mobiliser.' },
   { code: 'credits', title: 'Financements et crédits', description: 'Déclarez les crédits en cours. Une liste vide vaut déclaration d’absence de crédit.' },
 ];
 
@@ -38,7 +38,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   capacity: { estimation_revenus_travail_annuels: '', estimation_revenus_fonciers_annuels: '', epargne_precaution_cible: '', capacite_epargne_mensuelle: '', apport_immobilier_possible: '' },
   tax: { annee_imposition: new Date().getFullYear().toString(), salaires_assimiles: '', pensions_retraites_rentes: '', revenus_lmnp: '', revenus_bnc_pro: '', revenus_capitaux_mobiliers: '', revenus_fonciers_nets: '', revenu_imposable: '', impot_revenu_net: '', prelevements_sociaux_nets: '', taux_imposition: '', tmi: '', revenu_fiscal_reference: '', nombre_parts: '', deficit_foncier_reportable: '', evolution_revenus_commentaire: '', plafond_disponible_avis: '', versements_a_deduire: '', plafond_non_utilise_calcule: '', ifi_concerne: false, ifi_base_imposable: '', ifi_tmi: '', ifi_net_a_payer: '' },
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
-  patrimony: { immobilier: [], placements: [] },
+  patrimony: { comptes_courants: [], immobilier: [], placements: [] },
   credits: { items: [] },
 };
 
@@ -51,6 +51,42 @@ function BoolChoice({ label, value, onChange }: { label: string; value: boolean 
 }
 
 function MoneyField(props: Omit<React.ComponentProps<typeof Field>, 'type'>) { return <Field {...props} type="number" />; }
+
+function parseAmount(value: unknown): number {
+  if (value === '' || value === null || value === undefined) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+}
+
+function accountFromPlacement(item: AnyPayload): AnyPayload {
+  return {
+    banque: item.organisme ?? '',
+    titulaire: item.libelle_contrat ?? '',
+    solde_actuel: item.montant_actuel ?? '',
+    montant_mobilisable: item.montant_reemploi_possible ?? '',
+    commentaire: item.commentaire ?? '',
+  };
+}
+
+function accountToPlacement(item: AnyPayload): AnyPayload {
+  return {
+    type_contrat: 'Compte courant',
+    organisme: item.banque ?? '',
+    libelle_contrat: item.titulaire ?? '',
+    valeur_acquisition: '',
+    montant_actuel: item.solde_actuel ?? '',
+    date_valorisation: '',
+    annee_ouverture: '',
+    versements_programmes_annuels: '',
+    montant_reemploi_possible: item.montant_mobilisable ?? '',
+    numero_contrat: '',
+    commentaire: item.commentaire ?? '',
+  };
+}
 
 export default function ClientRecueilJourneyPage() {
   const [searchParams] = useSearchParams();
@@ -89,7 +125,20 @@ export default function ClientRecueilJourneyPage() {
       const completed = new Set<string>();
       for (const item of sectionData ?? []) {
         const code = item.section_code as SectionCode;
-        if (code in nextForms) nextForms[code] = { ...nextForms[code], ...(item.payload as AnyPayload) };
+        const payload = (item.payload ?? {}) as AnyPayload;
+        if (code === 'patrimony') {
+          const allPlacements: AnyPayload[] = Array.isArray(payload.placements) ? payload.placements : [];
+          const legacyAccounts = allPlacements.filter((placement) => String(placement.type_contrat ?? '').toLowerCase() === 'compte courant').map(accountFromPlacement);
+          const accounts = Array.isArray(payload.comptes_courants) ? payload.comptes_courants : legacyAccounts;
+          nextForms.patrimony = {
+            ...nextForms.patrimony,
+            ...payload,
+            comptes_courants: accounts,
+            placements: allPlacements.filter((placement) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant'),
+          };
+        } else if (code in nextForms) {
+          nextForms[code] = { ...nextForms[code], ...payload };
+        }
         if (item.completed_at) completed.add(code);
       }
       setForms(nextForms); setDoneSections(completed);
@@ -120,12 +169,33 @@ export default function ClientRecueilJourneyPage() {
       for (const key of ['citoyen_ou_resident_us', 'sanctions_declarees', 'ppe_declaree', 'esg_opt_in']) if (form[key] === '') throw new Error('Répondez à toutes les questions réglementaires obligatoires.');
       if (form.ppe_declaree === true && !form.ppe_personne_exposee?.trim()) throw new Error('Précisez la personne politiquement exposée.');
     }
+    if (current.code === 'patrimony') {
+      for (const account of form.comptes_courants ?? []) {
+        const balance = parseAmount(account.solde_actuel);
+        const mobilisable = parseAmount(account.montant_mobilisable);
+        if (!String(account.banque ?? '').trim()) throw new Error('Indiquez la banque pour chaque compte courant.');
+        if (account.solde_actuel === '' || account.montant_mobilisable === '') throw new Error('Renseignez le solde et le montant mobilisable pour chaque compte courant.');
+        if (balance < 0 || mobilisable < 0) throw new Error('Les montants des comptes courants ne peuvent pas être négatifs.');
+        if (mobilisable > balance) throw new Error('Le montant mobilisable ne peut pas dépasser le solde du compte courant.');
+      }
+    }
   };
 
   const saveCurrent = async () => {
     if (!progress) return;
     validateSection();
-    const { error } = await supabase.rpc('save_my_recueil_section', { p_dossier_id: progress.dossier_id, p_section_code: current.code, p_payload: form, p_completed: true });
+    let payloadToSave = form;
+    if (current.code === 'patrimony') {
+      const placementsWithoutAccounts = (form.placements ?? []).filter((placement: AnyPayload) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant');
+      payloadToSave = {
+        ...form,
+        placements: [
+          ...placementsWithoutAccounts,
+          ...(form.comptes_courants ?? []).map(accountToPlacement),
+        ],
+      };
+    }
+    const { error } = await supabase.rpc('save_my_recueil_section', { p_dossier_id: progress.dossier_id, p_section_code: current.code, p_payload: payloadToSave, p_completed: true });
     if (error) throw error;
     if (current.code === 'regulatory') {
       const { error: esgError } = await supabase.rpc('set_my_esg_opt_in', { p_dossier_id: progress.dossier_id, p_opt_in: form.esg_opt_in });
@@ -165,6 +235,11 @@ export default function ClientRecueilJourneyPage() {
   const updateList = (key: string, index: number, values: AnyPayload) => patchCurrent({ [key]: (form[key] ?? []).map((item: AnyPayload, i: number) => i === index ? { ...item, ...values } : item) });
   const removeList = (key: string, index: number) => patchCurrent({ [key]: (form[key] ?? []).filter((_: unknown, i: number) => i !== index) });
 
+  const currentAccounts: AnyPayload[] = current.code === 'patrimony' ? (form.comptes_courants ?? []) : [];
+  const totalCurrentAccounts = currentAccounts.reduce((sum, item) => sum + parseAmount(item.solde_actuel), 0);
+  const totalMobilisable = currentAccounts.reduce((sum, item) => sum + parseAmount(item.montant_mobilisable), 0);
+  const totalToKeep = Math.max(totalCurrentAccounts - totalMobilisable, 0);
+
   return <div>
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} />
     <PageIntro eyebrow={`Étape 1 · Partie ${step + 1}/${sections.length}`} title={current.title} description={current.description} />
@@ -185,7 +260,46 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'regulatory' && <div className="space-y-5"><Field label="Pays de résidence fiscale" required value={form.pays_residence_fiscale} onChange={(v) => patchCurrent({ pays_residence_fiscale: v })} /><BoolChoice label="Êtes-vous citoyen américain ou résident fiscal américain ?" value={form.citoyen_ou_resident_us} onChange={(v) => patchCurrent({ citoyen_ou_resident_us: v, fatca_crs_concerne: v })} />{form.citoyen_ou_resident_us === true && <Field label="Code TIN" value={form.code_tin} onChange={(v) => patchCurrent({ code_tin: v })} />}<BoolChoice label="Êtes-vous la cible de sanctions internationales ?" value={form.sanctions_declarees} onChange={(v) => patchCurrent({ sanctions_declarees: v })} /><BoolChoice label="Êtes-vous une personne politiquement exposée (PPE) ?" value={form.ppe_declaree} onChange={(v) => patchCurrent({ ppe_declaree: v })} />{form.ppe_declaree === true && <div className="grid gap-4 sm:grid-cols-2"><Field label="Personne exposée" required value={form.ppe_personne_exposee} onChange={(v) => patchCurrent({ ppe_personne_exposee: v })} /><Field label="Motif / fonction" value={form.ppe_motif} onChange={(v) => patchCurrent({ ppe_motif: v })} /><Field label="Pays d’exercice" value={form.ppe_pays_exercice} onChange={(v) => patchCurrent({ ppe_pays_exercice: v })} /><Field label="Ancienneté" value={form.ppe_anciennete} onChange={(v) => patchCurrent({ ppe_anciennete: v })} /></div>}<BoolChoice label="Souhaitez-vous exprimer des préférences de durabilité ?" value={form.esg_opt_in} onChange={(v) => patchCurrent({ esg_opt_in: v })} /><SecureNote>Si vous répondez Oui, le questionnaire détaillé de préférences de durabilité sera proposé après le profil investisseur.</SecureNote></div>}
 
-        {current.code === 'patrimony' && <div className="space-y-8"><div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Patrimoine immobilier</h3><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { libelle: '', adresse: '', valeur_acquisition: '', valeur_actuelle: '', date_acquisition: '', dispositif_fiscal: '', loyer_hors_charges_mensuel: '', mode_detention: '', quote_part: '', usage_bien: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter</button></div>{(form.immobilier ?? []).length === 0 && <p className="mt-3 text-sm text-slate-500">Aucun bien déclaré.</p>}{(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Type / libellé" value={item.libelle} onChange={(v) => updateList('immobilier', index, { libelle: v })} /><Field label="Adresse" value={item.adresse} onChange={(v) => updateList('immobilier', index, { adresse: v })} /><MoneyField label="Valeur actuelle (€)" value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} /><MoneyField label="Valeur d’acquisition (€)" value={item.valeur_acquisition} onChange={(v) => updateList('immobilier', index, { valeur_acquisition: v })} /><Field label="Usage" value={item.usage_bien} onChange={(v) => updateList('immobilier', index, { usage_bien: v })} /><MoneyField label="Loyer mensuel HC (€)" value={item.loyer_hors_charges_mensuel} onChange={(v) => updateList('immobilier', index, { loyer_hors_charges_mensuel: v })} /></div><button type="button" onClick={() => removeList('immobilier', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div><div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Placements financiers</h3><button type="button" onClick={() => patchCurrent({ placements: [...(form.placements ?? []), { type_contrat: '', organisme: '', libelle_contrat: '', montant_actuel: '', annee_ouverture: '', versements_programmes_annuels: '', montant_reemploi_possible: '', numero_contrat: '', montant_investi_avant_70_ans: '', montant_investi_apres_70_ans: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter</button></div>{(form.placements ?? []).length === 0 && <p className="mt-3 text-sm text-slate-500">Aucun placement déclaré.</p>}{(form.placements ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Type de contrat" value={item.type_contrat} onChange={(v) => updateList('placements', index, { type_contrat: v })} placeholder="Livret A, PEA, assurance-vie, PER…" /><Field label="Organisme" value={item.organisme} onChange={(v) => updateList('placements', index, { organisme: v })} /><MoneyField label="Montant actuel (€)" value={item.montant_actuel} onChange={(v) => updateList('placements', index, { montant_actuel: v })} /><Field label="Année d’ouverture" type="number" value={item.annee_ouverture} onChange={(v) => updateList('placements', index, { annee_ouverture: v })} /><MoneyField label="Versements programmés annuels (€)" value={item.versements_programmes_annuels} onChange={(v) => updateList('placements', index, { versements_programmes_annuels: v })} /><MoneyField label="Montant de réemploi possible (€)" value={item.montant_reemploi_possible} onChange={(v) => updateList('placements', index, { montant_reemploi_possible: v })} /></div><button type="button" onClick={() => removeList('placements', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div></div>}
+        {current.code === 'patrimony' && <div className="space-y-8">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-5 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="font-semibold text-[#0b1f3a]">Comptes courants et trésorerie disponible</h3>
+                <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">Indiquez le solde réellement disponible sur vos comptes courants, puis la part que vous acceptez de mobiliser pour vos projets. Le solde total n’est pas considéré automatiquement comme investissable.</p>
+              </div>
+              <button type="button" onClick={() => patchCurrent({ comptes_courants: [...currentAccounts, { banque: '', titulaire: '', solde_actuel: '', montant_mobilisable: '', commentaire: '' }] })} className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[#173967]"><Plus className="h-4 w-4" /> Ajouter un compte</button>
+            </div>
+            {currentAccounts.length === 0 && <p className="mt-4 text-sm text-slate-500">Aucun compte courant déclaré.</p>}
+            {currentAccounts.map((item: AnyPayload, index: number) => {
+              const balance = parseAmount(item.solde_actuel);
+              const mobilisable = parseAmount(item.montant_mobilisable);
+              const keep = Math.max(balance - mobilisable, 0);
+              const invalidMobilisable = item.montant_mobilisable !== '' && item.solde_actuel !== '' && mobilisable > balance;
+              return <div key={index} className="mt-4 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Établissement bancaire" required value={item.banque} onChange={(v) => updateList('comptes_courants', index, { banque: v })} />
+                  <Field label="Titulaire / nature du compte" value={item.titulaire} onChange={(v) => updateList('comptes_courants', index, { titulaire: v })} placeholder="Vous, conjoint, compte joint…" />
+                  <MoneyField label="Solde actuel (€)" required value={item.solde_actuel} onChange={(v) => updateList('comptes_courants', index, { solde_actuel: v })} />
+                  <MoneyField label="Montant que vous acceptez de mobiliser (€)" required value={item.montant_mobilisable} onChange={(v) => updateList('comptes_courants', index, { montant_mobilisable: v })} />
+                </div>
+                <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${invalidMobilisable ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-700'}`}>
+                  {invalidMobilisable ? 'Le montant mobilisable ne peut pas dépasser le solde du compte.' : <>Montant conservé sur ce compte après mobilisation : <strong>{formatAmount(keep)}</strong></>}
+                </div>
+                <div className="mt-4"><Field label="Notes / précisions" value={item.commentaire} onChange={(v) => updateList('comptes_courants', index, { commentaire: v })} placeholder="Ex. somme réservée aux dépenses courantes, compte joint…" /></div>
+                <button type="button" onClick={() => removeList('comptes_courants', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>
+              </div>;
+            })}
+            {currentAccounts.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Soldes déclarés</p><p className="mt-1 text-lg font-semibold text-[#0b1f3a]">{formatAmount(totalCurrentAccounts)}</p></div>
+              <div className="rounded-xl bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Montant mobilisable</p><p className="mt-1 text-lg font-semibold text-[#0b1f3a]">{formatAmount(totalMobilisable)}</p></div>
+              <div className="rounded-xl bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Montant à conserver</p><p className="mt-1 text-lg font-semibold text-[#0b1f3a]">{formatAmount(totalToKeep)}</p></div>
+            </div>}
+          </div>
+
+          <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Patrimoine immobilier</h3><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { libelle: '', adresse: '', valeur_acquisition: '', valeur_actuelle: '', date_acquisition: '', dispositif_fiscal: '', loyer_hors_charges_mensuel: '', mode_detention: '', quote_part: '', usage_bien: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter</button></div>{(form.immobilier ?? []).length === 0 && <p className="mt-3 text-sm text-slate-500">Aucun bien déclaré.</p>}{(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Type / libellé" value={item.libelle} onChange={(v) => updateList('immobilier', index, { libelle: v })} /><Field label="Adresse" value={item.adresse} onChange={(v) => updateList('immobilier', index, { adresse: v })} /><MoneyField label="Valeur actuelle (€)" value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} /><MoneyField label="Valeur d’acquisition (€)" value={item.valeur_acquisition} onChange={(v) => updateList('immobilier', index, { valeur_acquisition: v })} /><Field label="Usage" value={item.usage_bien} onChange={(v) => updateList('immobilier', index, { usage_bien: v })} /><MoneyField label="Loyer mensuel HC (€)" value={item.loyer_hors_charges_mensuel} onChange={(v) => updateList('immobilier', index, { loyer_hors_charges_mensuel: v })} /></div><button type="button" onClick={() => removeList('immobilier', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>
+
+          <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Placements financiers</h3><button type="button" onClick={() => patchCurrent({ placements: [...(form.placements ?? []), { type_contrat: '', organisme: '', libelle_contrat: '', montant_actuel: '', annee_ouverture: '', versements_programmes_annuels: '', montant_reemploi_possible: '', numero_contrat: '', montant_investi_avant_70_ans: '', montant_investi_apres_70_ans: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter</button></div><p className="mt-1.5 text-sm leading-6 text-slate-500">Livrets, PEA, assurance-vie, PER et autres placements. Les comptes courants sont renseignés séparément ci-dessus.</p>{(form.placements ?? []).length === 0 && <p className="mt-3 text-sm text-slate-500">Aucun placement déclaré.</p>}{(form.placements ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Type de contrat" value={item.type_contrat} onChange={(v) => updateList('placements', index, { type_contrat: v })} placeholder="Livret A, PEA, assurance-vie, PER…" /><Field label="Organisme" value={item.organisme} onChange={(v) => updateList('placements', index, { organisme: v })} /><MoneyField label="Montant actuel (€)" value={item.montant_actuel} onChange={(v) => updateList('placements', index, { montant_actuel: v })} /><Field label="Année d’ouverture" type="number" value={item.annee_ouverture} onChange={(v) => updateList('placements', index, { annee_ouverture: v })} /><MoneyField label="Versements programmés annuels (€)" value={item.versements_programmes_annuels} onChange={(v) => updateList('placements', index, { versements_programmes_annuels: v })} /><MoneyField label="Montant de réemploi possible (€)" value={item.montant_reemploi_possible} onChange={(v) => updateList('placements', index, { montant_reemploi_possible: v })} /></div><button type="button" onClick={() => removeList('placements', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>
+        </div>}
 
         {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Type de crédit" value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Prêt immobilier RP, consommation…" /><Field label="Banque" value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}
 
