@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Circle, FileCheck2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, FileCheck2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
