@@ -42,10 +42,6 @@ export default function ClientRecueilPage() {
       setRows(progressRows);
       const row = selectedProgress(progressRows, dossierId);
       if (!row) return;
-      if (row.documents_status !== 'completed') {
-        navigate(dossierHref('/espace-client/documents', row.dossier_id), { replace: true });
-        return;
-      }
       setEsg(row.esg_opt_in);
       if (row.recueil_status !== 'validated') await supabase.rpc('start_my_recueil', { p_dossier_id: row.dossier_id });
       const [{ data: obj }, { data: pro }, { data: cap }] = await Promise.all([
@@ -61,7 +57,7 @@ export default function ClientRecueilPage() {
       setProfession(pro?.profession_actuelle ?? ''); setSociete(pro?.societe ?? ''); setSecteur(pro?.secteur_activite ?? ''); setStatutPro(pro?.statut ?? '');
       setEpargneMensuelle(cap?.capacite_epargne_mensuelle?.toString() ?? ''); setEpargnePrecaution(cap?.epargne_precaution_cible?.toString() ?? ''); setApport(cap?.apport_immobilier_possible?.toString() ?? '');
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId, navigate]);
+  }, [dossierId]);
 
   const updateObjectiveDetail = (code: string, patch: Partial<ObjectiveDetail>) => setObjectiveDetails((current) => ({ ...current, [code]: { ...(current[code] ?? { horizon: '', note: '', labelOther: '' }), ...patch } }));
   const toggleObjective = (code: string) => { setObjectives((current) => current.includes(code) ? current.filter((value) => value !== code) : [...current, code]); if (!objectiveDetails[code]) updateObjectiveDetail(code, {}); };
@@ -98,15 +94,15 @@ export default function ClientRecueilPage() {
       if (nextProgress?.next_step === 'QPI') navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id)); else navigate('/espace-client');
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
   };
-  const previous = () => { if (!progress) return; setErrorMessage(''); if (stepIndex === 0) navigate(dossierHref('/espace-client/documents', progress.dossier_id)); else setStepIndex((value) => value - 1); };
+  const previous = () => { if (!progress) return; setErrorMessage(''); if (stepIndex === 0) navigate(dossierHref('/espace-client', progress.dossier_id)); else setStepIndex((value) => value - 1); };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
   const locked = progress.recueil_status === 'validated'; const currentStep = steps[stepIndex]; const CurrentIcon = currentStep.icon;
-  if (locked) return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Votre recueil a déjà été validé. Les informations sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Recueil validé</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre avec votre profil investisseur.</p></div><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
+  if (locked) return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil a déjà été validé. Les informations sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Recueil validé</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre avec votre profil investisseur.</p></div><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
 
   return <div>
     <JourneyProgress current="recueil" esgEnabled={esg !== false} />
-    <PageIntro eyebrow="Étape 2" title="Recueil d’informations" description="Répondez en quatre écrans simples. Chaque partie est enregistrée lorsque vous cliquez sur Continuer." icon={<CurrentIcon className="h-5 w-5" />} />
+    <PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Répondez en quatre écrans simples. Chaque partie est enregistrée lorsque vous cliquez sur Continuer." icon={<CurrentIcon className="h-5 w-5" />} />
     <WizardCard>
       <QuestionHeader current={stepIndex + 1} total={steps.length} label={`Partie ${stepIndex + 1} sur ${steps.length}`} title={currentStep.title} description={currentStep.description} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
