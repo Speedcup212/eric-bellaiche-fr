@@ -19,7 +19,7 @@ const ClientInvitationPage = lazy(() => import('./pages/portal/ClientInvitationP
 const PortalShell = lazy(() => import('./portal/PortalShell'));
 const ClientDashboardPage = lazy(() => import('./pages/portal/ClientDashboardPage'));
 const ClientDocumentsPage = lazy(() => import('./pages/portal/ClientDocumentsPage'));
-const ClientRecueilPage = lazy(() => import('./pages/portal/ClientRecueilPage'));
+const ClientRecueilPage = lazy(() => import('./pages/portal/ClientRecueilJourneyPage'));
 const QuestionnairePage = lazy(() => import('./pages/portal/QuestionnairePage'));
 const ClientSummaryPage = lazy(() => import('./pages/portal/ClientSummaryPage'));
 const CifAdminPage = lazy(() => import('./pages/portal/CifAdminPage'));
