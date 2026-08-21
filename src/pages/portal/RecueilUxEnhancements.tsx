@@ -75,7 +75,7 @@ export default function RecueilUxEnhancements() {
       if (!wrapper) {
         wrapper = document.createElement('div');
         wrapper.dataset.frenchMonthYear = '1';
-        wrapper.className = 'mt-2 grid grid-cols-2 gap-2';
+        wrapper.className = 'mt-2 grid grid-cols-[1fr_auto_1fr] items-end gap-2';
 
         const monthBox = document.createElement('div');
         const monthCaption = document.createElement('span');
@@ -85,7 +85,7 @@ export default function RecueilUxEnhancements() {
         monthSelect.dataset.monthSelect = '1';
         monthSelect.className = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-400 focus:bg-white';
         monthSelect.append(createOption('', 'Choisir le mois'));
-        for (const [code, name] of frenchMonths) monthSelect.append(createOption(code, name));
+        for (const [code] of frenchMonths) monthSelect.append(createOption(code, code));
         monthBox.append(monthCaption, monthSelect);
 
         const yearBox = document.createElement('div');
@@ -108,7 +108,10 @@ export default function RecueilUxEnhancements() {
         monthSelect.addEventListener('change', commit);
         yearSelect.addEventListener('change', commit);
 
-        wrapper.append(monthBox, yearBox);
+        const separator = document.createElement('span');
+        separator.className = 'pb-3 text-base font-semibold text-slate-500';
+        separator.textContent = '/';
+        wrapper.append(monthBox, separator, yearBox);
         dateLabel.append(wrapper);
       }
 
