@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, CheckCircle2, Leaf } from 'lucide-react';
+import { BrainCircuit, CheckCircle2, Leaf, Pencil } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChoiceButton, JourneyProgress, PageIntro, QuestionHeader, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
@@ -24,11 +24,14 @@ function visible(question: QuestionRow, selectedCodes: Record<string, string>): 
   const showIf = question.metadata?.show_if as { question?: string; equals?: string } | undefined;
   return !showIf?.question || selectedCodes[showIf.question] === showIf.equals;
 }
+
 function answerObject(answer?: AnswerRow): Record<string, unknown> {
   return answer?.answer_json && !Array.isArray(answer.answer_json) && typeof answer.answer_json === 'object' ? answer.answer_json as Record<string, unknown> : {};
 }
+
 function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (mode === 'ESG') return 'Choisissez la réponse qui traduit le mieux vos préférences. Elle servira à vérifier la compatibilité des solutions étudiées avec vos critères de durabilité.';
+  if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
   if (question.ordre <= 12) return 'Répondez selon votre situation réelle et votre propre appréciation. Cette réponse contribue à l’analyse de votre horizon, de vos besoins de liquidité et de votre capacité de perte.';
   if (question.ordre <= 20) return 'Cette question porte sur vos connaissances financières. Répondez sans assistance afin que le cabinet puisse apprécier correctement votre niveau de compréhension.';
   return 'Choisissez la réaction qui vous correspond le mieux. Ces questions évaluent votre tolérance comportementale aux fluctuations et au risque de perte.';
@@ -47,6 +50,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [done, setDone] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
@@ -70,22 +74,37 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       setQuestions(normalized);
       const { data: aData, error: aError } = await supabase.from('questionnaire_answers').select('question_id,option_id,answer_text,answer_numeric,answer_json').eq('session_id', id);
       if (aError) throw aError;
-      const answerMap: Record<string, AnswerRow> = {}; const multiMap: Record<string, string[]> = {};
-      for (const answer of (aData ?? []) as AnswerRow[]) { answerMap[answer.question_id] = answer; if (Array.isArray(answer.answer_json)) multiMap[answer.question_id] = answer.answer_json as string[]; }
-      setAnswers(answerMap); setMulti(multiMap);
+      const answerMap: Record<string, AnswerRow> = {};
+      const multiMap: Record<string, string[]> = {};
+      for (const answer of (aData ?? []) as AnswerRow[]) {
+        answerMap[answer.question_id] = answer;
+        if (Array.isArray(answer.answer_json)) multiMap[answer.question_id] = answer.answer_json as string[];
+      }
+      setAnswers(answerMap);
+      setMulti(multiMap);
       if (mode === 'QPI') {
         const [{ data: expRows, error: expError }, { data: details, error: detailsError }] = await Promise.all([
           supabase.from('qpi_product_experience').select('famille_produit,niveau_experience').eq('session_id', id),
           supabase.from('qpi_experience_details').select('*').eq('session_id', id).maybeSingle(),
         ]);
-        if (expError) throw expError; if (detailsError) throw detailsError;
-        const map: Record<string, string> = {}; for (const rowExp of expRows ?? []) map[rowExp.famille_produit] = rowExp.niveau_experience; setExperiences(map);
+        if (expError) throw expError;
+        if (detailsError) throw detailsError;
+        const map: Record<string, string> = {};
+        for (const rowExp of expRows ?? []) map[rowExp.famille_produit] = rowExp.niveau_experience;
+        setExperiences(map);
         if (details) setExpDetails({ connaissance: details.connaissance_par_formation_ou_profession === true ? 'true' : details.connaissance_par_formation_ou_profession === false ? 'false' : '', sources: details.sources_pertinentes ?? [], precision: details.precisions_formation_profession ?? '', anciennete: details.anciennete_experience ?? '', montant: details.montant_habituel_operation ?? '', mode: details.mode_gestion ?? '' });
       }
     }).catch((error) => setErrorMessage(messageFromError(error)));
   }, [dossierId, mode]);
 
-  const optionCodeByQuestion = useMemo(() => { const result: Record<string, string> = {}; for (const q of questions) { const selected = q.options?.find((option) => option.id === answers[q.id]?.option_id); if (selected) result[q.code] = selected.code; } return result; }, [answers, questions]);
+  const optionCodeByQuestion = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const q of questions) {
+      const selected = q.options?.find((option) => option.id === answers[q.id]?.option_id);
+      if (selected) result[q.code] = selected.code;
+    }
+    return result;
+  }, [answers, questions]);
   const visibleQuestions = useMemo(() => questions.filter((q) => visible(q, optionCodeByQuestion)), [questions, optionCodeByQuestion]);
   const extraQpiSteps = mode === 'QPI' ? experienceFamilies.length + 4 : 0;
   const totalSteps = visibleQuestions.length + extraQpiSteps;
@@ -100,16 +119,31 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     if (error) throw error;
     setAnswers((state) => ({ ...state, [question.id]: data as AnswerRow }));
   };
+
   const updateLocal = (question: QuestionRow, patch: Partial<AnswerRow>) => setAnswers((state) => ({ ...state, [question.id]: { ...(state[question.id] ?? { question_id: question.id, option_id: null, answer_text: null, answer_numeric: null, answer_json: null }), ...patch } }));
+
   const saveMulti = async (question: QuestionRow, option: OptionRow) => {
     if (!sessionId || done) return;
-    const current = multi[question.id] ?? []; const exclusive = Boolean(option.metadata?.exclusive);
+    const current = multi[question.id] ?? [];
+    const exclusive = Boolean(option.metadata?.exclusive);
     const next = exclusive ? [option.code] : current.includes(option.code) ? current.filter((value) => value !== option.code) : [...current.filter((code) => code !== 'AUCUNE'), option.code];
     setMulti((state) => ({ ...state, [question.id]: next }));
-    await upsertQuestionAnswer(question, { option_id: null, answer_text: null, answer_numeric: null, answer_json: next });
+    await upsertQuestionAnswer(question, { option_id: null, answer_json: next });
   };
-  const saveExperience = async (family: string, level: string) => { if (!sessionId || done) return; const { error } = await supabase.from('qpi_product_experience').upsert({ session_id: sessionId, famille_produit: family, niveau_experience: level }, { onConflict: 'session_id,famille_produit' }); if (error) throw error; setExperiences((state) => ({ ...state, [family]: level })); };
-  const saveExperienceDetails = async (state: ExpState = expDetails) => { if (!sessionId || done) return; const knowledge = state.connaissance === 'true' ? true : state.connaissance === 'false' ? false : null; const { error } = await supabase.from('qpi_experience_details').upsert({ session_id: sessionId, connaissance_par_formation_ou_profession: knowledge, sources_pertinentes: state.sources, precisions_formation_profession: state.precision.trim() || null, anciennete_experience: state.anciennete || null, montant_habituel_operation: state.montant || null, mode_gestion: state.mode || null }, { onConflict: 'session_id' }); if (error) throw error; };
+
+  const saveExperience = async (family: string, level: string) => {
+    if (!sessionId || done) return;
+    const { error } = await supabase.from('qpi_product_experience').upsert({ session_id: sessionId, famille_produit: family, niveau_experience: level }, { onConflict: 'session_id,famille_produit' });
+    if (error) throw error;
+    setExperiences((state) => ({ ...state, [family]: level }));
+  };
+
+  const saveExperienceDetails = async (state: ExpState = expDetails) => {
+    if (!sessionId || done) return;
+    const knowledge = state.connaissance === 'true' ? true : state.connaissance === 'false' ? false : null;
+    const { error } = await supabase.from('qpi_experience_details').upsert({ session_id: sessionId, connaissance_par_formation_ou_profession: knowledge, sources_pertinentes: state.sources, precisions_formation_profession: state.precision.trim() || null, anciennete_experience: state.anciennete || null, montant_habituel_operation: state.montant || null, mode_gestion: state.mode || null }, { onConflict: 'session_id' });
+    if (error) throw error;
+  };
 
   const currentQuestion = currentIndex < visibleQuestions.length ? visibleQuestions[currentIndex] : null;
   const extraIndex = currentIndex - visibleQuestions.length;
@@ -125,17 +159,23 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;
       return true;
     }
-    if (question.type_reponse === 'multiple') { const values = multi[question.id] ?? []; if (question.obligatoire || question.code === 'ESG_PAI_PRIORITIES' || question.code === 'ESG_PAI_MODALITIES') return values.length > 0; return true; }
+    if (question.type_reponse === 'multiple') {
+      const values = multi[question.id] ?? [];
+      if (question.obligatoire || question.code === 'ESG_PAI_PRIORITIES' || question.code === 'ESG_PAI_MODALITIES') return values.length > 0;
+      return true;
+    }
     if (question.type_reponse === 'text') return !question.obligatoire || Boolean(answer?.answer_text?.trim());
     return true;
   };
+
   const currentComplete = currentQuestion ? questionComplete(currentQuestion) : familyStep ? Boolean(experiences[familyStep[0]]) : detailStep === 0 ? expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim()))) : detailStep === 1 ? Boolean(expDetails.anciennete) : detailStep === 2 ? Boolean(expDetails.montant) : detailStep === 3 ? Boolean(expDetails.mode) : false;
   const persistCurrentQuestion = async () => { if (!currentQuestion) return; const answer = answers[currentQuestion.id]; if (answer) await upsertQuestionAnswer(currentQuestion, answer); };
 
   const finish = async () => {
     if (!sessionId || !progress) return;
     if (mode === 'QPI') await saveExperienceDetails();
-    const { error } = await supabase.rpc('complete_questionnaire_session', { p_session_id: sessionId }); if (error) throw error;
+    const { error } = await supabase.rpc('complete_questionnaire_session', { p_session_id: sessionId });
+    if (error) throw error;
     setDone(true);
     const refreshed = await fetchPortalProgress();
     setProgressRows(refreshed);
@@ -143,15 +183,38 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     if (nextProgress) navigate(nextStepHref(nextProgress));
     else navigate('/espace-client');
   };
+
   const next = async () => {
-    if (!currentComplete) { setErrorMessage('Répondez à cette question pour continuer.'); return; }
-    setBusy(true); setErrorMessage('');
-    try { await persistCurrentQuestion(); if (detailStep >= 0) await saveExperienceDetails(); if (currentIndex < totalSteps - 1) { setCurrentIndex((index) => index + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); } else await finish(); }
-    catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
+    if (!currentComplete) { setErrorMessage('Sélectionnez au moins une réponse pour continuer.'); return; }
+    setBusy(true);
+    setErrorMessage('');
+    try {
+      await persistCurrentQuestion();
+      if (detailStep >= 0) await saveExperienceDetails();
+      if (currentIndex < totalSteps - 1) {
+        setCurrentIndex((index) => index + 1);
+        setNoteOpen(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else await finish();
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setBusy(false);
+    }
   };
-  const previous = () => { if (!progress) return; setErrorMessage(''); if (currentIndex > 0) { setCurrentIndex((index) => index - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); } else navigate(dossierHref(mode === 'QPI' ? '/espace-client/recueil' : '/espace-client/profil-investisseur', progress.dossier_id)); };
+
+  const previous = () => {
+    if (!progress) return;
+    setErrorMessage('');
+    setNoteOpen(false);
+    if (currentIndex > 0) {
+      setCurrentIndex((index) => index - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else navigate(dossierHref(mode === 'QPI' ? '/espace-client/recueil' : '/espace-client/profil-investisseur', progress.dossier_id));
+  };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du questionnaire…</p>;
+
   if (done) {
     const nextPath = nextStepHref(progress);
     return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité'} description="Cette étape a déjà été validée. Les réponses sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div><button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer</button></WizardCard></div>;
@@ -159,13 +222,36 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
   const introDescription = mode === 'QPI' ? 'Le questionnaire s’affiche une question à la fois. Vos réponses permettent d’évaluer votre situation, vos connaissances, votre expérience, votre capacité de perte et votre tolérance au risque.' : 'Le questionnaire s’affiche une question à la fois. Il ne produit pas de score ESG : il enregistre précisément les préférences que le cabinet devra prendre en compte.';
-  let cardTitle = ''; let cardDescription = ''; let cardLabel = `Question ${currentIndex + 1} sur ${totalSteps}`;
-  if (currentQuestion) { cardTitle = currentQuestion.libelle; cardDescription = questionExplanation(mode, currentQuestion); cardLabel = currentQuestion.code.startsWith('Q') ? `${currentQuestion.code} · ${currentIndex + 1}/${totalSteps}` : `Question ${currentIndex + 1} sur ${totalSteps}`; }
-  else if (familyStep) { cardTitle = `Quelle est votre expérience avec : ${familyStep[1]} ?`; cardDescription = 'Indiquez votre niveau de pratique réel. Cette information permet de vérifier que les produits étudiés restent adaptés à votre expérience.'; cardLabel = `Expérience · ${currentIndex + 1}/${totalSteps}`; }
-  else if (detailStep === 0) { cardTitle = 'Avez-vous acquis des connaissances financières par votre formation ou votre profession ?'; cardDescription = 'Précisez l’origine de ces connaissances. Le cabinet utilise cette information pour apprécier votre compréhension des mécanismes et risques financiers.'; cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`; }
-  else if (detailStep === 1) { cardTitle = 'Depuis combien de temps investissez-vous sur des produits financiers ?'; cardDescription = 'Indiquez l’ancienneté qui correspond le mieux à votre expérience personnelle.'; cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`; }
-  else if (detailStep === 2) { cardTitle = 'Quel est le montant habituel de vos opérations d’investissement ?'; cardDescription = 'Sélectionnez l’ordre de grandeur le plus représentatif de vos opérations habituelles.'; cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`; }
-  else if (detailStep === 3) { cardTitle = 'Comment gérez-vous habituellement vos placements ?'; cardDescription = 'Choisissez le mode de gestion qui correspond le mieux à vos habitudes d’investissement.'; cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`; }
+  let cardTitle = '';
+  let cardDescription = '';
+  let cardLabel = `Question ${currentIndex + 1} sur ${totalSteps}`;
+  if (currentQuestion) {
+    cardTitle = currentQuestion.libelle;
+    cardDescription = questionExplanation(mode, currentQuestion);
+    cardLabel = currentQuestion.code.startsWith('Q') ? `${currentQuestion.code} · ${currentIndex + 1}/${totalSteps}` : `Question ${currentIndex + 1} sur ${totalSteps}`;
+  } else if (familyStep) {
+    cardTitle = `Quelle est votre expérience avec : ${familyStep[1]} ?`;
+    cardDescription = 'Indiquez votre niveau de pratique réel. Cette information permet de vérifier que les produits étudiés restent adaptés à votre expérience.';
+    cardLabel = `Expérience · ${currentIndex + 1}/${totalSteps}`;
+  } else if (detailStep === 0) {
+    cardTitle = 'Avez-vous acquis des connaissances financières par votre formation ou votre profession ?';
+    cardDescription = 'Précisez l’origine de ces connaissances. Le cabinet utilise cette information pour apprécier votre compréhension des mécanismes et risques financiers.';
+    cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
+  } else if (detailStep === 1) {
+    cardTitle = 'Depuis combien de temps investissez-vous sur des produits financiers ?';
+    cardDescription = 'Indiquez l’ancienneté qui correspond le mieux à votre expérience personnelle.';
+    cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
+  } else if (detailStep === 2) {
+    cardTitle = 'Quel est le montant habituel de vos opérations d’investissement ?';
+    cardDescription = 'Sélectionnez l’ordre de grandeur le plus représentatif de vos opérations habituelles.';
+    cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
+  } else if (detailStep === 3) {
+    cardTitle = 'Comment gérez-vous habituellement vos placements ?';
+    cardDescription = 'Choisissez le mode de gestion qui correspond le mieux à vos habitudes d’investissement.';
+    cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
+  }
+
+  const objectiveNoteVisible = currentQuestion?.code === 'Q1' && (noteOpen || Boolean(answers[currentQuestion.id]?.answer_text));
 
   return <div>
     <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
@@ -173,8 +259,24 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
-        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{currentQuestion.options?.map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id })}>{option.libelle}</ChoiceButton>)}</div>}
-        {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => { const selected = (multi[currentQuestion.id] ?? []).includes(option.code); return <button type="button" key={option.id} onClick={() => void saveMulti(currentQuestion, option)} className={`flex items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition ${selected ? 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10' : 'border-slate-200 hover:border-slate-400'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? 'border-white/30 bg-white text-slate-950' : 'border-slate-300'}`}>{selected ? '✓' : ''}</span>{option.libelle}</button>; })}</div>}
+        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{currentQuestion.options?.map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
+
+        {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => {
+          const selected = (multi[currentQuestion.id] ?? []).includes(option.code);
+          return <button type="button" key={option.id} onClick={() => void saveMulti(currentQuestion, option).catch((error) => setErrorMessage(messageFromError(error)))} className={`flex items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition ${selected ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10' : 'border-[#dbe4ef] bg-white text-[#33465f] hover:-translate-y-0.5 hover:border-[#6f8fb4] hover:shadow-sm'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? 'border-white/30 bg-white text-[#0b1f3a]' : 'border-[#b8c5d5]'}`}>{selected ? '✓' : ''}</span>{option.libelle}</button>;
+        })}</div>}
+
+        {currentQuestion?.code === 'Q1' && <div className="mt-5 border-t border-[#e7edf5] pt-5">
+          <button type="button" onClick={() => setNoteOpen((open) => !open)} className="inline-flex items-center gap-2 rounded-xl border border-[#dbe4ef] bg-[#f7f9fc] px-4 py-2.5 text-sm font-semibold text-[#173967] transition hover:border-[#9eb2c9] hover:bg-white">
+            <Pencil className="h-4 w-4" /> {objectiveNoteVisible ? 'Masquer la note' : 'Ajouter une note'}
+          </button>
+          {objectiveNoteVisible && <div className="mt-4">
+            <label className="block text-sm font-semibold text-[#33465f]">Note / précisions <span className="font-normal text-[#7f8da1]">— facultatif</span>
+              <textarea value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(event) => updateLocal(currentQuestion, { answer_text: event.target.value })} onBlur={() => void persistCurrentQuestion().catch((error) => setErrorMessage(messageFromError(error)))} rows={4} className="mt-2 w-full resize-none rounded-2xl border border-[#dbe4ef] bg-[#f7f9fc] px-4 py-3.5 text-sm leading-6 outline-none transition focus:border-[#6f8fb4] focus:bg-white" placeholder="Ex. : priorité donnée à la préparation de la retraite, projet immobilier à moyen terme, transmission familiale…" />
+            </label>
+          </div>}
+        </div>}
+
         {currentQuestion?.type_reponse === 'text' && <textarea value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} rows={5} className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ajoutez vos précisions ici…" />}
 
         {currentQuestion?.code === 'Q4' && answers[currentQuestion.id]?.option_id && <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€)<input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Échéance envisagée<input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
@@ -192,7 +294,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         <div className="mt-6"><SecureNote>Vos réponses sont confidentielles et utilisées exclusivement pour l’analyse et la traçabilité de votre dossier patrimonial.</SecureNote></div>
         {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
       </div>
-      <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Continuer'} nextDisabled={!currentComplete} busy={busy} />
+      <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Suivant'} nextDisabled={!currentComplete} busy={busy} />
     </WizardCard>
   </div>;
 }
