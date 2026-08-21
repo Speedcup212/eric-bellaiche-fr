@@ -58,17 +58,17 @@ export function JourneyProgress({ current, esgEnabled = true }: { current: Journ
 
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
   return (
-    <div className="mb-6 mt-6">
+    <div className="mb-6 mt-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white">
           {icon ?? <Sparkles className="h-5 w-5" />}
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f8da1]">{eyebrow}</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#0b1f3a] sm:text-3xl">{title}</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">{eyebrow}</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{title}</h2>
         </div>
       </div>
-      <p className="mt-4 max-w-3xl text-sm leading-6 text-[#5b6b82] sm:text-base">{description}</p>
+      <p className="mt-4 max-w-3xl text-sm leading-6 text-blue-100/80 sm:text-base">{description}</p>
     </div>
   );
 }
