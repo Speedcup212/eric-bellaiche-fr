@@ -26,7 +26,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/pages/portal/ClientRecueilJourneyPage.tsx'],
+    files: ['src/pages/portal/ClientRecueilJourneyPage.tsx', 'src/pages/portal/ClientRecueilJourneyBase.tsx'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },
