@@ -3,7 +3,7 @@ import { BrainCircuit, CheckCircle2, Leaf } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChoiceButton, JourneyProgress, PageIntro, QuestionHeader, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
-import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 type Mode = 'QPI' | 'ESG';
 interface OptionRow { id: string; code: string; libelle: string; ordre: number; metadata?: { exclusive?: boolean; value_pct?: number } | null; }
@@ -136,8 +136,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     if (!sessionId || !progress) return;
     if (mode === 'QPI') await saveExperienceDetails();
     const { error } = await supabase.rpc('complete_questionnaire_session', { p_session_id: sessionId }); if (error) throw error;
-    setDone(true); const refreshed = await fetchPortalProgress(); setProgressRows(refreshed); const nextProgress = selectedProgress(refreshed, progress.dossier_id);
-    if (mode === 'QPI' && nextProgress?.next_step === 'ESG') navigate(dossierHref('/espace-client/esg', progress.dossier_id)); else navigate(dossierHref('/espace-client/synthese', progress.dossier_id));
+    setDone(true);
+    const refreshed = await fetchPortalProgress();
+    setProgressRows(refreshed);
+    const nextProgress = selectedProgress(refreshed, progress.dossier_id);
+    if (nextProgress) navigate(nextStepHref(nextProgress));
+    else navigate('/espace-client');
   };
   const next = async () => {
     if (!currentComplete) { setErrorMessage('Répondez à cette question pour continuer.'); return; }
@@ -149,8 +153,8 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du questionnaire…</p>;
   if (done) {
-    const nextPath = mode === 'QPI' && progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/synthese';
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 3' : 'Étape 4'} title={mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité'} description="Cette étape a déjà été validée. Les réponses sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div><button type="button" onClick={() => navigate(dossierHref(nextPath, progress.dossier_id))} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer</button></WizardCard></div>;
+    const nextPath = nextStepHref(progress);
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité'} description="Cette étape a déjà été validée. Les réponses sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div><button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
@@ -165,7 +169,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   return <div>
     <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
-    <PageIntro eyebrow={mode === 'QPI' ? 'Étape 3' : 'Étape 4'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
+    <PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
