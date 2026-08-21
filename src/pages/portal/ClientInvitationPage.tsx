@@ -51,8 +51,6 @@ export default function ClientInvitationPage() {
     localStorage.setItem('cgp_pending_invite_token', token);
 
     try {
-      // If the client already has a confirmed account, simply authenticate it
-      // and claim the invitation. This also covers an interrupted prior activation.
       const { data: existingSession, error: existingLoginError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
@@ -68,16 +66,11 @@ export default function ClientInvitationPage() {
 
       await supabase.auth.signOut();
 
-      // New client: the server validates the one-time invitation token,
-      // creates an already-confirmed Auth account and links it atomically
-      // to the correct investor. No generic Supabase confirmation email is sent.
       const { error: activationError } = await supabase.functions.invoke('activate-client', {
         body: { token, email: cleanEmail, password },
       });
 
-      if (activationError) {
-        throw new Error(await functionErrorMessage(activationError));
-      }
+      if (activationError) throw new Error(await functionErrorMessage(activationError));
 
       const { error: loginError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
@@ -98,9 +91,9 @@ export default function ClientInvitationPage() {
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-12 flex items-center justify-center">
         <div className="w-full max-w-lg rounded-3xl bg-white p-8">
-          <h1 className="text-2xl font-semibold">Lien d’invitation manquant</h1>
-          <p className="mt-3 text-slate-600">Utilisez le lien sécurisé transmis par le cabinet.</p>
-          <Link to="/espace-client/connexion" className="mt-6 inline-block font-semibold text-slate-900 underline">Accéder à la connexion</Link>
+          <h1 className="text-2xl font-semibold">Lien personnel manquant</h1>
+          <p className="mt-3 text-slate-600">Utilisez le lien sécurisé transmis par le cabinet pour accéder à votre dossier.</p>
+          <Link to="/espace-client/connexion" className="mt-6 inline-block font-semibold text-slate-900 underline">Reprendre un dossier déjà activé</Link>
         </div>
       </div>
     );
@@ -112,9 +105,10 @@ export default function ClientInvitationPage() {
         <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
           <ShieldCheck className="h-6 w-6" />
         </div>
-        <h1 className="text-2xl font-semibold">Activer votre espace client</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Cette invitation est personnelle. L’adresse email utilisée doit correspondre à celle enregistrée dans votre dossier. L’activation est immédiate et ne nécessite aucun second email de confirmation.
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cabinet Eric Bellaiche</p>
+        <h1 className="mt-2 text-2xl font-semibold">Accéder à votre dossier patrimonial</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Ce lien est personnel. Créez simplement votre mot de passe pour commencer. Vous pourrez interrompre le parcours et le reprendre ultérieurement.
         </p>
         <form onSubmit={submit} className="mt-7 space-y-5">
           <label className="block text-sm font-medium text-slate-700">Adresse email
@@ -125,11 +119,11 @@ export default function ClientInvitationPage() {
           </label>
           {errorMessage && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
           <button disabled={busy} className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">
-            {busy ? 'Activation…' : 'Activer mon espace'}
+            {busy ? 'Activation…' : 'Commencer mon dossier'}
           </button>
         </form>
         <p className="mt-6 text-sm text-slate-500">
-          Vous avez déjà activé votre compte ? <Link to={`/espace-client/connexion?token=${encodeURIComponent(token)}`} className="font-semibold text-slate-900 underline">Connectez-vous</Link>.
+          Dossier déjà activé ? <Link to={`/espace-client/connexion?token=${encodeURIComponent(token)}`} className="font-semibold text-slate-900 underline">Reprendre mon dossier</Link>.
         </p>
       </div>
     </div>
