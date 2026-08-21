@@ -12,7 +12,9 @@ export interface PortalProgress {
   esg_status: string;
   qpi_session_id: string | null;
   esg_session_id: string | null;
-  next_step: 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
+  documents_status: 'pending' | 'in_progress' | 'completed';
+  documents_completed_at: string | null;
+  next_step: 'DOCUMENTS' | 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
 }
 
 export function messageFromError(error: unknown): string {
@@ -31,6 +33,8 @@ export function dossierHref(path: string, dossierId: string): string {
 
 export function nextStepHref(progress: PortalProgress): string {
   switch (progress.next_step) {
+    case 'DOCUMENTS':
+      return dossierHref('/espace-client/documents', progress.dossier_id);
     case 'RECUEIL':
       return dossierHref('/espace-client/recueil', progress.dossier_id);
     case 'QPI':
@@ -44,6 +48,8 @@ export function nextStepHref(progress: PortalProgress): string {
 
 export function stepLabel(step: PortalProgress['next_step']): string {
   switch (step) {
+    case 'DOCUMENTS':
+      return 'Transmettre mes documents';
     case 'RECUEIL':
       return 'Compléter le recueil';
     case 'QPI':
@@ -51,7 +57,7 @@ export function stepLabel(step: PortalProgress['next_step']): string {
     case 'ESG':
       return 'Préférences de durabilité';
     default:
-      return 'Parcours questionnaires terminé';
+      return 'Dossier terminé';
   }
 }
 
