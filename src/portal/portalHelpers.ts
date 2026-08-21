@@ -14,6 +14,7 @@ export interface PortalProgress {
   esg_session_id: string | null;
   documents_status: 'pending' | 'in_progress' | 'completed';
   documents_completed_at: string | null;
+  transmitted_at: string | null;
   next_step: 'DOCUMENTS' | 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
 }
 
