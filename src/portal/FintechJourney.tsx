@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, LockKeyhole, Sparkles } from 'lucide-react';
 
@@ -26,21 +26,44 @@ export interface JourneySubstep {
   label?: string;
 }
 
+type JourneyContextDetail = JourneySubstep | null;
+const journeyContextEvent = 'portal-journey-context';
+
+function publishJourneyContext(detail: JourneyContextDetail) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<JourneyContextDetail>(journeyContextEvent, { detail }));
+}
+
 export function JourneyProgress({ current, esgEnabled = true, substep }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep }) {
+  const [detectedSubstep, setDetectedSubstep] = useState<JourneySubstep | null>(null);
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
   const currentIndex = Math.max(0, visible.findIndex((stage) => stage.key === current));
   const dossierId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dossier') : null;
   const activeStage = visible[currentIndex];
-  const fraction = substep && substep.total > 0 ? Math.min(1, Math.max(0, substep.current / substep.total)) : current === 'done' ? 1 : 0.35;
+  const effectiveSubstep = substep ?? detectedSubstep ?? undefined;
+  const fraction = effectiveSubstep && effectiveSubstep.total > 0 ? Math.min(1, Math.max(0, effectiveSubstep.current / effectiveSubstep.total)) : current === 'done' ? 1 : 0.35;
   const globalPct = Math.min(100, Math.max(1, Math.round(((currentIndex + fraction) / visible.length) * 100)));
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const custom = event as CustomEvent<JourneyContextDetail>;
+      setDetectedSubstep(custom.detail ?? null);
+    };
+    window.addEventListener(journeyContextEvent, listener);
+    return () => window.removeEventListener(journeyContextEvent, listener);
+  }, []);
+
+  useEffect(() => {
+    setDetectedSubstep(null);
+  }, [current]);
 
   return (
     <div className="sticky top-[72px] z-40 mb-6 rounded-2xl border border-[#cbd8e7] bg-white/95 p-3 shadow-[0_14px_36px_-24px_rgba(11,31,58,0.55)] backdrop-blur-xl sm:p-4">
       <div className="flex items-start justify-between gap-4 px-1 pb-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6f8198]">Étape {currentIndex + 1} sur {visible.length} · {activeStage?.label}</p>
-          {substep ? (
-            <p className="mt-1 truncate text-sm font-semibold text-[#0b1f3a]">Partie {substep.current} sur {substep.total}{substep.label ? ` · ${substep.label}` : ''}</p>
+          {effectiveSubstep ? (
+            <p className="mt-1 truncate text-sm font-semibold text-[#0b1f3a]">Partie {effectiveSubstep.current} sur {effectiveSubstep.total}{effectiveSubstep.label ? ` · ${effectiveSubstep.label}` : ''}</p>
           ) : (
             <p className="mt-1 text-sm font-semibold text-[#0b1f3a]">Votre parcours patrimonial sécurisé</p>
           )}
@@ -80,6 +103,12 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
 }
 
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
+  useEffect(() => {
+    const match = /Partie\s+(\d+)\s*\/\s*(\d+)/i.exec(eyebrow);
+    if (match) publishJourneyContext({ current: Number(match[1]), total: Number(match[2]), label: title });
+    return () => { if (match) publishJourneyContext(null); };
+  }, [eyebrow, title]);
+
   return (
     <div className="mb-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
       <div className="flex items-center gap-3">
@@ -102,6 +131,12 @@ export function WizardCard({ children, className = '' }: { children: ReactNode; 
 
 export function QuestionHeader({ current, total, label, title, description }: { current: number; total: number; label?: string; title: string; description: string }) {
   const pct = total > 0 ? Math.max(4, Math.round((current / total) * 100)) : 0;
+
+  useEffect(() => {
+    publishJourneyContext({ current, total, label: title });
+    return () => publishJourneyContext(null);
+  }, [current, total, title]);
+
   return (
     <div className="border-b border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white sm:px-9 sm:py-8">
       <div className="flex items-center justify-between gap-4">
