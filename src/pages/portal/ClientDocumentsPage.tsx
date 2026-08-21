@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Download, FileCheck2, FileUp, Loader2, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Download, FileCheck2, FileUp, Loader2, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
-import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 interface SourceDocument {
   id: string;
@@ -73,10 +73,14 @@ export default function ClientDocumentsPage() {
       setProgressRows(rows);
       const row = selectedProgress(rows, dossierId);
       if (!row) return;
+      if (row.next_step !== 'DOCUMENTS' && row.documents_status !== 'completed' && row.next_step !== 'TERMINE') {
+        navigate(nextStepHref(row), { replace: true });
+        return;
+      }
       await supabase.rpc('start_my_documents', { p_dossier_id: row.dossier_id });
       await loadDocuments(row);
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId]);
+  }, [dossierId, navigate]);
 
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -108,7 +112,7 @@ export default function ClientDocumentsPage() {
       setFile(null);
       const input = document.getElementById('client-document-file') as HTMLInputElement | null;
       if (input) input.value = '';
-      setMessage('Document transmis. Vous pouvez en ajouter un autre ou poursuivre le parcours.');
+      setMessage('Document transmis. Vous pouvez en ajouter un autre avant de finaliser votre dossier.');
       await loadDocuments(progress);
     } catch (error) {
       setErrorMessage(messageFromError(error));
@@ -124,7 +128,7 @@ export default function ClientDocumentsPage() {
     try {
       const { error } = await supabase.rpc('complete_my_documents', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
-      navigate(dossierHref('/espace-client/recueil', progress.dossier_id));
+      navigate(dossierHref('/espace-client/synthese', progress.dossier_id));
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -142,11 +146,12 @@ export default function ClientDocumentsPage() {
   };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
+  const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';
 
   return (
     <div>
       <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Étape 1" title="Transmettre vos documents" description="Commencez par déposer les justificatifs utiles. Ils permettront au cabinet de préremplir et de contrôler les informations de votre dossier avant l’analyse patrimoniale." icon={<UploadCloud className="h-5 w-5" />} />
+      <PageIntro eyebrow="Dernière étape" title="Transmettre vos documents" description="Vous avez terminé les questionnaires. Déposez maintenant les justificatifs préparés afin que le cabinet puisse rapprocher vos déclarations des pièces utiles et finaliser le contrôle de votre dossier." icon={<UploadCloud className="h-5 w-5" />} />
 
       <WizardCard>
         <div className="px-6 py-7 sm:px-9 sm:py-9">
@@ -191,7 +196,7 @@ export default function ClientDocumentsPage() {
           </div>}
         </div>
 
-        <WizardFooter onPrevious={() => navigate('/espace-client')} onNext={() => void finish()} previousLabel="Retour au dossier" nextLabel="J’ai terminé — Continuer" nextDisabled={sources.length === 0} busy={finishBusy} />
+        <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel="Finaliser et transmettre" nextDisabled={sources.length === 0} busy={finishBusy} />
       </WizardCard>
 
       {regulatory.length > 0 && (
