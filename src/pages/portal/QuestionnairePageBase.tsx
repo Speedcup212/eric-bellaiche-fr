@@ -38,7 +38,11 @@ function answerObject(answer?: AnswerRow): Record<string, unknown> {
 function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (mode === 'ESG') return 'Choisissez la réponse qui traduit le mieux vos préférences. Elle servira à vérifier la compatibilité des solutions étudiées avec vos critères de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
-  if (question.ordre <= 12) return 'Répondez selon votre situation réelle et votre propre appréciation. Cette réponse contribue à l’analyse de votre horizon, de vos besoins de liquidité et de votre capacité de perte.';
+  if (question.code === 'Q3') return 'Indiquez si vous pourriez avoir besoin d’utiliser rapidement une partie de l’épargne placée.';
+  if (question.code === 'Q4') return 'Pensez aux dépenses importantes prévues ou possibles au cours des cinq prochaines années.';
+  if (question.code === 'Q9') return 'Répondez selon les conséquences réelles qu’aurait cette baisse sur votre budget et vos projets.';
+  if (question.code === 'Q10') return 'Il s’agit de la perte que votre situation financière permettrait d’absorber sans réduire votre niveau de vie, renoncer à un projet ou manquer à vos engagements.';
+  if (question.ordre <= 12) return 'Répondez selon votre situation réelle. Cette réponse contribue à l’analyse de votre expérience et de votre capacité financière.';
   if (question.ordre <= 20) return 'Cette question porte sur vos connaissances financières. Répondez sans assistance afin que le cabinet puisse apprécier correctement votre niveau de compréhension.';
   return 'Choisissez la réaction qui vous correspond le mieux. Ces questions évaluent votre tolérance comportementale aux fluctuations et au risque de perte.';
 }
@@ -317,23 +321,23 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     cardDescription = questionExplanation(mode, currentQuestion);
     cardLabel = currentQuestion.code.startsWith('Q') ? `${currentQuestion.code} · ${currentIndex + 1}/${totalSteps}` : `Question ${currentIndex + 1} sur ${totalSteps}`;
   } else if (familyStep) {
-    cardTitle = `Quelle est votre expérience avec : ${familyStep[1]} ?`;
+    cardTitle = `Quelle expérience avez-vous avec : ${familyStep[1]} ?`;
     cardDescription = 'Indiquez votre niveau de pratique réel. Cette information permet de vérifier que les produits étudiés restent adaptés à votre expérience.';
     cardLabel = `Expérience · ${currentIndex + 1}/${totalSteps}`;
   } else if (detailStep === 0) {
-    cardTitle = 'Avez-vous acquis des connaissances financières par votre formation ou votre profession ?';
+    cardTitle = 'Votre formation ou votre métier vous ont-ils apporté des connaissances financières ?';
     cardDescription = 'Précisez l’origine de ces connaissances. Le cabinet utilise cette information pour apprécier votre compréhension des mécanismes et risques financiers.';
     cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
   } else if (detailStep === 1) {
-    cardTitle = 'Depuis combien de temps investissez-vous sur des produits financiers ?';
+    cardTitle = 'Depuis combien de temps investissez-vous ?';
     cardDescription = 'Indiquez l’ancienneté qui correspond le mieux à votre expérience personnelle.';
     cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
   } else if (detailStep === 2) {
-    cardTitle = 'Quel est le montant habituel de vos opérations d’investissement ?';
+    cardTitle = 'Quel montant investissez-vous habituellement ?';
     cardDescription = 'Sélectionnez l’ordre de grandeur le plus représentatif de vos opérations habituelles.';
     cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
   } else if (detailStep === 3) {
-    cardTitle = 'Comment gérez-vous habituellement vos placements ?';
+    cardTitle = 'Comment gérez-vous vos placements ?';
     cardDescription = 'Choisissez le mode de gestion qui correspond le mieux à vos habitudes d’investissement.';
     cardLabel = `Expérience générale · ${currentIndex + 1}/${totalSteps}`;
   }
