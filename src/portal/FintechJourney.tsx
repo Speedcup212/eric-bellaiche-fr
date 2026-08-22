@@ -102,7 +102,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
   );
 }
 
-export function PageIntro({ eyebrow, title, description, icon, compact = false }: { eyebrow: string; title: string; description: string; icon?: ReactNode; compact?: boolean }) {
+export function PageIntro({ eyebrow, title, description, icon, compact = false, variant = 'default' }: { eyebrow: string; title: string; description: string; icon?: ReactNode; compact?: boolean; variant?: 'default' | 'recueil' }) {
   useEffect(() => {
     const match = /Partie\s+(\d+)\s*\/\s*(\d+)/i.exec(eyebrow);
     if (match) publishJourneyContext({ current: Number(match[1]), total: Number(match[2]), label: title });
@@ -127,7 +127,7 @@ export function PageIntro({ eyebrow, title, description, icon, compact = false }
   }
 
   return (
-    <div className="mb-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
+    <div className={`mb-6 overflow-hidden rounded-[28px] border px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7 ${variant === 'recueil' ? 'border-[#245B96] bg-gradient-to-br from-[#0B1F3A] via-[#123B68] to-[#17467C]' : 'border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967]'}`}>
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white">
           {icon ?? <Sparkles className="h-5 w-5" />}
