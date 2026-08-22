@@ -65,7 +65,7 @@ function PublicDossierAccess() {
     <Link
       to="/espace-client/connexion"
       aria-label="Reprendre mon dossier patrimonial"
-      className="fixed right-4 top-14 z-[100] rounded-lg border border-[#C5A059] bg-white/95 px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-[#8A6D2F] shadow-sm backdrop-blur transition hover:bg-[#F7F1E6] sm:right-4 sm:top-3 sm:px-4 sm:py-2 sm:text-xs xl:right-[145px]"
+      className="fixed right-4 top-14 z-[100] flex w-[47px] items-center justify-center whitespace-nowrap rounded-lg border border-[#C5A059] bg-white/95 px-1 py-1 text-[7px] font-bold uppercase tracking-tight text-[#8A6D2F] shadow-sm backdrop-blur transition hover:bg-[#F7F1E6] sm:right-4 sm:top-3 sm:w-auto sm:px-4 sm:py-2 sm:text-xs sm:tracking-wide xl:right-[145px]"
     >
       Mon dossier
     </Link>
