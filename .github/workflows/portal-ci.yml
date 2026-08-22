@@ -19,6 +19,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Portal runtime safety
+        run: npm run test:portal-safety
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
