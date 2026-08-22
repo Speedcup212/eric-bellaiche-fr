@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Pencil } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import QuestionnairePageBase from './QuestionnairePageBase';
+import QuestionnairePageBase, { QpiResultSummary, type QpiResultRow } from './QuestionnairePageBase';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
 import { fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
@@ -16,14 +16,21 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [qpiResult, setQpiResult] = useState<QpiResultRow | null>(null);
   const dossierId = searchParams.get('dossier');
 
   useEffect(() => {
     let active = true;
     void fetchPortalProgress()
-      .then((rows) => {
+      .then(async (rows) => {
         if (!active) return;
-        setProgress(selectedProgress(rows, dossierId));
+        const selected = selectedProgress(rows, dossierId);
+        setProgress(selected);
+        if (mode === 'QPI' && selected?.qpi_session_id && ['completed', 'validated'].includes(selected.qpi_status)) {
+          const { data, error } = await supabase.from('qpi_results').select('profil_indicatif,profil_operationnel_final,ecart_declared_objective,synthese_dimensions').eq('session_id', selected.qpi_session_id).maybeSingle();
+          if (error) throw error;
+          if (active && data) setQpiResult(data as QpiResultRow);
+        }
       })
       .catch((error) => { if (active) setErrorMessage(messageFromError(error)); })
       .finally(() => { if (active) setLoading(false); });
@@ -62,14 +69,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       <JourneyProgress current={stage} esgEnabled={progress.esg_opt_in !== false} />
       <PageIntro eyebrow={eyebrow} title={title} description="Ce questionnaire est terminé. Vous pouvez encore modifier vos réponses tant que le dossier n’a pas été transmis définitivement au cabinet." icon={<CheckCircle2 className="h-5 w-5" />} />
       <WizardCard className="p-8">
-        <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800">
-          <p className="font-semibold">Questionnaire validé</p>
-          <p className="mt-1 text-sm leading-6">Après une modification, vous devrez parcourir et valider de nouveau le questionnaire afin d’actualiser le résultat et la traçabilité.</p>
-        </div>
+        {mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Questionnaire validé</p><p className="mt-1 text-sm leading-6">Vos préférences de durabilité sont enregistrées.</p></div>}
+        <p className="mt-5 text-sm leading-6 text-slate-500">Vous pouvez modifier vos réponses tant que le dossier n’est pas transmis. Une nouvelle validation recalculera le résultat et conservera la traçabilité.</p>
         {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mes réponses'}</button>
-          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Continuer</button>
+          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{mode === 'QPI' ? 'Continuer vers les documents' : 'Continuer'}</button>
+          <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mes réponses'}</button>
         </div>
       </WizardCard>
     </div>;
