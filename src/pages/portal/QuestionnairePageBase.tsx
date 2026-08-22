@@ -53,7 +53,7 @@ function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (mode === 'ESG' && question.code === 'ESG_PAI_PRIORITIES') return 'Cochez les conséquences que vous souhaitez voir limitées dans les placements étudiés.';
   if (mode === 'ESG' && question.code === 'ESG_PAI_MODALITIES') return 'Choisissez une ou plusieurs méthodes. Aucune connaissance financière n’est nécessaire.';
   if (mode === 'ESG' && question.code === 'ESG_EXCLUSIONS') return 'Cochez tous les secteurs dans lesquels vous ne souhaitez pas que votre argent soit investi.';
-  if (mode === 'ESG' && question.code === 'ESG_LIMITATIONS') return 'Des critères plus stricts peuvent réduire le nombre de placements disponibles ou conduire à des performances différentes.';
+  if (mode === 'ESG' && question.code === 'ESG_LIMITATIONS') return 'Vous pouvez cocher une seule réponse ou les deux. Si vous n’acceptez aucune de ces conséquences, choisissez « Aucune de ces conséquences ».';
   if (mode === 'ESG') return 'Répondez selon vos convictions. Votre réponse permettra de vérifier que les solutions étudiées respectent vos préférences de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
   if (question.code === 'Q3') return 'Indiquez dans quel délai vous devez pouvoir disposer d’une partie de votre argent.';
