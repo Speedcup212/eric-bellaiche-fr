@@ -15,7 +15,7 @@ export interface QpiResultRow { profil_indicatif: string | null; profil_operatio
 const experienceFamilies = [
   ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'],
 ] as const;
-const experienceLevels = [['jamais', 'Aucune expérience'], ['deja_detenu', 'Déjà détenu'], ['plusieurs_operations', 'Quelques opérations'], ['pratique_reguliere', 'Opérations régulières']] as const;
+const experienceLevels = [['jamais', 'Aucune opération'], ['deja_detenu', '1 opération'], ['plusieurs_operations', '2 à 5 opérations'], ['pratique_reguliere', 'Plus de 5 opérations']] as const;
 const knowledgeSources = [['formation', 'Formation financière ou patrimoniale'], ['profession', 'Expérience professionnelle liée à la finance'], ['lecture', 'Lecture / autoformation régulière'], ['autre', 'Autre source de connaissance']] as const;
 const seniorityOptions = [['aucune', 'Aucune expérience'], ['moins_2_ans', 'Moins de 2 ans'], ['2_5_ans', '2 à 5 ans'], ['5_10_ans', '5 à 10 ans'], ['plus_10_ans', 'Plus de 10 ans']] as const;
 const amountOptions = [['moins_10k', 'Moins de 10 000 €'], ['10_50k', '10 000 à 50 000 €'], ['50_100k', '50 000 à 100 000 €'], ['plus_100k', 'Plus de 100 000 €']] as const;
@@ -320,8 +320,8 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     cardDescription = questionExplanation(mode, currentQuestion);
     cardLabel = `Question ${currentIndex + 1} sur ${totalSteps}`;
   } else if (experienceStep) {
-    cardTitle = 'Quelle expérience avez-vous avec chaque type de placement ?';
-    cardDescription = 'Indiquez votre niveau réel pour chaque famille. Toutes les lignes doivent être renseignées.';
+    cardTitle = 'Combien d’opérations avez-vous déjà réalisées sur chaque type de placement ?';
+    cardDescription = 'Une opération correspond à une souscription, un achat, une vente ou un arbitrage. Toutes les lignes doivent être renseignées.';
     cardLabel = `Expérience · ${currentIndex + 1}/${totalSteps}`;
   } else if (detailStep === 0) {
     cardTitle = 'Votre formation ou votre métier vous ont-ils apporté des connaissances financières ?';
