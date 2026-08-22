@@ -45,6 +45,8 @@ function displayedOptions(question: QuestionRow): OptionRow[] {
 }
 
 function questionExplanation(mode: Mode, question: QuestionRow): string {
+  if (mode === 'ESG' && question.code === 'ESG_TAX_PREF') return 'Il s’agit d’activités contribuant notamment au climat, à l’énergie, à la protection de l’eau, à l’économie circulaire, à la réduction de la pollution ou à la biodiversité. Ce cadre officiel est appelé « Taxonomie européenne ».';
+  if (mode === 'ESG' && question.code === 'ESG_TAX_MIN') return 'Choisissez le pourcentage minimum que vous souhaitez voir pris en compte lors de l’étude des solutions.';
   if (mode === 'ESG') return 'Répondez selon vos convictions. Votre réponse permettra de vérifier que les solutions étudiées respectent vos préférences de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
   if (question.code === 'Q3') return 'Indiquez dans quel délai vous devez pouvoir disposer d’une partie de votre argent.';
