@@ -1,0 +1,48 @@
+name: Fix portal blank page
+on:
+  push:
+    branches: [fix/portal-blank-after-login]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/portal-blank-after-login
+          fetch-depth: 0
+      - name: Make portal lazy loading resilient
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/App.tsx')
+          s=p.read_text()
+          s=s.replace("import { lazy, Suspense } from 'react';", "import { lazy, Suspense, type ComponentType } from 'react';")
+          marker="const HomePage = lazy(() => import('./pages/HomePage'));"
+          helper="""function lazyWithReload<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>, key: string) {\n  return lazy(async () => {\n    try {\n      const module = await factory();\n      sessionStorage.removeItem(`lazy-retry:${key}`);\n      return module;\n    } catch (error) {\n      const retryKey = `lazy-retry:${key}`;\n      if (!sessionStorage.getItem(retryKey)) {\n        sessionStorage.setItem(retryKey, '1');\n        window.location.reload();\n        return new Promise<never>(() => {});\n      }\n      sessionStorage.removeItem(retryKey);\n      throw error;\n    }\n  });\n}\n\nfunction AppLoadingFallback() {\n  return (\n    <div className=\"flex min-h-screen items-center justify-center bg-[#edf3fa] px-4\">\n      <div className=\"rounded-2xl border border-[#dbe4ef] bg-white px-6 py-5 text-center shadow-sm\">\n        <p className=\"text-sm font-semibold text-[#0b1f3a]\">Ouverture de votre espace sécurisé…</p>\n        <p className=\"mt-1 text-xs text-[#6f8198]\">La page se charge. Ne fermez pas cette fenêtre.</p>\n      </div>\n    </div>\n  );\n}\n\nconst HomePage = lazy(() => import('./pages/HomePage'));"""
+          if marker not in s: raise SystemExit('Home marker missing')
+          s=s.replace(marker, helper, 1)
+          replacements={
+            "const ClientLoginPage = lazy(() => import('./pages/portal/ClientLoginPage'));":"const ClientLoginPage = lazyWithReload(() => import('./pages/portal/ClientLoginPage'), 'client-login');",
+            "const ClientInvitationPage = lazy(() => import('./pages/portal/ClientInvitationPage'));":"const ClientInvitationPage = lazyWithReload(() => import('./pages/portal/ClientInvitationPage'), 'client-invitation');",
+            "const PortalShell = lazy(() => import('./portal/PortalShell'));":"const PortalShell = lazyWithReload(() => import('./portal/PortalShell'), 'portal-shell');",
+            "const ClientDashboardPage = lazy(() => import('./pages/portal/ClientDashboardPage'));":"const ClientDashboardPage = lazyWithReload(() => import('./pages/portal/ClientDashboardPage'), 'client-dashboard');",
+            "const ClientDocumentsPage = lazy(() => import('./pages/portal/ClientDocumentsPage'));":"const ClientDocumentsPage = lazyWithReload(() => import('./pages/portal/ClientDocumentsPage'), 'client-documents');",
+            "const ClientRecueilPage = lazy(() => import('./pages/portal/ClientRecueilJourneyPage'));":"const ClientRecueilPage = lazyWithReload(() => import('./pages/portal/ClientRecueilJourneyPage'), 'client-recueil');",
+            "const QuestionnairePage = lazy(() => import('./pages/portal/QuestionnairePage'));":"const QuestionnairePage = lazyWithReload(() => import('./pages/portal/QuestionnairePage'), 'client-questionnaire');",
+            "const ClientSummaryPage = lazy(() => import('./pages/portal/ClientSummaryPage'));":"const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');",
+            "const CifAdminPage = lazy(() => import('./pages/portal/CifAdminPage'));":"const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminPage'), 'cif-admin');",
+            "<Suspense fallback={<div style={{ minHeight: '100vh', background: '#f8fafc' }} />}":"<Suspense fallback={<AppLoadingFallback />}"
+          }
+          for old,new in replacements.items():
+            if old not in s: raise SystemExit(f'missing: {old}')
+            s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/App.tsx
+          git commit -m "Éviter la page blanche lors du chargement du portail"
+          git push origin fix/portal-blank-after-login
