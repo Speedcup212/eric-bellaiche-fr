@@ -24,8 +24,8 @@ function lazyWithReload(factory: Parameters<typeof lazy>[0], key: string) {
 
 function AppLoadingFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#071827] px-4">
-      <div className="rounded-2xl border border-white/10 bg-white px-6 py-5 text-center shadow-2xl shadow-black/20">
+    <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="rounded-2xl border border-[#dbe4ef] bg-white px-6 py-5 text-center shadow-sm">
         <p className="text-sm font-semibold text-[#0b1f3a]">Ouverture de votre espace sécurisé…</p>
         <p className="mt-1 text-xs text-[#6f8198]">La page se charge. Ne fermez pas cette fenêtre.</p>
       </div>
