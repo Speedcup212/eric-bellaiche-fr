@@ -212,7 +212,6 @@ export default function ClientRecueilJourneyPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
   const [objectiveStage, setObjectiveStage] = useState<'selection' | 'details'>('selection');
-  const [objectiveDetailIndex, setObjectiveDetailIndex] = useState(0);
   const progress = useMemo(() => selectedProgress(rows, dossierId), [rows, dossierId]);
   const current = sections[step];
   const form = forms[current.code];
@@ -293,7 +292,6 @@ export default function ClientRecueilJourneyPage() {
       if (!Array.isArray(form.items) || form.items.length === 0) throw new Error('Sélectionnez au moins un objectif.');
       for (const item of form.items) {
         if (isBlank(item.horizon_annees) || Number(item.horizon_annees) < 0) throw new Error('Indiquez un horizon pour chaque objectif.');
-        if (item.code_objectif !== 'retraite' && isBlank(item.montant_cible)) throw new Error('Indiquez un montant cible lorsque cet objectif nécessite un montant.');
         if (item.code_objectif === 'autre' && isBlank(item.libelle_autre)) throw new Error('Précisez votre autre objectif.');
       }
     }
@@ -320,6 +318,7 @@ export default function ClientRecueilJourneyPage() {
     if (!progress) return;
     validateSection();
     let payloadToSave = form;
+    if (current.code === 'objectives') payloadToSave = { ...form, items: (form.items ?? []).map((item: AnyPayload, index: number) => ({ ...item, priorite: index + 1 })) };
     if (current.code === 'patrimony') {
       const placementsWithoutAccounts = (form.placements ?? []).filter((placement: AnyPayload) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant');
       payloadToSave = { ...form, collection_mode: 'documents', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
@@ -333,12 +332,6 @@ export default function ClientRecueilJourneyPage() {
     setDoneSections((state) => new Set([...state, current.code]));
   };
 
-  const validateObjectiveItem = (item: AnyPayload) => {
-    if (isBlank(item.horizon_annees) || Number(item.horizon_annees) < 0) throw new Error('Indiquez un horizon pour cet objectif.');
-    if (item.code_objectif !== 'retraite' && isBlank(item.montant_cible)) throw new Error('Indiquez le montant cible de cet objectif.');
-    if (item.code_objectif === 'autre' && isBlank(item.libelle_autre)) throw new Error('Précisez votre autre objectif.');
-  };
-
   const next = async () => {
     if (!progress) return;
     setBusy(true);
@@ -346,14 +339,7 @@ export default function ClientRecueilJourneyPage() {
     try {
       if (current.code === 'objectives' && objectiveStage === 'selection') {
         if (!Array.isArray(form.items) || form.items.length === 0) throw new Error('Sélectionnez au moins un objectif.');
-        setObjectiveDetailIndex(0);
         setObjectiveStage('details');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-      if (current.code === 'objectives' && objectiveStage === 'details' && objectiveDetailIndex < (form.items?.length ?? 0) - 1) {
-        validateObjectiveItem(form.items[objectiveDetailIndex]);
-        setObjectiveDetailIndex((index) => index + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -371,8 +357,7 @@ export default function ClientRecueilJourneyPage() {
     setErrorMessage('');
     if (!progress) return;
     if (current.code === 'objectives' && objectiveStage === 'details') {
-      if (objectiveDetailIndex > 0) setObjectiveDetailIndex((index) => index - 1);
-      else setObjectiveStage('selection');
+      setObjectiveStage('selection');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -385,9 +370,19 @@ export default function ClientRecueilJourneyPage() {
   const objectiveItems: AnyPayload[] = form.items ?? [];
   const toggleObjective = (code: string, label: string) => {
     const exists = objectiveItems.some((item) => item.code_objectif === code);
-    patchCurrent({ items: exists ? objectiveItems.filter((item) => item.code_objectif !== code) : [...objectiveItems, { code_objectif: code, libelle_autre: '', montant_cible: '', horizon_annees: '', commentaire: '', label }] });
+    const nextItems = exists
+      ? objectiveItems.filter((item) => item.code_objectif !== code)
+      : [...objectiveItems, { code_objectif: code, libelle_autre: '', montant_cible: '', horizon_annees: '', commentaire: '', label }];
+    patchCurrent({ items: nextItems.map((item, index) => ({ ...item, priorite: index + 1 })) });
   };
   const updateObjective = (code: string, values: AnyPayload) => patchCurrent({ items: objectiveItems.map((item) => item.code_objectif === code ? { ...item, ...values } : item) });
+  const moveObjective = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= objectiveItems.length) return;
+    const nextItems = [...objectiveItems];
+    [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
+    patchCurrent({ items: nextItems.map((item, itemIndex) => ({ ...item, priorite: itemIndex + 1 })) });
+  };
   const updateList = (key: string, index: number, values: AnyPayload) => patchCurrent({ [key]: (form[key] ?? []).map((item: AnyPayload, i: number) => i === index ? { ...item, ...values } : item) });
   const removeList = (key: string, index: number) => patchCurrent({ [key]: (form[key] ?? []).filter((_: unknown, i: number) => i !== index) });
 
@@ -418,24 +413,34 @@ export default function ClientRecueilJourneyPage() {
 
         </div>}
 
-        {current.code === 'objectives' && objectiveStage === 'details' && objectiveItems.length > 0 && (() => {
-          const safeIndex = Math.min(objectiveDetailIndex, objectiveItems.length - 1);
-          const item = objectiveItems[safeIndex];
-          const code = item.code_objectif as ObjectiveCode;
-          const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
-          return <section aria-labelledby="objective-details-title" className="space-y-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-300">Objectif {safeIndex + 1} sur {objectiveItems.length}</p><h3 id="objective-details-title" className="mt-1 text-lg font-semibold text-[#F1F5F9]">{label}</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Indiquez simplement le montant et l’échéance envisagés.</p></div>
-              <button type="button" onClick={() => { setObjectiveStage('selection'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="shrink-0 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-blue-300 hover:bg-white/15">Modifier mes choix</button>
-            </div>
-            {objectiveItems.length > 1 && <div className="flex flex-wrap gap-2">{objectiveItems.map((objective, index) => { const objectiveCode = objective.code_objectif as ObjectiveCode; const objectiveLabel = objective.label || objectiveLabelByCode[objectiveCode] || objective.code_objectif; return <button key={objective.code_objectif} type="button" onClick={() => setObjectiveDetailIndex(index)} className={`rounded-full px-3 py-2 text-xs font-semibold transition ${index === safeIndex ? 'bg-[#3B82F6] text-white' : 'border border-white/20 bg-white/10 text-[#CBD5E1] hover:border-blue-300'}`}>{index + 1}. {objectiveLabel}</button>; })}</div>}
-            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
-              {item.code_objectif === 'autre' && <div className="mb-5"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
-              <div className="grid gap-5 lg:grid-cols-2"><MoneyField label={objectiveAmountLabels[code] || 'Montant cible (€)'} required={item.code_objectif !== 'retraite'} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
-              <div className="mt-5"><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, priorité, contraintes ou résultat attendu…" /></div>
-            </div>
-          </section>;
-        })()}
+        {current.code === 'objectives' && objectiveStage === 'details' && objectiveItems.length > 0 && <section aria-labelledby="objective-details-title" className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div><h3 id="objective-details-title" className="text-lg font-semibold text-[#F1F5F9]">Classez et planifiez vos objectifs</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">L’objectif n° 1 est votre priorité principale. Indiquez ensuite un horizon pour chacun.</p></div>
+            <button type="button" onClick={() => { setObjectiveStage('selection'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="shrink-0 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-blue-300 hover:bg-white/15">Modifier mes choix</button>
+          </div>
+          <div className="space-y-4">{objectiveItems.map((item, index) => {
+            const code = item.code_objectif as ObjectiveCode;
+            const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
+            const baseAmountLabel = objectiveAmountLabels[code] || 'Montant cible (€)';
+            const amountLabel = baseAmountLabel.includes('facultatif') ? baseAmountLabel : `${baseAmountLabel} — facultatif`;
+            return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-base font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
+                <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Priorité {index + 1}</p><p className="mt-0.5 font-semibold text-slate-900">{label}</p></div>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↑</button>
+                  <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↓</button>
+                </div>
+              </div>
+              {item.code_objectif === 'autre' && <div className="mt-5"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
+              <div className="mt-5"><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
+              <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-700">Ajouter un montant ou une précision — facultatif</summary>
+                <div className="mt-4 grid gap-5 lg:grid-cols-2"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
+              </details>
+            </div>;
+          })}</div>
+        </section>}
 
         {current.code === 'capacity' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><MoneyField label="À combien estimez-vous vos revenus professionnels pour l’année en cours ? (€)" required value={form.estimation_revenus_travail_annuels} onChange={(v) => patchCurrent({ estimation_revenus_travail_annuels: v })} /><MoneyField label="À combien estimez-vous vos revenus provenant de biens immobiliers pour l’année en cours ? (€)" required value={form.estimation_revenus_fonciers_annuels} onChange={(v) => patchCurrent({ estimation_revenus_fonciers_annuels: v })} /><MoneyField label="Quelle somme souhaitez-vous conserver disponible pour faire face aux imprévus ? (€)" required value={form.epargne_precaution_cible} onChange={(v) => patchCurrent({ epargne_precaution_cible: v })} /><MoneyField label="Combien pouvez-vous mettre de côté chaque mois sans déséquilibrer votre budget ? (€)" required value={form.capacite_epargne_mensuelle} onChange={(v) => patchCurrent({ capacite_epargne_mensuelle: v })} /><MoneyField label="Quelle somme pourriez-vous utiliser comme apport pour un projet immobilier ? (€)" value={form.apport_immobilier_possible} onChange={(v) => patchCurrent({ apport_immobilier_possible: v })} /></div>}
 
@@ -473,7 +478,7 @@ export default function ClientRecueilJourneyPage() {
         {errorMessage && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <SecureNote>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits ne vous sont pas demandés ici : ils seront renseignés à partir des justificatifs transmis en fin de parcours. Chaque partie est enregistrée et horodatée. Après validation finale du recueil, vos réponses sont figées pour préserver la piste d’audit.</SecureNote>
       </div>
-      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{current.code === 'objectives' && objectiveStage === 'selection' ? 'Préciser mes objectifs' : current.code === 'objectives' && objectiveStage === 'details' && objectiveDetailIndex < objectiveItems.length - 1 ? 'Objectif suivant' : step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
+      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{current.code === 'objectives' && objectiveStage === 'selection' ? 'Classer mes objectifs' : step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
   </div>;
 }
