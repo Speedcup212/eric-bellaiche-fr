@@ -37,13 +37,13 @@ export default function PortalShell() {
   }, []);
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-[#071827] text-white/75">Ouverture de votre espace sécurisé…</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-[#f7f9fc] text-[#5b6b82]">Ouverture de votre espace sécurisé…</div>;
   }
 
   if (authError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#071827] px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 text-center shadow-2xl shadow-black/20">
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f9fc] px-4">
+        <div className="w-full max-w-md rounded-2xl border border-[#dbe4ef] bg-white p-6 text-center shadow-sm">
           <p className="font-semibold text-[#0b1f3a]">Connexion momentanément indisponible</p>
           <p className="mt-2 text-sm leading-6 text-slate-600">La vérification de votre session n’a pas abouti. Vos données ne sont pas affectées.</p>
           <button type="button" onClick={() => window.location.reload()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Réessayer</button>
@@ -63,8 +63,8 @@ export default function PortalShell() {
   };
 
   return (
-    <div className="min-h-screen bg-[#071827] text-[#0b1f3a]">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(56,189,248,0.10),transparent_30%),linear-gradient(180deg,rgba(7,24,39,0.96),rgba(5,17,31,1))]" />
+    <div className="min-h-screen bg-white text-[#0b1f3a]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_14%_0%,rgba(59,130,246,0.08),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(23,57,103,0.06),transparent_32%)]" />
       <header className="sticky top-0 z-50 border-b border-[#dbe4ef] bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => navigate('/espace-client')} className="text-left">
