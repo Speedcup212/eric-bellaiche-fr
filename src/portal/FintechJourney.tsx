@@ -71,7 +71,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
         <div className="shrink-0 rounded-full bg-[#e9f0f8] px-3 py-1 text-xs font-bold text-[#173967]">{globalPct}%</div>
       </div>
       <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[#e7edf5]">
-        <div className="h-full rounded-full bg-gradient-to-r from-[#173967] to-[#4a78a8] transition-all duration-300" style={{ width: `${globalPct}%` }} />
+        <div className="h-full rounded-full bg-gradient-to-r from-[#3B82F6] to-[#60A5FA] transition-[width] duration-500 ease-out" style={{ width: `${globalPct}%` }} />
       </div>
       <div className="flex items-center gap-1.5 sm:gap-2">
         {visible.map((stage, index) => {
@@ -79,8 +79,8 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
           const active = index === currentIndex;
           const href = complete && dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;
           const stageContent = (
-            <div className={`flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#0b1f3a] text-white shadow-md shadow-[#0b1f3a]/10' : complete ? 'bg-[#eaf2fb] text-[#173967]' : 'bg-[#f6f8fb] text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:bg-[#dfeaf7] hover:shadow-sm' : ''}`}>
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/12 text-white' : complete ? 'bg-blue-100 text-blue-700' : 'bg-white text-[#7f8da1]'}`}>
+            <div className={`flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#3B82F6] text-white shadow-md shadow-blue-950/15' : complete ? 'bg-[#10B981] text-white shadow-sm' : 'bg-[#f6f8fb] text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sm' : ''}`}>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/15 text-white' : complete ? 'bg-white/20 text-white' : 'bg-white text-[#7f8da1]'}`}>
                 {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
               </span>
               <span className="hidden truncate text-xs font-semibold md:block">{stage.label}</span>
@@ -92,7 +92,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
               <div className="min-w-0 flex-1">
                 {href ? <Link to={href} aria-label={`Revenir à l’étape ${stage.label}`}>{stageContent}</Link> : stageContent}
               </div>
-              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 sm:w-4 ${index < currentIndex ? 'bg-[#91acd0]' : 'bg-[#dbe4ef]'}`} />}
+              {index < visible.length - 1 && <div className={`h-px w-2 shrink-0 transition-colors duration-300 sm:w-4 ${index < currentIndex ? 'bg-[#10B981]' : 'bg-[#dbe4ef]'}`} />}
             </div>
           );
         })}
