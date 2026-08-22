@@ -14,7 +14,7 @@ const steps = [
   { title: 'Vos objectifs patrimoniaux', description: 'Sélectionnez les objectifs qui motivent votre démarche. Pour chacun, indiquez l’horizon envisagé et ajoutez si nécessaire une précision utile au cabinet.', icon: Target },
   { title: 'Votre situation professionnelle', description: 'Ces informations permettent d’apprécier la stabilité et l’origine de vos revenus dans le cadre de l’analyse patrimoniale.', icon: Briefcase },
   { title: 'Votre capacité financière', description: 'Indiquez les montants que vous estimez disponibles. Ils servent à vérifier que les futures recommandations restent cohérentes avec votre situation.', icon: Coins },
-  { title: 'Vos préférences de durabilité', description: 'Indiquez simplement si vous souhaitez intégrer des critères environnementaux ou sociaux. Si vous répondez Oui, un questionnaire dédié vous sera proposé après le profil investisseur.', icon: Leaf },
+  { title: 'Vos préférences de durabilité', description: 'Indiquez simplement si vous souhaitez intégrer des critères environnementaux, sociaux ou de gouvernance (ESG). Si vous répondez Oui, un questionnaire dédié vous sera proposé après le profil investisseur.', icon: Leaf },
 ] as const;
 
 export default function ClientRecueilPage() {
