@@ -2,6 +2,36 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { lazy, Suspense } from 'react';
 import ConsentBanner from './components/ConsentBanner';
 
+function lazyWithReload(factory: Parameters<typeof lazy>[0], key: string) {
+  return lazy(async () => {
+    try {
+      const module = await factory();
+      sessionStorage.removeItem(`lazy-retry:${key}`);
+      return module;
+    } catch (error) {
+      const retryKey = `lazy-retry:${key}`;
+      if (!sessionStorage.getItem(retryKey)) {
+        sessionStorage.setItem(retryKey, '1');
+        window.location.reload();
+        return new Promise<never>(() => {});
+      }
+      sessionStorage.removeItem(retryKey);
+      throw error;
+    }
+  });
+}
+
+function AppLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#edf3fa] px-4">
+      <div className="rounded-2xl border border-[#dbe4ef] bg-white px-6 py-5 text-center shadow-sm">
+        <p className="text-sm font-semibold text-[#0b1f3a]">Ouverture de votre espace sécurisé…</p>
+        <p className="mt-1 text-xs text-[#6f8198]">La page se charge. Ne fermez pas cette fenêtre.</p>
+      </div>
+    </div>
+  );
+}
+
 const HomePage = lazy(() => import('./pages/HomePage'));
 const GrenoblePageWrapper = lazy(() => import('./pages/GrenoblePageWrapper'));
 const MontrougePageWrapper = lazy(() => import('./pages/MontrougePageWrapper'));
@@ -14,15 +44,15 @@ const CgpCifRedirect = lazy(() => import('./pages/CgpCifRedirect'));
 const ConseillerScpiRedirect = lazy(() => import('./pages/ConseillerScpiRedirect'));
 const ArticlePageWrapper = lazy(() => import('./pages/ArticlePageWrapper'));
 const ArticlesHubPage = lazy(() => import('./pages/ArticlesHubPage'));
-const ClientLoginPage = lazy(() => import('./pages/portal/ClientLoginPage'));
-const ClientInvitationPage = lazy(() => import('./pages/portal/ClientInvitationPage'));
-const PortalShell = lazy(() => import('./portal/PortalShell'));
-const ClientDashboardPage = lazy(() => import('./pages/portal/ClientDashboardPage'));
-const ClientDocumentsPage = lazy(() => import('./pages/portal/ClientDocumentsPage'));
-const ClientRecueilPage = lazy(() => import('./pages/portal/ClientRecueilJourneyPage'));
-const QuestionnairePage = lazy(() => import('./pages/portal/QuestionnairePage'));
-const ClientSummaryPage = lazy(() => import('./pages/portal/ClientSummaryPage'));
-const CifAdminPage = lazy(() => import('./pages/portal/CifAdminPage'));
+const ClientLoginPage = lazyWithReload(() => import('./pages/portal/ClientLoginPage'), 'client-login');
+const ClientInvitationPage = lazyWithReload(() => import('./pages/portal/ClientInvitationPage'), 'client-invitation');
+const PortalShell = lazyWithReload(() => import('./portal/PortalShell'), 'portal-shell');
+const ClientDashboardPage = lazyWithReload(() => import('./pages/portal/ClientDashboardPage'), 'client-dashboard');
+const ClientDocumentsPage = lazyWithReload(() => import('./pages/portal/ClientDocumentsPage'), 'client-documents');
+const ClientRecueilPage = lazyWithReload(() => import('./pages/portal/ClientRecueilJourneyPage'), 'client-recueil');
+const QuestionnairePage = lazyWithReload(() => import('./pages/portal/QuestionnairePage'), 'client-questionnaire');
+const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');
+const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminPage'), 'cif-admin');
 
 const articleSlugs = ['conseiller-scpi','audit-patrimonial-en-ligne','scpi-fiscalite','scpi-assurance-vie-ou-direct','per-ou-assurance-vie','scpi-a-credit','scpi-demembrement','scpi-retraite','scpi-revenus-complementaires','scpi-succession-transmission','per-fiscalite','assurance-vie-fiscalite','assurance-vie-apres-70-ans','reduire-impot-sans-risque-excessif','fiscalite-revenus-fonciers','lmnp-ou-location-nue','sci-ir-ou-sci-is','immobilier-locatif-fiscalite','deficit-foncier','investissement-locatif-retraite','conseiller-patrimoine-en-ligne','structurer-son-patrimoine','preparer-retraite-patrimoine','transmission-patrimoine-famille-recomposee','erreurs-gestion-patrimoine'];
 
@@ -42,7 +72,7 @@ function PublicDossierAccess() {
 }
 
 export default function App() {
-  return <BrowserRouter><ConsentBanner /><PublicDossierAccess /><Suspense fallback={<div style={{ minHeight: '100vh', background: '#f8fafc' }} />}><Routes>
+  return <BrowserRouter><ConsentBanner /><PublicDossierAccess /><Suspense fallback={<AppLoadingFallback />}><Routes>
     <Route path="/" element={<HomePage />} />
     <Route path="/conseil-investissement-grenoble" element={<GrenoblePageWrapper />} /><Route path="/conseil-investissement-montrouge" element={<MontrougePageWrapper />} /><Route path="/conseil-investissement-toulouse" element={<ToulousePageWrapper />} /><Route path="/conseil-investissement-rennes" element={<RennesPageWrapper />} /><Route path="/conseil-investissement-aix-en-provence" element={<AixPageWrapper />} /><Route path="/conseil-investissement-nantes" element={<NantesPageWrapper />} />
     <Route path="/merci" element={<ThankYouPage />} /><Route path="/eric-bellaiche-cgp-cif" element={<CgpCifRedirect />} /><Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} /><Route path="/conseiller-scpi" element={<ConseillerScpiRedirect />} /><Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
