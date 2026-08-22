@@ -11,7 +11,6 @@ interface QuestionRow { id: string; code: string; libelle: string; ordre: number
 interface AnswerRow { question_id: string; option_id: string | null; answer_text: string | null; answer_numeric: number | null; answer_json: unknown; }
 type ExpState = { connaissance: '' | 'true' | 'false'; sources: string[]; precision: string; anciennete: string; montant: string; mode: string };
 export interface QpiResultRow { profil_indicatif: string | null; profil_operationnel_final: string | null; ecart_declared_objective: boolean | null; synthese_dimensions: Record<string, unknown>; }
-type RecueilSummary = { objectives: Array<{ label: string; horizon: string }>; monthlySavings: number | null; precautionSavings: number | null };
 
 const experienceFamilies = [
   ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'],
@@ -100,7 +99,6 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [qpiResult, setQpiResult] = useState<QpiResultRow | null>(null);
-  const [recueilSummary, setRecueilSummary] = useState<RecueilSummary>({ objectives: [], monthlySavings: null, precautionSavings: null });
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
@@ -133,29 +131,19 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       setAnswers(answerMap);
       setMulti(multiMap);
       if (mode === 'QPI') {
-        const [{ data: expRows, error: expError }, { data: details, error: detailsError }, { data: resultData, error: resultError }, { data: recueilData, error: recueilError }] = await Promise.all([
+        const [{ data: expRows, error: expError }, { data: details, error: detailsError }, { data: resultData, error: resultError }] = await Promise.all([
           supabase.from('qpi_product_experience').select('famille_produit,niveau_experience').eq('session_id', id),
           supabase.from('qpi_experience_details').select('*').eq('session_id', id).maybeSingle(),
           supabase.from('qpi_results').select('profil_indicatif,profil_operationnel_final,ecart_declared_objective,synthese_dimensions').eq('session_id', id).maybeSingle(),
-          supabase.from('recueil_sections').select('section_code,payload').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).in('section_code', ['objectives', 'capacity']),
         ]);
         if (expError) throw expError;
         if (detailsError) throw detailsError;
         if (resultError) throw resultError;
-        if (recueilError) throw recueilError;
         const map: Record<string, string> = {};
         for (const rowExp of expRows ?? []) map[rowExp.famille_produit] = rowExp.niveau_experience;
         setExperiences(map);
         if (details) setExpDetails({ connaissance: details.connaissance_par_formation_ou_profession === true ? 'true' : details.connaissance_par_formation_ou_profession === false ? 'false' : '', sources: details.sources_pertinentes ?? [], precision: details.precisions_formation_profession ?? '', anciennete: details.anciennete_experience ?? '', montant: details.montant_habituel_operation ?? '', mode: details.mode_gestion ?? '' });
         if (resultData) setQpiResult(resultData as QpiResultRow);
-        const objectivesPayload = (recueilData ?? []).find((item) => item.section_code === 'objectives')?.payload as { items?: Array<Record<string, unknown>> } | undefined;
-        const capacityPayload = (recueilData ?? []).find((item) => item.section_code === 'capacity')?.payload as Record<string, unknown> | undefined;
-        const horizonLabel = (value: unknown) => value === 0 ? '< 3 ans' : value === 3 ? '3 à 5 ans' : value === 5 ? '5 à 10 ans' : value === 10 ? '> 10 ans' : value !== null && value !== undefined && value !== '' ? `${value} ans` : 'horizon non précisé';
-        setRecueilSummary({
-          objectives: (objectivesPayload?.items ?? []).map((item) => ({ label: String(item.label || item.libelle_autre || item.code_objectif || 'Objectif'), horizon: horizonLabel(Number(item.horizon_annees)) })),
-          monthlySavings: capacityPayload?.capacite_epargne_mensuelle === '' || capacityPayload?.capacite_epargne_mensuelle == null ? null : Number(capacityPayload.capacite_epargne_mensuelle),
-          precautionSavings: capacityPayload?.epargne_precaution_cible === '' || capacityPayload?.epargne_precaution_cible == null ? null : Number(capacityPayload.epargne_precaution_cible),
-        });
       }
     }).catch((error) => setErrorMessage(messageFromError(error)));
   }, [dossierId, mode]);
@@ -361,19 +349,6 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
-        {mode === 'QPI' && currentIndex === 0 && <div className="mb-6 rounded-2xl border border-blue-300 bg-gradient-to-r from-blue-50 to-[#f8fbff] p-4 text-sm text-blue-950 shadow-sm sm:p-5">
-          <div className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
-              <CheckCircle2 className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-semibold">Informations déjà reprises de votre recueil</p>
-              <p className="mt-1 leading-5 text-blue-800 sm:leading-6">Vos objectifs, leurs horizons et votre capacité d’épargne sont déjà intégrés. Vous n’avez pas à les saisir une seconde fois.</p>
-              {recueilSummary.objectives.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{recueilSummary.objectives.map((item, index) => <span key={`${item.label}-${index}`} className="rounded-full border border-blue-100 bg-white px-3 py-1.5 font-medium shadow-sm">{item.label} · {item.horizon}</span>)}</div>}
-              {(recueilSummary.monthlySavings !== null || recueilSummary.precautionSavings !== null) && <p className="mt-3 text-xs font-medium leading-5 text-blue-700">Capacité d’épargne : {recueilSummary.monthlySavings?.toLocaleString('fr-FR') ?? '—'} €/mois · Épargne de précaution : {recueilSummary.precautionSavings?.toLocaleString('fr-FR') ?? '—'} €</p>}
-            </div>
-          </div>
-        </div>}
         {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{displayedOptions(currentQuestion).map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
 
         {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => {
