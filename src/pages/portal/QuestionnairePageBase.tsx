@@ -51,6 +51,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [done, setDone] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
@@ -169,6 +170,32 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   };
 
   const currentComplete = currentQuestion ? questionComplete(currentQuestion) : familyStep ? Boolean(experiences[familyStep[0]]) : detailStep === 0 ? expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim()))) : detailStep === 1 ? Boolean(expDetails.anciennete) : detailStep === 2 ? Boolean(expDetails.montant) : detailStep === 3 ? Boolean(expDetails.mode) : false;
+
+  const stepCompleteAt = (index: number): boolean => {
+    if (index < visibleQuestions.length) return questionComplete(visibleQuestions[index]);
+    const extra = index - visibleQuestions.length;
+    if (mode !== 'QPI') return true;
+    if (extra >= 0 && extra < experienceFamilies.length) return Boolean(experiences[experienceFamilies[extra][0]]);
+    const detail = extra - experienceFamilies.length;
+    if (detail === 0) return expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim())));
+    if (detail === 1) return Boolean(expDetails.anciennete);
+    if (detail === 2) return Boolean(expDetails.montant);
+    if (detail === 3) return Boolean(expDetails.mode);
+    return true;
+  };
+
+  const stepLabelAt = (index: number): string => {
+    if (index < visibleQuestions.length) {
+      const question = visibleQuestions[index];
+      return `${question.code} · ${question.libelle}`;
+    }
+    const extra = index - visibleQuestions.length;
+    if (extra >= 0 && extra < experienceFamilies.length) return `Expérience · ${experienceFamilies[extra][1]}`;
+    const detailLabels = ['Origine des connaissances financières', 'Ancienneté de votre expérience', 'Montant habituel de vos opérations', 'Mode de gestion habituel'];
+    return detailLabels[extra - experienceFamilies.length] ?? `Élément ${index + 1}`;
+  };
+
+  const incompleteSteps = Array.from({ length: totalSteps }, (_, index) => index).filter((index) => !stepCompleteAt(index));
   const persistCurrentQuestion = async () => { if (!currentQuestion) return; const answer = answers[currentQuestion.id]; if (answer) await upsertQuestionAnswer(currentQuestion, answer); };
 
   const finish = async () => {
@@ -195,8 +222,18 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         setCurrentIndex((index) => index + 1);
         setNoteOpen(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else await finish();
+      } else {
+        setValidationAttempted(true);
+        if (incompleteSteps.length > 0) {
+          setCurrentIndex(incompleteSteps[0]);
+          setErrorMessage(`${incompleteSteps.length} élément${incompleteSteps.length > 1 ? 's restent' : ' reste'} à compléter avant la validation.`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        await finish();
+      }
     } catch (error) {
+      if (currentIndex === totalSteps - 1) setValidationAttempted(true);
       setErrorMessage(messageFromError(error));
     } finally {
       setBusy(false);
@@ -291,6 +328,14 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         {detailStep === 2 && <div className="grid gap-3">{amountOptions.map(([value, label]) => <ChoiceButton key={value} selected={expDetails.montant === value} onClick={() => { const nextState = { ...expDetails, montant: value }; setExpDetails(nextState); void saveExperienceDetails(nextState); }}>{label}</ChoiceButton>)}</div>}
         {detailStep === 3 && <div className="grid gap-3">{managementOptions.map(([value, label]) => <ChoiceButton key={value} selected={expDetails.mode === value} onClick={() => { const nextState = { ...expDetails, mode: value }; setExpDetails(nextState); void saveExperienceDetails(nextState); }}>{label}</ChoiceButton>)}</div>}
 
+        {validationAttempted && incompleteSteps.length > 0 && <div className="mt-6 rounded-2xl border-2 border-red-200 bg-red-50 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div><p className="font-semibold text-red-800">Validation impossible : éléments à compléter</p><p className="mt-1 text-sm leading-6 text-red-700">Les éléments en rouge ci-dessous doivent être complétés avant de pouvoir valider le questionnaire.</p></div>
+            <span className="shrink-0 rounded-full bg-red-700 px-3 py-1 text-xs font-bold text-white">{incompleteSteps.length} restant{incompleteSteps.length > 1 ? 's' : ''}</span>
+          </div>
+          <div className="mt-4 grid gap-2">{incompleteSteps.map((index) => <button key={index} type="button" onClick={() => { setCurrentIndex(index); setErrorMessage(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${index === currentIndex ? 'border-red-700 bg-red-700 text-white' : 'border-red-200 bg-white text-red-800 hover:border-red-400 hover:bg-red-100'}`}>À compléter · {stepLabelAt(index)}</button>)}</div>
+        </div>}
+        {validationAttempted && !currentComplete && <div className="mt-5 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">Cette question doit être complétée avant la validation du questionnaire.</div>}
         <div className="mt-6"><SecureNote>Vos réponses sont confidentielles et utilisées exclusivement pour l’analyse et la traçabilité de votre dossier patrimonial.</SecureNote></div>
         {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
       </div>
