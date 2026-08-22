@@ -72,7 +72,7 @@
   .recueil-question-grid--3 > :nth-child(3n + 1):not(:nth-last-child(-n + 3))::after { width: calc(300% + 3rem); }
 }
 
-/* Public site responsive: dedicated tablet / landscape behaviour */
+/* Public site responsive: dedicated tablet behaviour */
 @media (min-width: 768px) and (max-width: 1024px) {
   main > header.fixed > div { padding-top: .55rem !important; padding-bottom: .55rem !important; }
   main > header.fixed img { width: 3rem !important; height: 3rem !important; }
@@ -88,24 +88,40 @@
 
 /* Public site responsive: compact mobile header + CTA */
 @media (max-width: 767px) {
-  main > header.fixed > div { padding: .55rem .75rem !important; }
+  main > header.fixed > div { padding: .55rem .75rem 2.15rem !important; }
   main > header.fixed img { width: 2.75rem !important; height: 2.75rem !important; }
   main > header.fixed h1 { font-size: 1rem !important; line-height: 1.05 !important; padding-right: 3.25rem; }
   main > header.fixed p { font-size: 0 !important; line-height: 1.15 !important; margin-top: .2rem; }
   main > header.fixed p::after { content: 'Gestion de patrimoine · France entière'; font-size: .68rem; color: #475569; font-weight: 600; }
   main > header.fixed a[href*="calendly"] { min-width: 3.1rem; padding: .5rem .6rem !important; font-size: .68rem !important; }
-  .public-dossier-access { top: 3.55rem !important; right: .75rem !important; min-height: 1.55rem !important; padding: .22rem .45rem !important; font-size: .55rem !important; }
-  main > header.fixed + section { padding-top: 6.8rem !important; padding-bottom: 5.5rem !important; }
-  main > header.fixed + section h1 { font-size: clamp(1.85rem, 8.2vw, 2.35rem) !important; line-height: 1.12 !important; }
-  main > header.fixed + section h2 { margin-top: .6rem; margin-bottom: 1.35rem !important; font-size: 1rem !important; line-height: 1.5 !important; }
-  main > div[class*="fixed bottom-0"] { padding: .55rem .75rem !important; }
-  main > div[class*="fixed bottom-0"] > a { min-height: 3.5rem !important; padding: .7rem 1rem !important; font-size: 0 !important; line-height: 1 !important; border-radius: .75rem !important; }
-  main > div[class*="fixed bottom-0"] > a::before { content: '📅 Prendre rendez-vous'; font-size: .95rem; font-weight: 800; }
-  main > div[class*="fixed bottom-0"] svg { width: 1.1rem !important; height: 1.1rem !important; }
+  .public-dossier-access { top: 3.55rem !important; right: .75rem !important; min-height: 1.55rem !important; padding: .22rem .55rem !important; font-size: .58rem !important; }
+  main > header.fixed + section { padding-top: 8.25rem !important; padding-bottom: 5.25rem !important; }
+  main > header.fixed + section h1 { font-size: clamp(1.72rem, 7.4vw, 2.15rem) !important; line-height: 1.12 !important; }
+  main > header.fixed + section h2 { margin-top: .6rem; margin-bottom: 1.2rem !important; font-size: .94rem !important; line-height: 1.48 !important; }
+  main > div[class*="fixed bottom-0"] { padding: .45rem .7rem !important; }
+  main > div[class*="fixed bottom-0"] > a { min-height: 3rem !important; padding: .55rem .9rem !important; font-size: 0 !important; line-height: 1 !important; border-radius: .7rem !important; }
+  main > div[class*="fixed bottom-0"] > a::before { content: '📅 Prendre rendez-vous'; font-size: .9rem; font-weight: 800; }
+  main > div[class*="fixed bottom-0"] svg { width: 1rem !important; height: 1rem !important; }
+}
+
+/* Samsung / mobile landscape: do not use the portrait stacking */
+@media (orientation: landscape) and (max-width: 900px) {
+  main > header.fixed > div { padding: .5rem .75rem !important; }
+  main > header.fixed img { width: 2.65rem !important; height: 2.65rem !important; }
+  main > header.fixed h1 { font-size: 1rem !important; padding-right: 0 !important; }
+  main > header.fixed p { font-size: 0 !important; }
+  main > header.fixed p::after { content: 'Gestion de patrimoine · France entière'; font-size: .67rem; color: #475569; font-weight: 600; }
+  main > header.fixed a[href*="calendly"] { min-width: 5.7rem !important; padding: .48rem .7rem !important; font-size: .68rem !important; }
+  .public-dossier-access { top: .65rem !important; right: 6.95rem !important; min-height: 0 !important; padding: .47rem .65rem !important; font-size: .62rem !important; border-radius: .55rem !important; }
+  main > header.fixed + section { padding-top: 5.65rem !important; padding-bottom: 2.2rem !important; }
+  main > header.fixed + section h1 { font-size: clamp(1.85rem, 4.5vw, 2.25rem) !important; line-height: 1.08 !important; max-width: 46rem; }
+  main > header.fixed + section h2 { font-size: .95rem !important; line-height: 1.38 !important; margin-bottom: .9rem !important; }
+  main > div[class*="fixed bottom-0"] { padding: .35rem .7rem !important; }
+  main > div[class*="fixed bottom-0"] > a { min-height: 2.7rem !important; padding: .45rem .8rem !important; }
 }
 
 @media (max-width: 380px) {
   main > header.fixed h1 { font-size: .92rem !important; }
   main > header.fixed p::after { font-size: .62rem; }
-  main > header.fixed + section h1 { font-size: 1.72rem !important; }
+  main > header.fixed + section h1 { font-size: 1.62rem !important; }
 }
