@@ -90,17 +90,36 @@ function MonthYearField({ label = 'Date d’entrée dans l’entreprise', value,
   const match = /^(\d{4})-(0[1-9]|1[0-2])/.exec(String(value ?? ''));
   const yearValue = match?.[1] ?? '';
   const monthValue = match?.[2] ?? '';
+  const [draftMonth, setDraftMonth] = useState(monthValue);
+  const [draftYear, setDraftYear] = useState(yearValue);
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - minYear + 1 }, (_, index) => String(currentYear - index));
   const months = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
-  const commit = (month: string, year: string) => onChange(month && year ? `${year}-${month}-01` : '');
+
+  useEffect(() => {
+    setDraftMonth(monthValue);
+    setDraftYear(yearValue);
+  }, [monthValue, yearValue]);
+
+  const selectMonth = (month: string) => {
+    setDraftMonth(month);
+    if (!month) onChange('');
+    else if (draftYear) onChange(`${draftYear}-${month}-01`);
+  };
+
+  const selectYear = (year: string) => {
+    setDraftYear(year);
+    if (!year) onChange('');
+    else if (draftMonth) onChange(`${year}-${draftMonth}-01`);
+  };
+
   return <div className="rounded-2xl border border-white/10 bg-[#111C31] p-4 text-sm font-semibold text-[#F1F5F9] shadow-sm">
     <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#60A5FA]" />{label} : mois / année{required && ' *'}</p>
     <p className="mt-1 text-xs font-normal leading-5 text-[#94A3B8]">Sélectionnez le mois puis l’année. Exemple : 05 / 2015.</p>
     <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2 rounded-xl bg-white p-3 text-slate-700">
-      <label className="!bg-transparent !p-0 !text-slate-700 !shadow-none"><span className="text-xs font-medium">Mois</span><select aria-label={`Mois — ${label}`} value={monthValue} onChange={(event) => commit(event.target.value, yearValue)} className="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30"><option value="">MM</option>{months.map((month) => <option key={month} value={month}>{month}</option>)}</select></label>
+      <label className="!bg-transparent !p-0 !text-slate-700 !shadow-none"><span className="text-xs font-medium">Mois</span><select aria-label={`Mois — ${label}`} value={draftMonth} onChange={(event) => selectMonth(event.target.value)} className="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30"><option value="">MM</option>{months.map((month) => <option key={month} value={month}>{month}</option>)}</select></label>
       <span className="pb-3 text-lg font-semibold text-slate-500">/</span>
-      <label className="!bg-transparent !p-0 !text-slate-700 !shadow-none"><span className="text-xs font-medium">Année</span><select aria-label={`Année — ${label}`} value={yearValue} onChange={(event) => commit(monthValue, event.target.value)} className="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30"><option value="">AAAA</option>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
+      <label className="!bg-transparent !p-0 !text-slate-700 !shadow-none"><span className="text-xs font-medium">Année</span><select aria-label={`Année — ${label}`} value={draftYear} onChange={(event) => selectYear(event.target.value)} className="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30"><option value="">AAAA</option>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
     </div>
   </div>;
 }
