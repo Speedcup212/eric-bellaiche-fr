@@ -12,7 +12,7 @@ const sections: Array<{ code: SectionCode; title: string; description: string }>
   { code: 'identity', title: 'Identité et coordonnées', description: 'Vérifiez vos informations personnelles, votre adresse fiscale et vos coordonnées.' },
   { code: 'family', title: 'Situation familiale', description: 'Renseignez votre situation de famille et les éléments utiles à l’organisation patrimoniale.' },
   { code: 'professional', title: 'Situation professionnelle', description: 'Votre activité et votre statut permettent d’apprécier la stabilité et l’origine de vos revenus.' },
-  { code: 'objectives', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs prioritaires et indiquez, pour chacun, un montant cible et un horizon.' },
+  { code: 'objectives', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs, classez-les par priorité et indiquez leur horizon.' },
   { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
   { code: 'patrimony', title: 'Patrimoine immobilier et financier', description: 'Aucune saisie détaillée : vos justificatifs seront transmis à l’étape Documents pour préparer automatiquement votre dossier.' },
@@ -45,24 +45,6 @@ const objectiveGroups: Array<{ title: string; description: string; codes: Object
   { title: 'Protection & transmission', description: 'Protéger vos proches et organiser la transmission.', codes: ['protection_conjoint', 'protection_proches', 'transmission', 'transmission_entreprise', 'accidents_vie'] },
   { title: 'Autre besoin', description: 'Ajoutez un objectif qui ne figure pas dans les catégories précédentes.', codes: ['autre'] },
 ];
-
-const objectiveAmountLabels: Record<ObjectiveCode, string> = {
-  optimisation_fiscale: 'Montant annuel à optimiser (€)',
-  achat_immobilier: 'Budget global du projet (€)',
-  constitution_patrimoine: 'Capital à constituer (€)',
-  epargne_precaution: 'Épargne de précaution cible (€)',
-  liquidites_court_terme: 'Montant à placer à court terme (€)',
-  revenus_complementaires: 'Revenus complémentaires visés par an (€)',
-  optimisation_rendement: 'Capital à optimiser (€)',
-  retraite: 'Capital cible estimé (€) — facultatif',
-  aide_enfants: 'Budget à consacrer (€)',
-  protection_conjoint: 'Capital de protection souhaité (€)',
-  protection_proches: 'Capital de protection souhaité (€)',
-  transmission: 'Valeur du patrimoine à transmettre (€)',
-  transmission_entreprise: 'Valeur estimée de l’entreprise à transmettre (€)',
-  accidents_vie: 'Capital de protection souhaité (€)',
-  autre: 'Montant cible (€)',
-};
 
 const objectiveLabelByCode = Object.fromEntries(objectiveOptions) as Record<ObjectiveCode, string>;
 
@@ -368,7 +350,7 @@ export default function ClientRecueilJourneyPage() {
     const exists = objectiveItems.some((item) => item.code_objectif === code);
     const nextItems = exists
       ? objectiveItems.filter((item) => item.code_objectif !== code)
-      : [...objectiveItems, { code_objectif: code, libelle_autre: '', montant_cible: '', horizon_annees: '', commentaire: '', label }];
+      : [...objectiveItems, { code_objectif: code, libelle_autre: '', horizon_annees: '', commentaire: '', label }];
     patchCurrent({ items: nextItems.map((item, index) => ({ ...item, priorite: index + 1 })) });
   };
   const updateObjective = (code: string, values: AnyPayload) => patchCurrent({ items: objectiveItems.map((item) => item.code_objectif === code ? { ...item, ...values } : item) });
@@ -407,8 +389,6 @@ export default function ClientRecueilJourneyPage() {
             {objectiveItems.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-slate-500/60 bg-white/5 px-4 py-6 text-center text-sm leading-6 text-[#94A3B8]">Aucun objectif sélectionné.<br />Choisissez-en un dans la colonne de gauche.</div> : <div className="mt-5 space-y-4">{objectiveItems.map((item, index) => {
               const code = item.code_objectif as ObjectiveCode;
               const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
-              const baseAmountLabel = objectiveAmountLabels[code] || 'Montant cible (€)';
-              const amountLabel = baseAmountLabel.includes('facultatif') ? baseAmountLabel : `${baseAmountLabel} — facultatif`;
               return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-sm font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
@@ -421,8 +401,8 @@ export default function ClientRecueilJourneyPage() {
                 {item.code_objectif === 'autre' && <div className="mt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
                 <div className="mt-4"><CompactHorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
                 <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <summary className="cursor-pointer text-xs font-semibold leading-5 text-slate-700">Montant ou précision — facultatif</summary>
-                  <div className="mt-4 space-y-4"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
+                  <summary className="cursor-pointer text-xs font-semibold leading-5 text-slate-700">Ajouter une précision — facultatif</summary>
+                  <div className="mt-4"><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
                 </details>
                 <button type="button" onClick={() => toggleObjective(code, label)} className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700">Retirer cet objectif</button>
               </div>;
