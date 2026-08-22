@@ -29,3 +29,9 @@ jobs:
         run: npm run build
       - name: Critical route smoke test
         run: npm run test:routes
+      - name: Install Firefox smoke runner
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps firefox
+      - name: Firefox portal smoke test
+        run: node scripts/firefox-smoke.mjs
