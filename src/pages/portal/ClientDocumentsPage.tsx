@@ -11,8 +11,10 @@ interface RegulatoryDocument { id: string; type_document: string; statut: string
 const categories = [
   ['avis_imposition', 'Avis d’imposition'],
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
-  ['patrimoine_financier', 'Épargne / placements / relevés'],
-  ['patrimoine_immobilier', 'Patrimoine immobilier'],
+  ['comptes_liquidites', 'Comptes bancaires / liquidités'],
+  ['patrimoine_financier', 'Placements / épargne'],
+  ['patrimoine_immobilier', 'Bien immobilier / acte notarié'],
+  ['sci_societe', 'SCI / société'],
   ['autre', 'Autre document'],
 ] as const;
 
@@ -138,12 +140,12 @@ export default function ClientDocumentsPage() {
   return (
     <div>
       <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Dernière étape" title="Transmettre vos documents" description="Vous avez terminé les questionnaires. Déposez maintenant les justificatifs préparés afin que le cabinet puisse rapprocher vos déclarations des pièces utiles et finaliser le contrôle de votre dossier." icon={<UploadCloud className="h-5 w-5" />} />
+      <PageIntro eyebrow="Dernière étape" title="Transmettre vos documents" description="Vous avez terminé les questionnaires. Déposez maintenant vos justificatifs : les informations utiles seront associées à votre dossier sans nouvelle saisie de votre part." icon={<UploadCloud className="h-5 w-5" />} />
       <WizardCard>
         {!transmitted ? (
           <div className="px-6 py-7 sm:px-9 sm:py-9">
             <h3 className="text-xl font-semibold text-slate-950">Ajouter un justificatif</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choisissez la catégorie, puis sélectionnez le fichier correspondant. Vous pouvez transmettre autant de documents que nécessaire.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choisissez la catégorie, puis sélectionnez un PDF, un scan ou une capture d’écran lisible. Vous pouvez transmettre autant de documents que nécessaire.</p>
             <form onSubmit={upload} className="mt-7 space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-semibold text-slate-700">Type de document<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
