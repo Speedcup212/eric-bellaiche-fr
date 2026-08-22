@@ -17,7 +17,7 @@ const routes = [
 
 const host = '127.0.0.1';
 const port = 4173;
-const server = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'preview', '--', '--host', host, '--port', String(port)], {
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', host, '--port', String(port)], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
@@ -52,4 +52,5 @@ try {
   console.log(`Built route smoke test: OK (${routes.length} routes)`);
 } finally {
   server.kill('SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }
