@@ -45,7 +45,7 @@ function displayedOptions(question: QuestionRow): OptionRow[] {
 }
 
 function questionExplanation(mode: Mode, question: QuestionRow): string {
-  if (mode === 'ESG') return 'Choisissez la réponse qui traduit le mieux vos préférences. Elle servira à vérifier la compatibilité des solutions étudiées avec vos critères de durabilité.';
+  if (mode === 'ESG') return 'Répondez selon vos convictions. Votre réponse permettra de vérifier que les solutions étudiées respectent vos préférences de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
   if (question.code === 'Q3') return 'Indiquez dans quel délai vous devez pouvoir disposer d’une partie de votre argent.';
   if (question.code === 'Q4') return 'Pensez aux dépenses importantes prévues ou possibles au cours des cinq prochaines années.';
@@ -311,7 +311,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
-  const introDescription = mode === 'QPI' ? 'Le questionnaire s’affiche une question à la fois. Vos réponses permettent d’évaluer votre situation, vos connaissances, votre expérience, votre capacité de perte et votre tolérance au risque.' : 'Le questionnaire s’affiche une question à la fois. Il ne produit pas de score ESG : il enregistre précisément les préférences que le cabinet devra prendre en compte.';
+  const introDescription = mode === 'QPI' ? 'Le questionnaire s’affiche une question à la fois. Vos réponses permettent d’évaluer votre situation, vos connaissances, votre expérience, votre capacité de perte et votre tolérance au risque.' : 'La durabilité correspond ici aux critères environnementaux, sociaux et de gouvernance (ESG). Répondez simplement selon vos convictions : aucune connaissance technique n’est nécessaire.';
   let cardTitle = '';
   let cardDescription = '';
   let cardLabel = `Question ${currentIndex + 1} sur ${totalSteps}`;
