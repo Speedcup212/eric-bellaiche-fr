@@ -1,0 +1,49 @@
+name: Patch questionnaire validation visual
+on:
+  push:
+    branches: [ux/questionnaire-validation-missing]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/questionnaire-validation-missing
+          fetch-depth: 0
+      - name: Highlight incomplete questionnaire items
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/QuestionnairePageBase.tsx')
+          s = p.read_text()
+
+          old = "  const [noteOpen, setNoteOpen] = useState(false);\n"
+          new = "  const [noteOpen, setNoteOpen] = useState(false);\n  const [validationAttempted, setValidationAttempted] = useState(false);\n"
+          if old not in s: raise SystemExit('state marker missing')
+          s = s.replace(old, new, 1)
+
+          old = "  const currentComplete = currentQuestion ? questionComplete(currentQuestion) : familyStep ? Boolean(experiences[familyStep[0]]) : detailStep === 0 ? expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim()))) : detailStep === 1 ? Boolean(expDetails.anciennete) : detailStep === 2 ? Boolean(expDetails.montant) : detailStep === 3 ? Boolean(expDetails.mode) : false;\n  const persistCurrentQuestion = async () => { if (!currentQuestion) return; const answer = answers[currentQuestion.id]; if (answer) await upsertQuestionAnswer(currentQuestion, answer); };\n"
+          new = "  const currentComplete = currentQuestion ? questionComplete(currentQuestion) : familyStep ? Boolean(experiences[familyStep[0]]) : detailStep === 0 ? expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim()))) : detailStep === 1 ? Boolean(expDetails.anciennete) : detailStep === 2 ? Boolean(expDetails.montant) : detailStep === 3 ? Boolean(expDetails.mode) : false;\n\n  const stepCompleteAt = (index: number): boolean => {\n    if (index < visibleQuestions.length) return questionComplete(visibleQuestions[index]);\n    const extra = index - visibleQuestions.length;\n    if (mode !== 'QPI') return true;\n    if (extra >= 0 && extra < experienceFamilies.length) return Boolean(experiences[experienceFamilies[extra][0]]);\n    const detail = extra - experienceFamilies.length;\n    if (detail === 0) return expDetails.connaissance === 'false' || (expDetails.connaissance === 'true' && (expDetails.sources.length > 0 || Boolean(expDetails.precision.trim())));\n    if (detail === 1) return Boolean(expDetails.anciennete);\n    if (detail === 2) return Boolean(expDetails.montant);\n    if (detail === 3) return Boolean(expDetails.mode);\n    return true;\n  };\n\n  const stepLabelAt = (index: number): string => {\n    if (index < visibleQuestions.length) {\n      const question = visibleQuestions[index];\n      return `${question.code} · ${question.libelle}`;\n    }\n    const extra = index - visibleQuestions.length;\n    if (extra >= 0 && extra < experienceFamilies.length) return `Expérience · ${experienceFamilies[extra][1]}`;\n    const detailLabels = ['Origine des connaissances financières', 'Ancienneté de votre expérience', 'Montant habituel de vos opérations', 'Mode de gestion habituel'];\n    return detailLabels[extra - experienceFamilies.length] ?? `Élément ${index + 1}`;\n  };\n\n  const incompleteSteps = Array.from({ length: totalSteps }, (_, index) => index).filter((index) => !stepCompleteAt(index));\n  const persistCurrentQuestion = async () => { if (!currentQuestion) return; const answer = answers[currentQuestion.id]; if (answer) await upsertQuestionAnswer(currentQuestion, answer); };\n"
+          if old not in s: raise SystemExit('currentComplete marker missing')
+          s = s.replace(old, new, 1)
+
+          old = "  const next = async () => {\n    if (!currentComplete) { setErrorMessage('Sélectionnez au moins une réponse pour continuer.'); return; }\n    setBusy(true);\n    setErrorMessage('');\n    try {\n      await persistCurrentQuestion();\n      if (detailStep >= 0) await saveExperienceDetails();\n      if (currentIndex < totalSteps - 1) {\n        setCurrentIndex((index) => index + 1);\n        setNoteOpen(false);\n        window.scrollTo({ top: 0, behavior: 'smooth' });\n      } else await finish();\n    } catch (error) {\n      setErrorMessage(messageFromError(error));\n    } finally {\n      setBusy(false);\n    }\n"
+          new = "  const next = async () => {\n    if (!currentComplete) { setErrorMessage('Sélectionnez au moins une réponse pour continuer.'); return; }\n    setBusy(true);\n    setErrorMessage('');\n    try {\n      await persistCurrentQuestion();\n      if (detailStep >= 0) await saveExperienceDetails();\n      if (currentIndex < totalSteps - 1) {\n        setCurrentIndex((index) => index + 1);\n        setNoteOpen(false);\n        window.scrollTo({ top: 0, behavior: 'smooth' });\n      } else {\n        setValidationAttempted(true);\n        if (incompleteSteps.length > 0) {\n          setCurrentIndex(incompleteSteps[0]);\n          setErrorMessage(`${incompleteSteps.length} élément${incompleteSteps.length > 1 ? 's restent' : ' reste'} à compléter avant la validation.`);\n          window.scrollTo({ top: 0, behavior: 'smooth' });\n          return;\n        }\n        await finish();\n      }\n    } catch (error) {\n      if (currentIndex === totalSteps - 1) setValidationAttempted(true);\n      setErrorMessage(messageFromError(error));\n    } finally {\n      setBusy(false);\n    }\n"
+          if old not in s: raise SystemExit('next block marker missing')
+          s = s.replace(old, new, 1)
+
+          old = "        <div className=\"mt-6\"><SecureNote>Vos réponses sont confidentielles et utilisées exclusivement pour l’analyse et la traçabilité de votre dossier patrimonial.</SecureNote></div>\n        {errorMessage && <p className=\"mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n"
+          new = "        {validationAttempted && incompleteSteps.length > 0 && <div className=\"mt-6 rounded-2xl border-2 border-red-200 bg-red-50 p-5\">\n          <div className=\"flex items-start justify-between gap-4\">\n            <div><p className=\"font-semibold text-red-800\">Validation impossible : éléments à compléter</p><p className=\"mt-1 text-sm leading-6 text-red-700\">Les éléments en rouge ci-dessous doivent être complétés avant de pouvoir valider le questionnaire.</p></div>\n            <span className=\"shrink-0 rounded-full bg-red-700 px-3 py-1 text-xs font-bold text-white\">{incompleteSteps.length} restant{incompleteSteps.length > 1 ? 's' : ''}</span>\n          </div>\n          <div className=\"mt-4 grid gap-2\">{incompleteSteps.map((index) => <button key={index} type=\"button\" onClick={() => { setCurrentIndex(index); setErrorMessage(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${index === currentIndex ? 'border-red-700 bg-red-700 text-white' : 'border-red-200 bg-white text-red-800 hover:border-red-400 hover:bg-red-100'}`}>À compléter · {stepLabelAt(index)}</button>)}</div>\n        </div>}\n        {validationAttempted && !currentComplete && <div className=\"mt-5 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800\">Cette question doit être complétée avant la validation du questionnaire.</div>}\n        <div className=\"mt-6\"><SecureNote>Vos réponses sont confidentielles et utilisées exclusivement pour l’analyse et la traçabilité de votre dossier patrimonial.</SecureNote></div>\n        {errorMessage && <p className=\"mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n"
+          if old not in s: raise SystemExit('UI marker missing')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/portal/QuestionnairePageBase.tsx
+          git commit -m "Afficher clairement les réponses manquantes à la validation"
+          git push origin ux/questionnaire-validation-missing
