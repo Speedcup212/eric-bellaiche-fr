@@ -1,0 +1,29 @@
+name: Fix portal lint
+on:
+  push:
+    branches: [fix/portal-blank-after-login]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/portal-blank-after-login
+      - name: Remove explicit any
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/App.tsx')
+          s=p.read_text()
+          s=s.replace("import { lazy, Suspense, type ComponentType } from 'react';", "import { lazy, Suspense } from 'react';")
+          s=s.replace("function lazyWithReload<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>, key: string) {", "function lazyWithReload(factory: Parameters<typeof lazy>[0], key: string) {")
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/App.tsx
+          git commit -m "Corriger le typage du chargement résilient"
+          git push origin fix/portal-blank-after-login
