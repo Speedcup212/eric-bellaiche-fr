@@ -116,3 +116,39 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* Séparateurs continus entre les rangées de questions du recueil */
+.recueil-question-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .recueil-question-grid > *:not(:last-child) {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.55);
+    padding-bottom: 1.25rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .recueil-question-grid > * {
+    position: relative;
+  }
+
+  .recueil-question-grid--2 > :nth-child(odd):not(:nth-last-child(-n + 2))::after,
+  .recueil-question-grid--3 > :nth-child(3n + 1):not(:nth-last-child(-n + 3))::after {
+    position: absolute;
+    bottom: -1rem;
+    left: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.55);
+    content: '';
+    pointer-events: none;
+  }
+
+  .recueil-question-grid--2 > :nth-child(odd):not(:nth-last-child(-n + 2))::after {
+    width: calc(200% + 1.5rem);
+  }
+
+  .recueil-question-grid--3 > :nth-child(3n + 1):not(:nth-last-child(-n + 3))::after {
+    width: calc(300% + 3rem);
+  }
+}
