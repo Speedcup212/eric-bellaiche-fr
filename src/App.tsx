@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { lazy, Suspense, type ComponentType } from 'react';
+import { lazy, Suspense } from 'react';
 import ConsentBanner from './components/ConsentBanner';
 
-function lazyWithReload<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>, key: string) {
+function lazyWithReload(factory: Parameters<typeof lazy>[0], key: string) {
   return lazy(async () => {
     try {
       const module = await factory();
