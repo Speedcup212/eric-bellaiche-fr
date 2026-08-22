@@ -121,23 +121,31 @@ function GuidanceNote({ children }: { children: React.ReactNode }) {
 
 function MoneyField(props: Omit<React.ComponentProps<typeof Field>, 'type'>) { return <Field {...props} type="number" />; }
 
-function HorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function CompactHorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const options = [
-    { value: '0', label: 'Court terme', help: 'Moins de 3 ans' },
-    { value: '3', label: 'Moyen terme', help: '3 à 5 ans' },
-    { value: '5', label: 'Long terme', help: '5 à 10 ans' },
-    { value: '10', label: 'Très long terme', help: 'Plus de 10 ans' },
+    { value: '0', label: 'Court terme — moins de 3 ans' },
+    { value: '3', label: 'Moyen terme — 3 à 5 ans' },
+    { value: '5', label: 'Long terme — 5 à 10 ans' },
+    { value: '10', label: 'Très long terme — plus de 10 ans' },
   ];
   const normalizedValue = String(value ?? '');
-  const isCustom = normalizedValue !== '' && !options.some((option) => option.value === normalizedValue);
+  const isPreset = options.some((option) => option.value === normalizedValue);
+  const [customMode, setCustomMode] = useState(normalizedValue !== '' && !isPreset);
 
-  return <fieldset>
-    <legend className="text-sm font-semibold text-slate-700">Horizon du projet *</legend>
-    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-      {options.map((option) => <button key={option.value} type="button" aria-pressed={normalizedValue === option.value} onClick={() => onChange(option.value)} className={`min-h-14 rounded-xl border px-3 py-2.5 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option.value ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-0.5 block text-xs ${normalizedValue === option.value ? 'text-blue-100' : 'text-slate-500'}`}>{option.help}</span></button>)}
-    </div>
-    <label className="mt-3 block text-xs font-semibold text-slate-600">Autre durée précise (en années)<input type="number" min="0" value={isCustom ? normalizedValue : ''} onChange={(event) => onChange(event.target.value)} placeholder="Ex. 7" className="mt-1.5 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-normal outline-none transition placeholder:text-[#64748B] focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" /></label>
-  </fieldset>;
+  useEffect(() => {
+    if (isPreset) setCustomMode(false);
+  }, [isPreset]);
+
+  return <div>
+    <label className="text-sm font-semibold text-slate-700">Horizon du projet *
+      <select value={customMode ? 'custom' : normalizedValue} onChange={(event) => { const nextValue = event.target.value; if (nextValue === 'custom') { setCustomMode(true); onChange(''); } else { setCustomMode(false); onChange(nextValue); } }} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30">
+        <option value="">Choisir un horizon</option>
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        <option value="custom">Autre durée précise</option>
+      </select>
+    </label>
+    {customMode && <label className="mt-3 block text-xs font-semibold text-slate-600">Durée précise, en années<input type="number" min="0" value={isPreset ? '' : normalizedValue} onChange={(event) => onChange(event.target.value)} placeholder="Ex. 7" className="mt-1.5 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" /></label>}
+  </div>;
 }
 
 function MonthYearField({ label = 'Date d’entrée dans l’entreprise', value, onChange, required = false, minYear = 1940 }: { label?: string; value: string; onChange: (value: string) => void; required?: boolean; minYear?: number }) {
@@ -387,39 +395,39 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'professional' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
-        {current.code === 'objectives' && <div className="space-y-8">
-          {objectiveItems.length > 0 && <section aria-labelledby="objective-details-title" className="space-y-5">
-            <div><h3 id="objective-details-title" className="text-lg font-semibold text-[#F1F5F9]">Classez et planifiez vos objectifs</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">L’objectif n° 1 est votre priorité principale. Choisissez un horizon pour chaque objectif.</p></div>
-            <div className="space-y-4">{objectiveItems.map((item, index) => {
+        {current.code === 'objectives' && <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)]">
+          <section aria-labelledby="available-objectives-title" className="min-w-0">
+            <h3 id="available-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Tous les objectifs</h3>
+            <p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Cliquez sur un objectif pour l’ajouter à votre sélection. Cliquez de nouveau pour le retirer.</p>
+            <div className="mt-5 space-y-6">{objectiveGroups.map((group) => <div key={group.title} className="border-b border-slate-400/50 pb-6 last:border-b-0 last:pb-0"><div><h4 className="text-sm font-semibold text-[#F1F5F9]">{group.title}</h4><p className="mt-0.5 text-xs leading-5 text-[#94A3B8]">{group.description}</p></div><div className="mt-3 grid gap-3 2xl:grid-cols-2">{group.codes.map((code) => { const label = objectiveLabelByCode[code]; const selected = objectiveItems.some((item) => item.code_objectif === code); return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`min-h-14 rounded-xl border p-4 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>; })}</div></div>)}</div>
+          </section>
+
+          <section aria-labelledby="selected-objectives-title" className="min-w-0 rounded-2xl border border-white/10 bg-[#111C31] p-4 shadow-lg lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto sm:p-5">
+            <div className="flex items-start justify-between gap-4"><div><h3 id="selected-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Objectifs retenus</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Placez-les par importance et choisissez un horizon.</p></div><span className="shrink-0 rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-semibold text-white">{objectiveItems.length}</span></div>
+            {objectiveItems.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-slate-500/60 bg-white/5 px-4 py-6 text-center text-sm leading-6 text-[#94A3B8]">Aucun objectif sélectionné.<br />Choisissez-en un dans la colonne de gauche.</div> : <div className="mt-5 space-y-4">{objectiveItems.map((item, index) => {
               const code = item.code_objectif as ObjectiveCode;
               const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
               const baseAmountLabel = objectiveAmountLabels[code] || 'Montant cible (€)';
               const amountLabel = baseAmountLabel.includes('facultatif') ? baseAmountLabel : `${baseAmountLabel} — facultatif`;
-              return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-base font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
-                  <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Priorité {index + 1}</p><p className="mt-0.5 font-semibold text-slate-900">{label}</p></div>
-                  <div className="flex shrink-0 gap-2">
-                    <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↑</button>
-                    <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↓</button>
+              return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-sm font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
+                  <div className="min-w-0 flex-1"><p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Priorité {index + 1}</p><p className="mt-0.5 text-sm font-semibold leading-5 text-slate-900">{label}</p></div>
+                  <div className="flex shrink-0 gap-1.5">
+                    <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label} dans les priorités`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-base font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↑</button>
+                    <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label} dans les priorités`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-base font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↓</button>
                   </div>
                 </div>
-                {item.code_objectif === 'autre' && <div className="mt-5"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
-                <div className="mt-5"><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
-                <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-slate-700">Ajouter un montant ou une précision — facultatif</summary>
-                  <div className="mt-4 grid gap-5 lg:grid-cols-2"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
+                {item.code_objectif === 'autre' && <div className="mt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
+                <div className="mt-4"><CompactHorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                  <summary className="cursor-pointer text-xs font-semibold leading-5 text-slate-700">Montant ou précision — facultatif</summary>
+                  <div className="mt-4 space-y-4"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
                 </details>
+                <button type="button" onClick={() => toggleObjective(code, label)} className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700">Retirer cet objectif</button>
               </div>;
-            })}</div>
-          </section>}
-
-          <section aria-labelledby="available-objectives-title">
-            <h3 id="available-objectives-title" className="font-semibold text-[#F1F5F9]">Choisissez vos priorités</h3>
-            <p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Vous pouvez sélectionner plusieurs objectifs. Leur priorité et leur horizon apparaissent immédiatement au-dessus.</p>
-            <div className="mt-5 space-y-6">{objectiveGroups.map((group) => <div key={group.title} className="border-b border-slate-400/50 pb-6 last:border-b-0 last:pb-0"><div><h4 className="text-sm font-semibold text-[#F1F5F9]">{group.title}</h4><p className="mt-0.5 text-xs leading-5 text-[#94A3B8]">{group.description}</p></div><div className="mt-3 grid gap-3 sm:grid-cols-2">{group.codes.map((code) => { const label = objectiveLabelByCode[code]; const selected = objectiveItems.some((item) => item.code_objectif === code); return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`min-h-14 rounded-xl border p-4 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>; })}</div></div>)}</div>
+            })}</div>}
           </section>
-
         </div>}
 
         {current.code === 'capacity' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><MoneyField label="À combien estimez-vous vos revenus professionnels pour l’année en cours ? (€)" required value={form.estimation_revenus_travail_annuels} onChange={(v) => patchCurrent({ estimation_revenus_travail_annuels: v })} /><MoneyField label="À combien estimez-vous vos revenus provenant de biens immobiliers pour l’année en cours ? (€)" required value={form.estimation_revenus_fonciers_annuels} onChange={(v) => patchCurrent({ estimation_revenus_fonciers_annuels: v })} /><MoneyField label="Quelle somme souhaitez-vous conserver disponible pour faire face aux imprévus ? (€)" required value={form.epargne_precaution_cible} onChange={(v) => patchCurrent({ epargne_precaution_cible: v })} /><MoneyField label="Combien pouvez-vous mettre de côté chaque mois sans déséquilibrer votre budget ? (€)" required value={form.capacite_epargne_mensuelle} onChange={(v) => patchCurrent({ capacite_epargne_mensuelle: v })} /><MoneyField label="Quelle somme pourriez-vous utiliser comme apport pour un projet immobilier ? (€)" value={form.apport_immobilier_possible} onChange={(v) => patchCurrent({ apport_immobilier_possible: v })} /></div>}
