@@ -102,12 +102,29 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
   );
 }
 
-export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
+export function PageIntro({ eyebrow, title, description, icon, compact = false }: { eyebrow: string; title: string; description: string; icon?: ReactNode; compact?: boolean }) {
   useEffect(() => {
     const match = /Partie\s+(\d+)\s*\/\s*(\d+)/i.exec(eyebrow);
     if (match) publishJourneyContext({ current: Number(match[1]), total: Number(match[2]), label: title });
     return () => { if (match) publishJourneyContext(null); };
   }, [eyebrow, title]);
+
+  if (compact) {
+    return (
+      <div className="mb-5 rounded-2xl border border-[#cbd8e7] bg-gradient-to-r from-[#f8fbff] to-[#edf5ff] px-5 py-4 text-[#0b1f3a] shadow-[0_16px_36px_-30px_rgba(11,31,58,0.5)] sm:px-6 sm:py-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0b1f3a] text-white shadow-sm">
+            {icon ?? <Sparkles className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#3B82F6]">{eyebrow}</p>
+            <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-[#0b1f3a] sm:text-2xl">{title}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-5 text-[#5b6b82] sm:leading-6">{description}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-6 overflow-hidden rounded-[28px] border border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white shadow-[0_24px_60px_-30px_rgba(11,31,58,0.65)] sm:px-8 sm:py-7">
@@ -138,18 +155,19 @@ export function QuestionHeader({ current, total, label, title, description }: { 
   }, [current, total, title]);
 
   return (
-    <div className="border-b border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-6 py-6 text-white sm:px-9 sm:py-8">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">{label ?? `Question ${current} sur ${total}`}</p>
-          <h3 className="mt-3 max-w-3xl text-xl font-semibold leading-8 text-white sm:text-2xl">{title}</h3>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100/80">{description}</p>
+    <div className="border-b border-[#173967] bg-gradient-to-br from-[#071a33] via-[#0b1f3a] to-[#173967] px-5 py-5 text-white sm:px-9 sm:py-8">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-200 sm:text-xs">{label ?? `Question ${current} sur ${total}`}</p>
+          <h3 className="mt-2 max-w-3xl text-lg font-semibold leading-7 text-white sm:mt-3 sm:text-2xl sm:leading-8">{title}</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-5 text-blue-100/80 sm:mt-3 sm:leading-6">{description}</p>
         </div>
-        <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-blue-100 sm:flex">
-          <LockKeyhole className="h-5 w-5" />
+        <div className="hidden shrink-0 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-blue-100 sm:flex" aria-label="Réponses confidentielles">
+          <LockKeyhole className="h-4 w-4" />
+          <span>Réponses confidentielles</span>
         </div>
       </div>
-      <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10 sm:mt-6 sm:h-2">
         <div className="h-full rounded-full bg-gradient-to-r from-blue-300 via-blue-400 to-sky-300 transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
     </div>

@@ -304,7 +304,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   if (done) {
     const nextPath = nextStepHref(progress);
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={mode === 'QPI' ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.' : 'Cette étape a été validée.'} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">Continuer vers les documents</button></WizardCard></div>;
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={mode === 'QPI' ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.' : 'Cette étape a été validée.'} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">Continuer vers les documents</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
@@ -342,15 +342,22 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   return <div>
     <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
-    <PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
+    <PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
-        {mode === 'QPI' && currentIndex === 0 && <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-950">
-          <p className="font-semibold">Informations déjà reprises de votre recueil</p>
-          <p className="mt-1 leading-6 text-blue-800">Nous ne vous redemandons pas vos objectifs, leurs horizons ni votre capacité d’épargne.</p>
-          {recueilSummary.objectives.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{recueilSummary.objectives.map((item, index) => <span key={`${item.label}-${index}`} className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm">{item.label} · {item.horizon}</span>)}</div>}
-          {(recueilSummary.monthlySavings !== null || recueilSummary.precautionSavings !== null) && <p className="mt-3 text-xs leading-5 text-blue-700">Capacité d’épargne : {recueilSummary.monthlySavings?.toLocaleString('fr-FR') ?? '—'} €/mois · Épargne de précaution : {recueilSummary.precautionSavings?.toLocaleString('fr-FR') ?? '—'} €</p>}
+        {mode === 'QPI' && currentIndex === 0 && <div className="mb-6 rounded-2xl border border-blue-300 bg-gradient-to-r from-blue-50 to-[#f8fbff] p-4 text-sm text-blue-950 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+              <CheckCircle2 className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold">Informations déjà reprises de votre recueil</p>
+              <p className="mt-1 leading-5 text-blue-800 sm:leading-6">Vos objectifs, leurs horizons et votre capacité d’épargne sont déjà intégrés. Vous n’avez pas à les saisir une seconde fois.</p>
+              {recueilSummary.objectives.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{recueilSummary.objectives.map((item, index) => <span key={`${item.label}-${index}`} className="rounded-full border border-blue-100 bg-white px-3 py-1.5 font-medium shadow-sm">{item.label} · {item.horizon}</span>)}</div>}
+              {(recueilSummary.monthlySavings !== null || recueilSummary.precautionSavings !== null) && <p className="mt-3 text-xs font-medium leading-5 text-blue-700">Capacité d’épargne : {recueilSummary.monthlySavings?.toLocaleString('fr-FR') ?? '—'} €/mois · Épargne de précaution : {recueilSummary.precautionSavings?.toLocaleString('fr-FR') ?? '—'} €</p>}
+            </div>
+          </div>
         </div>}
         {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{currentQuestion.options?.map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
 
