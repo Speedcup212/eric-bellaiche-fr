@@ -400,8 +400,8 @@ export default function ClientRecueilJourneyPage() {
                 </div>
                 {item.code_objectif === 'autre' && <div className="mt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
                 <div className="mt-4"><CompactHorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
-                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <summary className="cursor-pointer text-xs font-semibold leading-5 text-slate-700">Ajouter une précision — facultatif</summary>
+                <details className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-3">
+                  <summary className="cursor-pointer text-sm font-semibold leading-5 text-[#0B1F3A] [&::marker]:text-[#0B1F3A]">Ajouter une précision — facultatif</summary>
                   <div className="mt-4"><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
                 </details>
                 <button type="button" onClick={() => toggleObjective(code, label)} className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700">Retirer cet objectif</button>
