@@ -211,7 +211,6 @@ export default function ClientRecueilJourneyPage() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
-  const [objectiveStage, setObjectiveStage] = useState<'selection' | 'details'>('selection');
   const progress = useMemo(() => selectedProgress(rows, dossierId), [rows, dossierId]);
   const current = sections[step];
   const form = forms[current.code];
@@ -337,12 +336,6 @@ export default function ClientRecueilJourneyPage() {
     setBusy(true);
     setErrorMessage('');
     try {
-      if (current.code === 'objectives' && objectiveStage === 'selection') {
-        if (!Array.isArray(form.items) || form.items.length === 0) throw new Error('Sélectionnez au moins un objectif.');
-        setObjectiveStage('details');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
       await saveCurrent();
       if (step < sections.length - 1) { setStep(step + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
@@ -356,11 +349,6 @@ export default function ClientRecueilJourneyPage() {
   const previous = () => {
     setErrorMessage('');
     if (!progress) return;
-    if (current.code === 'objectives' && objectiveStage === 'details') {
-      setObjectiveStage('selection');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
     if (step === 0) navigate(dossierHref('/espace-client', progress.dossier_id)); else { setStep(step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
@@ -399,48 +387,40 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'professional' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
-        {current.code === 'objectives' && objectiveStage === 'selection' && <div className="space-y-8">
-          <section aria-labelledby="selected-objectives-title" className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><h3 id="selected-objectives-title" className="font-semibold text-[#0b1f3a]">Objectifs sélectionnés</h3><p className="text-xs font-semibold text-slate-600">{objectiveItems.length} sélectionné{objectiveItems.length > 1 ? 's' : ''}</p></div>
-            {objectiveItems.length === 0 ? <p className="mt-3 text-sm leading-6 text-slate-600">Aucun objectif n’est présélectionné. Choisissez au moins un objectif ci-dessous.</p> : <div className="mt-4 flex flex-wrap gap-2">{objectiveItems.map((item) => { const code = item.code_objectif as ObjectiveCode; const label = item.label || objectiveLabelByCode[code] || item.code_objectif; return <button key={item.code_objectif} type="button" onClick={() => toggleObjective(item.code_objectif, label)} aria-label={`Retirer l’objectif ${label}`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-white px-3.5 py-2 text-left text-sm font-semibold text-[#173967] transition hover:border-red-200 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><CheckCircle2 className="h-4 w-4 shrink-0 text-[#10B981]" />{label}<span aria-hidden="true" className="text-base leading-none text-slate-400">×</span></button>; })}</div>}
-          </section>
+        {current.code === 'objectives' && <div className="space-y-8">
+          {objectiveItems.length > 0 && <section aria-labelledby="objective-details-title" className="space-y-5">
+            <div><h3 id="objective-details-title" className="text-lg font-semibold text-[#F1F5F9]">Classez et planifiez vos objectifs</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">L’objectif n° 1 est votre priorité principale. Choisissez un horizon pour chaque objectif.</p></div>
+            <div className="space-y-4">{objectiveItems.map((item, index) => {
+              const code = item.code_objectif as ObjectiveCode;
+              const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
+              const baseAmountLabel = objectiveAmountLabels[code] || 'Montant cible (€)';
+              const amountLabel = baseAmountLabel.includes('facultatif') ? baseAmountLabel : `${baseAmountLabel} — facultatif`;
+              return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-base font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
+                  <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Priorité {index + 1}</p><p className="mt-0.5 font-semibold text-slate-900">{label}</p></div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↑</button>
+                    <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↓</button>
+                  </div>
+                </div>
+                {item.code_objectif === 'autre' && <div className="mt-5"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
+                <div className="mt-5"><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
+                <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-700">Ajouter un montant ou une précision — facultatif</summary>
+                  <div className="mt-4 grid gap-5 lg:grid-cols-2"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
+                </details>
+              </div>;
+            })}</div>
+          </section>}
 
           <section aria-labelledby="available-objectives-title">
             <h3 id="available-objectives-title" className="font-semibold text-[#F1F5F9]">Choisissez vos priorités</h3>
-            <p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Vous pouvez sélectionner plusieurs objectifs. Vous les préciserez ensuite un par un.</p>
+            <p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Vous pouvez sélectionner plusieurs objectifs. Leur priorité et leur horizon apparaissent immédiatement au-dessus.</p>
             <div className="mt-5 space-y-6">{objectiveGroups.map((group) => <div key={group.title} className="border-b border-slate-400/50 pb-6 last:border-b-0 last:pb-0"><div><h4 className="text-sm font-semibold text-[#F1F5F9]">{group.title}</h4><p className="mt-0.5 text-xs leading-5 text-[#94A3B8]">{group.description}</p></div><div className="mt-3 grid gap-3 sm:grid-cols-2">{group.codes.map((code) => { const label = objectiveLabelByCode[code]; const selected = objectiveItems.some((item) => item.code_objectif === code); return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`min-h-14 rounded-xl border p-4 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>; })}</div></div>)}</div>
           </section>
 
         </div>}
-
-        {current.code === 'objectives' && objectiveStage === 'details' && objectiveItems.length > 0 && <section aria-labelledby="objective-details-title" className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div><h3 id="objective-details-title" className="text-lg font-semibold text-[#F1F5F9]">Classez et planifiez vos objectifs</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">L’objectif n° 1 est votre priorité principale. Indiquez ensuite un horizon pour chacun.</p></div>
-            <button type="button" onClick={() => { setObjectiveStage('selection'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="shrink-0 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-blue-300 hover:bg-white/15">Modifier mes choix</button>
-          </div>
-          <div className="space-y-4">{objectiveItems.map((item, index) => {
-            const code = item.code_objectif as ObjectiveCode;
-            const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
-            const baseAmountLabel = objectiveAmountLabels[code] || 'Montant cible (€)';
-            const amountLabel = baseAmountLabel.includes('facultatif') ? baseAmountLabel : `${baseAmountLabel} — facultatif`;
-            return <div key={item.code_objectif} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0b1f3a] text-base font-bold text-white" aria-label={`Priorité ${index + 1}`}>{index + 1}</div>
-                <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Priorité {index + 1}</p><p className="mt-0.5 font-semibold text-slate-900">{label}</p></div>
-                <div className="flex shrink-0 gap-2">
-                  <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↑</button>
-                  <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label} dans les priorités`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-30">↓</button>
-                </div>
-              </div>
-              {item.code_objectif === 'autre' && <div className="mt-5"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
-              <div className="mt-5"><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div>
-              <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-700">Ajouter un montant ou une précision — facultatif</summary>
-                <div className="mt-4 grid gap-5 lg:grid-cols-2"><MoneyField label={amountLabel} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, contraintes ou résultat attendu…" /></div>
-              </details>
-            </div>;
-          })}</div>
-        </section>}
 
         {current.code === 'capacity' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><MoneyField label="À combien estimez-vous vos revenus professionnels pour l’année en cours ? (€)" required value={form.estimation_revenus_travail_annuels} onChange={(v) => patchCurrent({ estimation_revenus_travail_annuels: v })} /><MoneyField label="À combien estimez-vous vos revenus provenant de biens immobiliers pour l’année en cours ? (€)" required value={form.estimation_revenus_fonciers_annuels} onChange={(v) => patchCurrent({ estimation_revenus_fonciers_annuels: v })} /><MoneyField label="Quelle somme souhaitez-vous conserver disponible pour faire face aux imprévus ? (€)" required value={form.epargne_precaution_cible} onChange={(v) => patchCurrent({ epargne_precaution_cible: v })} /><MoneyField label="Combien pouvez-vous mettre de côté chaque mois sans déséquilibrer votre budget ? (€)" required value={form.capacite_epargne_mensuelle} onChange={(v) => patchCurrent({ capacite_epargne_mensuelle: v })} /><MoneyField label="Quelle somme pourriez-vous utiliser comme apport pour un projet immobilier ? (€)" value={form.apport_immobilier_possible} onChange={(v) => patchCurrent({ apport_immobilier_possible: v })} /></div>}
 
@@ -478,7 +458,7 @@ export default function ClientRecueilJourneyPage() {
         {errorMessage && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <SecureNote>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits ne vous sont pas demandés ici : ils seront renseignés à partir des justificatifs transmis en fin de parcours. Chaque partie est enregistrée et horodatée. Après validation finale du recueil, vos réponses sont figées pour préserver la piste d’audit.</SecureNote>
       </div>
-      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{current.code === 'objectives' && objectiveStage === 'selection' ? 'Classer mes objectifs' : step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
+      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
   </div>;
 }
