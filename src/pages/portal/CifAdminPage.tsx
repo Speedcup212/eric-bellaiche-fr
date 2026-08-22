@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Copy, LogOut, Mail, Plus, ShieldCheck } from 'lucide-react';
+import { Copy, LogOut, Mail, Plus, ShieldCheck, UserRound, UsersRound } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { messageFromError } from '../../portal/portalHelpers';
 
@@ -25,6 +25,8 @@ interface InviteDraft {
   link: string;
 }
 
+type DossierMode = 'single' | 'couple';
+
 function invitationBody(firstName: string, link: string): string {
   return `Bonjour ${firstName || ''},
 
@@ -33,9 +35,11 @@ Dans le cadre de notre accompagnement, je vous ai ouvert un espace client person
 Cet espace vous permettra notamment de :
 - déposer les documents nécessaires à l’étude de votre situation ;
 - compléter et valider votre recueil d’informations patrimoniales ;
-- remplir votre questionnaire de profil investisseur ;
-- renseigner, si vous souhaitez exprimer des préférences de durabilité, le questionnaire correspondant ;
+- remplir votre questionnaire personnel de profil investisseur ;
+- renseigner, si vous souhaitez exprimer des préférences de durabilité, votre questionnaire personnel correspondant ;
 - consulter les documents réglementaires mis à votre disposition.
+
+Si votre dossier concerne un couple, chaque membre dispose de son propre accès et complète séparément son profil investisseur et ses préférences de durabilité. Les profils ne sont pas moyennés entre les deux personnes.
 
 Pour activer votre accès, utilisez votre lien personnel :
 ${link}
@@ -54,6 +58,7 @@ export default function CifAdminPage() {
   const [ready, setReady] = useState(false);
   const [rows, setRows] = useState<DossierRow[]>([]);
   const [auth, setAuth] = useState({ email: 'eric.bellaiche@gmail.com', password: '' });
+  const [dossierMode, setDossierMode] = useState<DossierMode>('single');
   const [form, setForm] = useState({
     reference: '', libelle: '', p1: '', n1: '', e1: '', m1: '',
     p2: '', n2: '', e2: '', m2: '',
@@ -137,25 +142,40 @@ export default function CifAdminPage() {
     event.preventDefault();
     setErrorMessage('');
     setMessage('');
+    setBusy(true);
     try {
+      const firstEmail = form.e1.trim().toLowerCase();
+      const secondEmail = form.e2.trim().toLowerCase();
+      if (dossierMode === 'couple') {
+        if (!form.p2.trim() || !form.n2.trim() || !secondEmail) {
+          throw new Error('Pour un dossier couple, renseignez le prénom, le nom et l’email de la deuxième personne.');
+        }
+        if (firstEmail === secondEmail) {
+          throw new Error('Chaque membre du couple doit disposer de sa propre adresse email afin de conserver des questionnaires individuels et traçables.');
+        }
+      }
+
       const { data, error } = await supabase.rpc('create_client_dossier', {
         p_reference: form.reference || null,
         p_libelle: form.libelle || null,
         p_inv1_prenom: form.p1,
         p_inv1_nom: form.n1,
-        p_inv1_email: form.e1,
+        p_inv1_email: firstEmail,
         p_inv1_mobile: form.m1 || null,
-        p_inv2_prenom: form.p2 || null,
-        p_inv2_nom: form.n2 || null,
-        p_inv2_email: form.e2 || null,
-        p_inv2_mobile: form.m2 || null,
+        p_inv2_prenom: dossierMode === 'couple' ? form.p2 : null,
+        p_inv2_nom: dossierMode === 'couple' ? form.n2 : null,
+        p_inv2_email: dossierMode === 'couple' ? secondEmail : null,
+        p_inv2_mobile: dossierMode === 'couple' ? form.m2 || null : null,
       });
       if (error) throw error;
-      setMessage(`Dossier créé : ${(data as { reference?: string }).reference ?? ''}`);
+      setMessage(`Dossier ${dossierMode === 'couple' ? 'couple' : 'individuel'} créé : ${(data as { reference?: string }).reference ?? ''}. ${dossierMode === 'couple' ? 'Deux accès personnels sont disponibles ; QPI et ESG seront remplis séparément.' : ''}`);
       setForm({ reference: '', libelle: '', p1: '', n1: '', e1: '', m1: '', p2: '', n2: '', e2: '', m2: '' });
+      setDossierMode('single');
       await load();
     } catch (error) {
       setErrorMessage(messageFromError(error));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -218,7 +238,7 @@ export default function CifAdminPage() {
     const labels = investors
       .map((item, index) => `${index + 1}. ${item.investisseurs?.prenom ?? ''} ${item.investisseurs?.nom ?? ''}`)
       .join('\n');
-    const answer = window.prompt(`Quel investisseur inviter ?\n${labels}`, '1');
+    const answer = window.prompt(`Dossier couple : quelle personne inviter ?\nChaque personne reçoit son propre accès.\n\n${labels}`, '1');
     const index = Number(answer) - 1;
     if (Number.isInteger(index) && investors[index]) await createInvite(dossierId, investors[index]);
   };
@@ -273,20 +293,49 @@ export default function CifAdminPage() {
 
         <form onSubmit={create} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
           <h2 className="text-xl font-semibold">Nouveau dossier client</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Choisissez d’abord si le dossier concerne une seule personne ou un couple. En mode couple, chaque personne aura un accès, un profil investisseur et un questionnaire ESG distincts.</p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setDossierMode('single')} className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${dossierMode === 'single' ? 'border-slate-900 bg-slate-900 text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}>
+              <UserRound className="mt-0.5 h-5 w-5 shrink-0" />
+              <span><strong className="block">Une personne</strong><span className={`mt-1 block text-xs leading-5 ${dossierMode === 'single' ? 'text-slate-200' : 'text-slate-500'}`}>Un investisseur, un recueil, un profil et un questionnaire de durabilité.</span></span>
+            </button>
+            <button type="button" onClick={() => setDossierMode('couple')} className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${dossierMode === 'couple' ? 'border-slate-900 bg-slate-900 text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}>
+              <UsersRound className="mt-0.5 h-5 w-5 shrink-0" />
+              <span><strong className="block">Un couple</strong><span className={`mt-1 block text-xs leading-5 ${dossierMode === 'couple' ? 'text-slate-200' : 'text-slate-500'}`}>Un dossier commun, deux personnes identifiées et deux profils réglementaires individuels.</span></span>
+            </button>
+          </div>
+
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <input placeholder="Référence (facultatif)" value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
             <input placeholder="Libellé du dossier" value={form.libelle} onChange={(event) => setForm({ ...form, libelle: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input required placeholder="Prénom investisseur 1" value={form.p1} onChange={(event) => setForm({ ...form, p1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input required placeholder="Nom investisseur 1" value={form.n1} onChange={(event) => setForm({ ...form, n1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input required type="email" placeholder="Email investisseur 1" value={form.e1} onChange={(event) => setForm({ ...form, e1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input placeholder="Mobile investisseur 1" value={form.m1} onChange={(event) => setForm({ ...form, m1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input placeholder="Prénom investisseur 2" value={form.p2} onChange={(event) => setForm({ ...form, p2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input placeholder="Nom investisseur 2" value={form.n2} onChange={(event) => setForm({ ...form, n2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input type="email" placeholder="Email investisseur 2" value={form.e2} onChange={(event) => setForm({ ...form, e2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
-            <input placeholder="Mobile investisseur 2" value={form.m2} onChange={(event) => setForm({ ...form, m2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
           </div>
-          <button className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white">
-            <Plus className="h-4 w-4" /> Créer le dossier
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex items-center gap-2"><UserRound className="h-5 w-5 text-slate-600" /><h3 className="font-semibold text-slate-900">Personne 1</h3></div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <input required placeholder="Prénom" value={form.p1} onChange={(event) => setForm({ ...form, p1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+              <input required placeholder="Nom" value={form.n1} onChange={(event) => setForm({ ...form, n1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+              <input required type="email" placeholder="Email personnel" value={form.e1} onChange={(event) => setForm({ ...form, e1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+              <input placeholder="Mobile" value={form.m1} onChange={(event) => setForm({ ...form, m1: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+            </div>
+          </div>
+
+          {dossierMode === 'couple' && (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+              <div className="flex items-center gap-2"><UserRound className="h-5 w-5 text-blue-700" /><h3 className="font-semibold text-slate-900">Personne 2</h3></div>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Une adresse email personnelle différente est nécessaire : les réponses QPI et ESG sont rattachées individuellement à cette personne.</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <input required placeholder="Prénom" value={form.p2} onChange={(event) => setForm({ ...form, p2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+                <input required placeholder="Nom" value={form.n2} onChange={(event) => setForm({ ...form, n2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+                <input required type="email" placeholder="Email personnel" value={form.e2} onChange={(event) => setForm({ ...form, e2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+                <input placeholder="Mobile" value={form.m2} onChange={(event) => setForm({ ...form, m2: event.target.value })} className="rounded-xl border border-slate-300 px-4 py-3" />
+              </div>
+            </div>
+          )}
+
+          <button disabled={busy} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+            <Plus className="h-4 w-4" /> {busy ? 'Création…' : `Créer le dossier ${dossierMode === 'couple' ? 'couple' : 'individuel'}`}
           </button>
         </form>
 
