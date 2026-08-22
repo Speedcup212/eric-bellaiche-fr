@@ -1,25 +1,33 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 export default function PortalShell() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) {
+    void supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setAuthError(true);
+          return;
+        }
         setSession(data.session);
-        setLoading(false);
-      }
-    });
+      })
+      .catch(() => { if (active) setAuthError(true); })
+      .finally(() => { if (active) setLoading(false); });
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setAuthError(false);
       setLoading(false);
     });
     return () => {
@@ -30,6 +38,18 @@ export default function PortalShell() {
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#eef3f9] text-[#5b6b82]">Ouverture de votre espace sécurisé…</div>;
+  }
+
+  if (authError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef3f9] px-4">
+        <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-semibold text-[#0b1f3a]">Connexion momentanément indisponible</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">La vérification de votre session n’a pas abouti. Vos données ne sont pas affectées.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Réessayer</button>
+        </div>
+      </div>
+    );
   }
 
   if (!session) {
