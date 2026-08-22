@@ -36,6 +36,36 @@ const objectiveOptions = [
   ['autre', 'Autres objectifs'],
 ] as const;
 
+type ObjectiveCode = (typeof objectiveOptions)[number][0];
+
+const objectiveGroups: Array<{ title: string; description: string; codes: ObjectiveCode[] }> = [
+  { title: 'Fiscalité & performance', description: 'Optimiser vos placements et votre fiscalité.', codes: ['optimisation_fiscale', 'optimisation_rendement', 'liquidites_court_terme'] },
+  { title: 'Projets & constitution de patrimoine', description: 'Financer vos projets et construire votre patrimoine.', codes: ['achat_immobilier', 'constitution_patrimoine', 'epargne_precaution', 'aide_enfants'] },
+  { title: 'Retraite & revenus complémentaires', description: 'Préparer vos revenus futurs et votre niveau de vie.', codes: ['retraite', 'revenus_complementaires'] },
+  { title: 'Protection & transmission', description: 'Protéger vos proches et organiser la transmission.', codes: ['protection_conjoint', 'protection_proches', 'transmission', 'transmission_entreprise', 'accidents_vie'] },
+  { title: 'Autre besoin', description: 'Ajoutez un objectif qui ne figure pas dans les catégories précédentes.', codes: ['autre'] },
+];
+
+const objectiveAmountLabels: Record<ObjectiveCode, string> = {
+  optimisation_fiscale: 'Montant annuel à optimiser (€)',
+  achat_immobilier: 'Budget global du projet (€)',
+  constitution_patrimoine: 'Capital à constituer (€)',
+  epargne_precaution: 'Épargne de précaution cible (€)',
+  liquidites_court_terme: 'Montant à placer à court terme (€)',
+  revenus_complementaires: 'Revenus complémentaires visés par an (€)',
+  optimisation_rendement: 'Capital à optimiser (€)',
+  retraite: 'Capital cible estimé (€) — facultatif',
+  aide_enfants: 'Budget à consacrer (€)',
+  protection_conjoint: 'Capital de protection souhaité (€)',
+  protection_proches: 'Capital de protection souhaité (€)',
+  transmission: 'Valeur du patrimoine à transmettre (€)',
+  transmission_entreprise: 'Valeur estimée de l’entreprise à transmettre (€)',
+  accidents_vie: 'Capital de protection souhaité (€)',
+  autre: 'Montant cible (€)',
+};
+
+const objectiveLabelByCode = Object.fromEntries(objectiveOptions) as Record<ObjectiveCode, string>;
+
 const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }> = {
   'Civilité': { options: ['Mr', 'Mme'] },
   'Type de logement': { options: ['Propriétaire', 'Locataire', 'Logé à titre gratuit'], allowCustom: true },
@@ -43,7 +73,6 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Régime / convention': { options: ['Communauté réduite aux acquêts', 'Communauté universelle', 'Séparation de biens', 'Participation aux acquêts', 'PACS - séparation des patrimoines', 'PACS - indivision', 'Sans convention / non applicable'], allowCustom: true },
   'Statut': { options: ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'], allowCustom: true },
   'Catégorie socioprofessionnelle': { options: ['Cadre', 'Profession intermédiaire', 'Employé', 'Ouvrier', 'Artisan / commerçant / chef d’entreprise', 'Profession libérale', 'Agriculteur', 'Retraité', 'Sans activité'], allowCustom: true },
-  'Horizon (années)': { options: ['0', '3', '5', '10'] },
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
   'Usage': { options: ['Résidence principale', 'Résidence secondaire', 'Locatif'], allowCustom: true },
   'Mode de détention': { options: ['Pleine propriété', 'Nue-propriété', 'Usufruit'], allowCustom: true },
@@ -85,6 +114,25 @@ function BoolChoice({ label, value, onChange, required = true }: { label: string
 }
 
 function MoneyField(props: Omit<React.ComponentProps<typeof Field>, 'type'>) { return <Field {...props} type="number" />; }
+
+function HorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const options = [
+    { value: '0', label: 'Court terme', help: 'Moins de 3 ans' },
+    { value: '3', label: 'Moyen terme', help: '3 à 5 ans' },
+    { value: '5', label: 'Long terme', help: '5 à 10 ans' },
+    { value: '10', label: 'Très long terme', help: 'Plus de 10 ans' },
+  ];
+  const normalizedValue = String(value ?? '');
+  const isCustom = normalizedValue !== '' && !options.some((option) => option.value === normalizedValue);
+
+  return <fieldset>
+    <legend className="text-sm font-semibold text-slate-700">Horizon du projet *</legend>
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      {options.map((option) => <button key={option.value} type="button" aria-pressed={normalizedValue === option.value} onClick={() => onChange(option.value)} className={`min-h-14 rounded-xl border px-3 py-2.5 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option.value ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-0.5 block text-xs ${normalizedValue === option.value ? 'text-blue-100' : 'text-slate-500'}`}>{option.help}</span></button>)}
+    </div>
+    <label className="mt-3 block text-xs font-semibold text-slate-600">Autre durée précise (en années)<input type="number" min="0" value={isCustom ? normalizedValue : ''} onChange={(event) => onChange(event.target.value)} placeholder="Ex. 7" className="mt-1.5 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-normal outline-none transition placeholder:text-[#64748B] focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" /></label>
+  </fieldset>;
+}
 
 function MonthYearField({ label = 'Date d’entrée dans l’entreprise', value, onChange, required = false, minYear = 1940 }: { label?: string; value: string; onChange: (value: string) => void; required?: boolean; minYear?: number }) {
   const match = /^(\d{4})-(0[1-9]|1[0-2])/.exec(String(value ?? ''));
@@ -339,7 +387,20 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'professional' && <div className="grid gap-4 sm:grid-cols-2"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
-        {current.code === 'objectives' && <><div className="grid gap-3 sm:grid-cols-2">{objectiveOptions.map(([code, label]) => { const selected = objectiveItems.some((item) => item.code_objectif === code); return <button type="button" key={code} onClick={() => toggleObjective(code, label)} className={`rounded-xl border p-4 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>; })}</div>{objectiveItems.map((item) => <div key={item.code_objectif} className="rounded-2xl border border-slate-200 bg-slate-50 p-5"><p className="font-semibold text-slate-900">{item.label || objectiveOptions.find(([code]) => code === item.code_objectif)?.[1]}</p>{item.code_objectif === 'autre' && <div className="mt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}<div className="mt-4 grid gap-4 sm:grid-cols-2"><MoneyField label={item.code_objectif === 'retraite' ? 'Capital cible estimé (€) — facultatif' : 'Quel montant souhaitez-vous consacrer à cet objectif ? (€)'} required={item.code_objectif !== 'retraite'} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><Field label="Horizon (années)" required type="number" value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div><div className="mt-4"><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} /></div></div>)}</>}
+        {current.code === 'objectives' && <div className="space-y-8">
+          <section aria-labelledby="selected-objectives-title" className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 sm:p-6">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><h3 id="selected-objectives-title" className="font-semibold text-[#0b1f3a]">Objectifs sélectionnés</h3><p className="text-xs font-semibold text-slate-500">{objectiveItems.length} sélectionné{objectiveItems.length > 1 ? 's' : ''}</p></div>
+            {objectiveItems.length === 0 ? <p className="mt-3 text-sm leading-6 text-slate-600">Aucun objectif n’est présélectionné. Choisissez au moins un objectif ci-dessous.</p> : <div className="mt-4 flex flex-wrap gap-2">{objectiveItems.map((item) => { const code = item.code_objectif as ObjectiveCode; const label = item.label || objectiveLabelByCode[code] || item.code_objectif; return <button key={item.code_objectif} type="button" onClick={() => toggleObjective(item.code_objectif, label)} aria-label={`Retirer l’objectif ${label}`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-white px-3.5 py-2 text-left text-sm font-semibold text-[#173967] transition hover:border-red-200 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><CheckCircle2 className="h-4 w-4 shrink-0 text-[#10B981]" />{label}<span aria-hidden="true" className="text-base leading-none text-slate-400">×</span></button>; })}</div>}
+          </section>
+
+          <section aria-labelledby="available-objectives-title">
+            <h3 id="available-objectives-title" className="font-semibold text-slate-900">Choisissez vos priorités</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Vous pouvez sélectionner plusieurs objectifs. Aucun choix n’est ajouté automatiquement.</p>
+            <div className="mt-5 space-y-6">{objectiveGroups.map((group) => <div key={group.title}><div><h4 className="text-sm font-semibold text-[#0b1f3a]">{group.title}</h4><p className="mt-0.5 text-xs leading-5 text-slate-500">{group.description}</p></div><div className="mt-3 grid gap-3 sm:grid-cols-2">{group.codes.map((code) => { const label = objectiveLabelByCode[code]; const selected = objectiveItems.some((item) => item.code_objectif === code); return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`min-h-14 rounded-xl border p-4 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>; })}</div></div>)}</div>
+          </section>
+
+          {objectiveItems.length > 0 && <section aria-labelledby="objective-details-title"><div><h3 id="objective-details-title" className="font-semibold text-slate-900">Précisez chaque objectif</h3><p className="mt-1 text-sm leading-6 text-slate-500">Ces informations permettent d’évaluer la priorité, le budget et l’échéance de chaque projet.</p></div><div className="mt-5 space-y-4">{objectiveItems.map((item) => { const code = item.code_objectif as ObjectiveCode; const label = item.label || objectiveLabelByCode[code] || item.code_objectif; return <div key={item.code_objectif} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><p className="font-semibold text-slate-900">{label}</p><button type="button" onClick={() => toggleObjective(item.code_objectif, label)} className="shrink-0 text-xs font-semibold text-red-600 transition hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30">Retirer</button></div>{item.code_objectif === 'autre' && <div className="mt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}<div className="mt-4 grid gap-5 lg:grid-cols-2"><MoneyField label={objectiveAmountLabels[code] || 'Montant cible (€)'} required={item.code_objectif !== 'retraite'} value={item.montant_cible} onChange={(v) => updateObjective(item.code_objectif, { montant_cible: v })} /><HorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} /></div><div className="mt-4"><Field label="Précisions" value={item.commentaire} onChange={(v) => updateObjective(item.code_objectif, { commentaire: v })} placeholder="Contexte, priorité, contraintes ou résultat attendu…" /></div></div>; })}</div></section>}
+        </div>}
 
         {current.code === 'capacity' && <div className="grid gap-4 sm:grid-cols-2"><MoneyField label="À combien estimez-vous vos revenus professionnels pour l’année en cours ? (€)" required value={form.estimation_revenus_travail_annuels} onChange={(v) => patchCurrent({ estimation_revenus_travail_annuels: v })} /><MoneyField label="À combien estimez-vous vos revenus provenant de biens immobiliers pour l’année en cours ? (€)" required value={form.estimation_revenus_fonciers_annuels} onChange={(v) => patchCurrent({ estimation_revenus_fonciers_annuels: v })} /><MoneyField label="Quelle somme souhaitez-vous conserver disponible pour faire face aux imprévus ? (€)" required value={form.epargne_precaution_cible} onChange={(v) => patchCurrent({ epargne_precaution_cible: v })} /><MoneyField label="Combien pouvez-vous mettre de côté chaque mois sans déséquilibrer votre budget ? (€)" required value={form.capacite_epargne_mensuelle} onChange={(v) => patchCurrent({ capacite_epargne_mensuelle: v })} /><MoneyField label="Quelle somme pourriez-vous utiliser comme apport pour un projet immobilier ? (€)" value={form.apport_immobilier_possible} onChange={(v) => patchCurrent({ apport_immobilier_possible: v })} /></div>}
 
