@@ -10,9 +10,11 @@ interface OptionRow { id: string; code: string; libelle: string; ordre: number; 
 interface QuestionRow { id: string; code: string; libelle: string; ordre: number; type_reponse: string; obligatoire: boolean; metadata: Record<string, unknown>; options?: OptionRow[]; }
 interface AnswerRow { question_id: string; option_id: string | null; answer_text: string | null; answer_numeric: number | null; answer_json: unknown; }
 type ExpState = { connaissance: '' | 'true' | 'false'; sources: string[]; precision: string; anciennete: string; montant: string; mode: string };
+export interface QpiResultRow { profil_indicatif: string | null; profil_operationnel_final: string | null; ecart_declared_objective: boolean | null; synthese_dimensions: Record<string, unknown>; }
+type RecueilSummary = { objectives: Array<{ label: string; horizon: string }>; monthlySavings: number | null; precautionSavings: number | null };
 
 const experienceFamilies = [
-  ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'], ['fia', 'FIA et fonds spécialisés'], ['derives', 'Produits à effet de levier et dérivés'],
+  ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'],
 ] as const;
 const experienceLevels = [['jamais', 'Jamais utilisé'], ['deja_detenu', 'Déjà détenu'], ['plusieurs_operations', 'Plusieurs opérations'], ['pratique_reguliere', 'Pratique régulière']] as const;
 const knowledgeSources = [['formation', 'Formation financière ou patrimoniale'], ['profession', 'Expérience professionnelle liée à la finance'], ['lecture', 'Lecture / autoformation régulière'], ['autre', 'Autre source de connaissance']] as const;
@@ -21,8 +23,12 @@ const amountOptions = [['moins_10k', 'Moins de 10 000 €'], ['10_50k', '10 000 
 const managementOptions = [['accompagne_conseille', 'Principalement accompagné / conseillé'], ['gestion_libre', 'Principalement en gestion libre'], ['gestion_sous_mandat', 'Principalement sous mandat'], ['mixte', 'Mixte selon les placements']] as const;
 
 function visible(question: QuestionRow, selectedCodes: Record<string, string>): boolean {
-  const showIf = question.metadata?.show_if as { question?: string; equals?: string } | undefined;
-  return !showIf?.question || selectedCodes[showIf.question] === showIf.equals;
+  if (question.metadata?.deprecated === true) return false;
+  const showIf = question.metadata?.show_if as { question?: string; equals?: string; not_equals?: string } | undefined;
+  if (!showIf?.question) return true;
+  if (showIf.equals !== undefined) return selectedCodes[showIf.question] === showIf.equals;
+  if (showIf.not_equals !== undefined) return Boolean(selectedCodes[showIf.question]) && selectedCodes[showIf.question] !== showIf.not_equals;
+  return true;
 }
 
 function answerObject(answer?: AnswerRow): Record<string, unknown> {
@@ -35,6 +41,33 @@ function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (question.ordre <= 12) return 'Répondez selon votre situation réelle et votre propre appréciation. Cette réponse contribue à l’analyse de votre horizon, de vos besoins de liquidité et de votre capacité de perte.';
   if (question.ordre <= 20) return 'Cette question porte sur vos connaissances financières. Répondez sans assistance afin que le cabinet puisse apprécier correctement votre niveau de compréhension.';
   return 'Choisissez la réaction qui vous correspond le mieux. Ces questions évaluent votre tolérance comportementale aux fluctuations et au risque de perte.';
+}
+
+function numericDimension(value: unknown, key: string): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = (value as Record<string, unknown>)[key];
+  return typeof result === 'number' ? result : null;
+}
+
+export function QpiResultSummary({ result }: { result: QpiResultRow | null }) {
+  const dimensions = result?.synthese_dimensions ?? {};
+  const knowledge = dimensions.connaissances;
+  const capacity = dimensions.capacite_perte;
+  const knowledgeScore = numericDimension(knowledge, 'bonnes_reponses');
+  const capacityPct = numericDimension(capacity, 'pourcentage_declare');
+  return <div className="space-y-5">
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950">
+      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-emerald-700">Profil retenu</p>
+      <p className="mt-2 text-2xl font-bold">{result?.profil_operationnel_final ?? 'Calcul en cours'}</p>
+      <p className="mt-2 text-sm leading-6">Ce profil constitue le niveau maximal de risque utilisable pour vos futures recommandations. Il ne vaut pas recommandation d’un produit.</p>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tolérance déclarée</p><p className="mt-2 font-semibold text-slate-900">{result?.profil_indicatif ?? '—'}</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Capacité de perte</p><p className="mt-2 font-semibold text-slate-900">{capacityPct === null ? '—' : `${capacityPct} % maximum`}</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Connaissances</p><p className="mt-2 font-semibold text-slate-900">{knowledgeScore === null ? '—' : `${knowledgeScore} / 8`}</p></div>
+    </div>
+    {result?.ecart_declared_objective && <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>Mesure de prudence appliquée :</strong> votre tolérance au risque est supérieure à votre capacité de perte. Le profil retenu a donc été automatiquement limité au niveau le plus prudent.</p>}
+  </div>;
 }
 
 export default function QuestionnairePage({ mode }: { mode: Mode }) {
@@ -52,6 +85,8 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [done, setDone] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
+  const [qpiResult, setQpiResult] = useState<QpiResultRow | null>(null);
+  const [recueilSummary, setRecueilSummary] = useState<RecueilSummary>({ objectives: [], monthlySavings: null, precautionSavings: null });
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
@@ -84,16 +119,29 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       setAnswers(answerMap);
       setMulti(multiMap);
       if (mode === 'QPI') {
-        const [{ data: expRows, error: expError }, { data: details, error: detailsError }] = await Promise.all([
+        const [{ data: expRows, error: expError }, { data: details, error: detailsError }, { data: resultData, error: resultError }, { data: recueilData, error: recueilError }] = await Promise.all([
           supabase.from('qpi_product_experience').select('famille_produit,niveau_experience').eq('session_id', id),
           supabase.from('qpi_experience_details').select('*').eq('session_id', id).maybeSingle(),
+          supabase.from('qpi_results').select('profil_indicatif,profil_operationnel_final,ecart_declared_objective,synthese_dimensions').eq('session_id', id).maybeSingle(),
+          supabase.from('recueil_sections').select('section_code,payload').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).in('section_code', ['objectives', 'capacity']),
         ]);
         if (expError) throw expError;
         if (detailsError) throw detailsError;
+        if (resultError) throw resultError;
+        if (recueilError) throw recueilError;
         const map: Record<string, string> = {};
         for (const rowExp of expRows ?? []) map[rowExp.famille_produit] = rowExp.niveau_experience;
         setExperiences(map);
         if (details) setExpDetails({ connaissance: details.connaissance_par_formation_ou_profession === true ? 'true' : details.connaissance_par_formation_ou_profession === false ? 'false' : '', sources: details.sources_pertinentes ?? [], precision: details.precisions_formation_profession ?? '', anciennete: details.anciennete_experience ?? '', montant: details.montant_habituel_operation ?? '', mode: details.mode_gestion ?? '' });
+        if (resultData) setQpiResult(resultData as QpiResultRow);
+        const objectivesPayload = (recueilData ?? []).find((item) => item.section_code === 'objectives')?.payload as { items?: Array<Record<string, unknown>> } | undefined;
+        const capacityPayload = (recueilData ?? []).find((item) => item.section_code === 'capacity')?.payload as Record<string, unknown> | undefined;
+        const horizonLabel = (value: unknown) => value === 0 ? '< 3 ans' : value === 3 ? '3 à 5 ans' : value === 5 ? '5 à 10 ans' : value === 10 ? '> 10 ans' : value !== null && value !== undefined && value !== '' ? `${value} ans` : 'horizon non précisé';
+        setRecueilSummary({
+          objectives: (objectivesPayload?.items ?? []).map((item) => ({ label: String(item.label || item.libelle_autre || item.code_objectif || 'Objectif'), horizon: horizonLabel(Number(item.horizon_annees)) })),
+          monthlySavings: capacityPayload?.capacite_epargne_mensuelle === '' || capacityPayload?.capacite_epargne_mensuelle == null ? null : Number(capacityPayload.capacite_epargne_mensuelle),
+          precautionSavings: capacityPayload?.epargne_precaution_cible === '' || capacityPayload?.epargne_precaution_cible == null ? null : Number(capacityPayload.epargne_precaution_cible),
+        });
       }
     }).catch((error) => setErrorMessage(messageFromError(error)));
   }, [dossierId, mode]);
@@ -206,9 +254,11 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     setDone(true);
     const refreshed = await fetchPortalProgress();
     setProgressRows(refreshed);
-    const nextProgress = selectedProgress(refreshed, progress.dossier_id);
-    if (nextProgress) navigate(nextStepHref(nextProgress));
-    else navigate('/espace-client');
+    if (mode === 'QPI') {
+      const { data, error: resultError } = await supabase.from('qpi_results').select('profil_indicatif,profil_operationnel_final,ecart_declared_objective,synthese_dimensions').eq('session_id', sessionId).single();
+      if (resultError) throw resultError;
+      setQpiResult(data as QpiResultRow);
+    }
   };
 
   const next = async () => {
@@ -254,7 +304,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   if (done) {
     const nextPath = nextStepHref(progress);
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité'} description="Cette étape a déjà été validée. Les réponses sont figées afin de préserver la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div><button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer</button></WizardCard></div>;
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={mode === 'QPI' ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.' : 'Cette étape a été validée.'} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">Continuer vers les documents</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
@@ -296,6 +346,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
+        {mode === 'QPI' && currentIndex === 0 && <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-950">
+          <p className="font-semibold">Informations déjà reprises de votre recueil</p>
+          <p className="mt-1 leading-6 text-blue-800">Nous ne vous redemandons pas vos objectifs, leurs horizons ni votre capacité d’épargne.</p>
+          {recueilSummary.objectives.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{recueilSummary.objectives.map((item, index) => <span key={`${item.label}-${index}`} className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm">{item.label} · {item.horizon}</span>)}</div>}
+          {(recueilSummary.monthlySavings !== null || recueilSummary.precautionSavings !== null) && <p className="mt-3 text-xs leading-5 text-blue-700">Capacité d’épargne : {recueilSummary.monthlySavings?.toLocaleString('fr-FR') ?? '—'} €/mois · Épargne de précaution : {recueilSummary.precautionSavings?.toLocaleString('fr-FR') ?? '—'} €</p>}
+        </div>}
         {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{currentQuestion.options?.map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
 
         {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => {
@@ -316,7 +372,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
         {currentQuestion?.type_reponse === 'text' && <textarea value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} rows={5} className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ajoutez vos précisions ici…" />}
 
-        {currentQuestion?.code === 'Q4' && answers[currentQuestion.id]?.option_id && <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€)<input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Échéance envisagée<input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
+        {currentQuestion?.code === 'Q4' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code !== 'A' && answers[currentQuestion.id]?.option_id && <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Échéance envisagée <span className="font-normal text-slate-400">— facultatif</span><input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'Q5' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-sm text-sm font-semibold text-slate-700">Montant de l’investissement envisagé (€)<input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_investissement_envisage ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_investissement_envisage: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'Q10' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-md text-sm font-semibold text-slate-700">Montant maximum de perte estimé (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).perte_max_declairee_montant ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), perte_max_declairee_montant: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'ESG_SCOPE' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code === 'AUTRE' && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block text-sm font-semibold text-slate-700">Précisez le périmètre souhaité<input value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
