@@ -47,6 +47,13 @@ function displayedOptions(question: QuestionRow): OptionRow[] {
 function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (mode === 'ESG' && question.code === 'ESG_TAX_PREF') return 'Il s’agit d’activités contribuant notamment au climat, à l’énergie, à la protection de l’eau, à l’économie circulaire, à la réduction de la pollution ou à la biodiversité. Ce cadre officiel est appelé « Taxonomie européenne ».';
   if (mode === 'ESG' && question.code === 'ESG_TAX_MIN') return 'Choisissez le pourcentage minimum que vous souhaitez voir pris en compte lors de l’étude des solutions.';
+  if (mode === 'ESG' && question.code === 'ESG_SFDR_PREF') return 'Il s’agit d’investissements qui contribuent à un objectif environnemental ou social. Le terme réglementaire est « investissements durables au sens du règlement SFDR ».';
+  if (mode === 'ESG' && question.code === 'ESG_SFDR_MIN') return 'Choisissez simplement le pourcentage minimum souhaité. Vous pourrez répondre « Je ne sais pas encore » si vous ne souhaitez pas fixer de seuil.';
+  if (mode === 'ESG' && question.code === 'ESG_PAI_PREF') return 'Exemples : émissions de CO₂, pollution, atteintes à la biodiversité, mauvaises conditions de travail ou violations des droits humains. Le terme réglementaire est « principales incidences négatives (PAI) ».';
+  if (mode === 'ESG' && question.code === 'ESG_PAI_PRIORITIES') return 'Cochez les conséquences que vous souhaitez voir limitées dans les placements étudiés.';
+  if (mode === 'ESG' && question.code === 'ESG_PAI_MODALITIES') return 'Choisissez une ou plusieurs méthodes. Aucune connaissance financière n’est nécessaire.';
+  if (mode === 'ESG' && question.code === 'ESG_EXCLUSIONS') return 'Cochez tous les secteurs dans lesquels vous ne souhaitez pas que votre argent soit investi.';
+  if (mode === 'ESG' && question.code === 'ESG_LIMITATIONS') return 'Des critères plus stricts peuvent réduire le nombre de placements disponibles ou conduire à des performances différentes.';
   if (mode === 'ESG') return 'Répondez selon vos convictions. Votre réponse permettra de vérifier que les solutions étudiées respectent vos préférences de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
   if (question.code === 'Q3') return 'Indiquez dans quel délai vous devez pouvoir disposer d’une partie de votre argent.';
@@ -213,6 +220,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     }
     if (question.type_reponse === 'multiple') {
       const values = multi[question.id] ?? [];
+      if (question.code === 'ESG_EXCLUSIONS' && values.includes('AUTRE') && !answer?.answer_text?.trim()) return false;
       if (question.obligatoire || question.code === 'ESG_PAI_PRIORITIES' || question.code === 'ESG_PAI_MODALITIES') return values.length > 0;
       return true;
     }
@@ -368,6 +376,8 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
           const selected = (multi[currentQuestion.id] ?? []).includes(option.code);
           return <button type="button" key={option.id} onClick={() => void saveMulti(currentQuestion, option).catch((error) => setErrorMessage(messageFromError(error)))} className={`flex items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition ${selected ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white shadow-lg shadow-[#0b1f3a]/10' : 'border-[#dbe4ef] bg-white text-[#33465f] hover:-translate-y-0.5 hover:border-[#6f8fb4] hover:shadow-sm'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? 'border-white/30 bg-white text-[#0b1f3a]' : 'border-[#b8c5d5]'}`}>{selected ? '✓' : ''}</span>{option.libelle}</button>;
         })}</div>}
+
+        {currentQuestion?.code === 'ESG_EXCLUSIONS' && (multi[currentQuestion.id] ?? []).includes('AUTRE') && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block text-sm font-semibold text-slate-700">Précisez le secteur ou l’activité à exclure *<input value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} onBlur={() => void persistCurrentQuestion().catch((error) => setErrorMessage(messageFromError(error)))} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ex. élevage intensif, fourrure…" /></label></div>}
 
         {currentQuestion?.code === 'Q1' && <div className="mt-5 border-t border-[#e7edf5] pt-5">
           <button type="button" onClick={() => setNoteOpen((open) => !open)} className="inline-flex items-center gap-2 rounded-xl border border-[#dbe4ef] bg-[#f7f9fc] px-4 py-2.5 text-sm font-semibold text-[#173967] transition hover:border-[#9eb2c9] hover:bg-white">
