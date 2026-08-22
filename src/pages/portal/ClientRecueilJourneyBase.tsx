@@ -98,10 +98,11 @@ function Field({ label, value, onChange, type = 'text', required = false, placeh
   if (choice) {
     const normalizedValue = value === null || value === undefined ? '' : String(value);
     const isCustomValue = normalizedValue !== '' && !choice.options.includes(normalizedValue);
+    const isCivility = label === 'Civilité';
     return <div className="text-sm font-semibold text-slate-700">
       <p>{label}{required && ' *'}</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {choice.options.map((option) => <button key={option} type="button" onClick={() => onChange(option)} className={`min-w-[8.5rem] rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}
+      <div className={`mt-2 gap-2 ${isCivility ? 'grid grid-cols-2' : 'flex flex-wrap'}`}>
+        {choice.options.map((option) => <button key={option} type="button" onClick={() => onChange(option)} className={`${isCivility ? 'w-full min-w-0' : 'min-w-[8.5rem]'} rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}
       </div>
       {choice.allowCustom && <input type={type} value={isCustomValue ? normalizedValue : ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || 'Autre / précisez'} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />}
       {help && <span className="mt-2 block text-xs font-normal leading-5 text-[#94A3B8]">{help}</span>}
