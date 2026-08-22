@@ -13,6 +13,46 @@
   }
 }
 
+/* Parcours client - Recueil : style natif, sans mutation du DOM React */
+.recueil-safe section label {
+  display: block;
+  border-radius: 1rem;
+  background: #0b1f3a;
+  padding: 0.75rem;
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+
+.recueil-safe section label > input,
+.recueil-safe section label > textarea,
+.recueil-safe section label > select {
+  color: #1e293b;
+}
+
+.recueil-safe [data-recueil-missing="1"] {
+  outline: 2px solid rgb(239 68 68 / 0.55);
+  outline-offset: 2px;
+}
+
+.recueil-safe [data-recueil-missing="1"]::after {
+  content: "À compléter";
+  display: inline-flex;
+  margin-top: 0.5rem;
+  border-radius: 0.5rem;
+  background: #b91c1c;
+  padding: 0.25rem 0.625rem;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.recueil-safe [data-recueil-section-missing="1"] {
+  border-color: #fca5a5 !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  box-shadow: 0 0 0 1px rgb(248 113 113 / 0.35) !important;
+}
+
 /* Force hide Bolt Badge */
 [class*="bolt"], [class*="made-with"], a[href*="bolt.new"] {
   display: none !important;

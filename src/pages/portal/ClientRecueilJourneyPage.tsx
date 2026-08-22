@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Pencil } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ClientRecueilJourneyBase from './ClientRecueilJourneyBase';
-import RecueilUxEnhancements from './RecueilUxEnhancements';
-import RecueilValidationVisuals from './RecueilValidationVisuals';
+import RecueilValidationGuard from './RecueilValidationGuard';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
 import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
@@ -67,5 +66,5 @@ export default function ClientRecueilJourneyPage() {
     </div>;
   }
 
-  return <><RecueilUxEnhancements /><RecueilValidationVisuals /><ClientRecueilJourneyBase /></>;
+  return <div className="recueil-safe"><RecueilValidationGuard /><ClientRecueilJourneyBase /></div>;
 }
