@@ -35,13 +35,23 @@ function answerObject(answer?: AnswerRow): Record<string, unknown> {
   return answer?.answer_json && !Array.isArray(answer.answer_json) && typeof answer.answer_json === 'object' ? answer.answer_json as Record<string, unknown> : {};
 }
 
+function displayedOptions(question: QuestionRow): OptionRow[] {
+  const options = question.options ?? [];
+  if (!question.metadata?.correct_option) return options;
+  const unknown = options.filter((option) => option.code === 'NSP');
+  const answers = options.filter((option) => option.code !== 'NSP');
+  if (answers.length === 0) return unknown;
+  const shift = question.ordre % answers.length;
+  return [...answers.slice(shift), ...answers.slice(0, shift), ...unknown];
+}
+
 function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (mode === 'ESG') return 'Choisissez la réponse qui traduit le mieux vos préférences. Elle servira à vérifier la compatibilité des solutions étudiées avec vos critères de durabilité.';
   if (question.code === 'Q1') return 'Sélectionnez un ou plusieurs objectifs correspondant à votre situation patrimoniale. Vous pouvez également ajouter une note pour préciser votre démarche.';
-  if (question.code === 'Q3') return 'Indiquez si vous pourriez avoir besoin d’utiliser rapidement une partie de l’épargne placée.';
+  if (question.code === 'Q3') return 'Indiquez dans quel délai vous devez pouvoir disposer d’une partie de votre argent.';
   if (question.code === 'Q4') return 'Pensez aux dépenses importantes prévues ou possibles au cours des cinq prochaines années.';
-  if (question.code === 'Q9') return 'Répondez selon les conséquences réelles qu’aurait cette baisse sur votre budget et vos projets.';
-  if (question.code === 'Q10') return 'Il s’agit de la perte que votre situation financière permettrait d’absorber sans réduire votre niveau de vie, renoncer à un projet ou manquer à vos engagements.';
+  if (question.code === 'Q9') return 'Pensez aux conséquences concrètes sur votre budget, votre niveau de vie et vos projets.';
+  if (question.code === 'Q10') return 'Pensez uniquement à la perte que vous pourriez absorber sans réduire votre niveau de vie, renoncer à un projet ou manquer à vos engagements.';
   if (question.ordre <= 12) return 'Répondez selon votre situation réelle. Cette réponse contribue à l’analyse de votre expérience et de votre capacité financière.';
   if (question.ordre <= 20) return 'Cette question porte sur vos connaissances financières. Répondez sans assistance afin que le cabinet puisse apprécier correctement votre niveau de compréhension.';
   return 'Choisissez la réaction qui vous correspond le mieux. Ces questions évaluent votre tolérance comportementale aux fluctuations et au risque de perte.';
@@ -319,7 +329,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   if (currentQuestion) {
     cardTitle = currentQuestion.libelle;
     cardDescription = questionExplanation(mode, currentQuestion);
-    cardLabel = currentQuestion.code.startsWith('Q') ? `${currentQuestion.code} · ${currentIndex + 1}/${totalSteps}` : `Question ${currentIndex + 1} sur ${totalSteps}`;
+    cardLabel = `Question ${currentIndex + 1} sur ${totalSteps}`;
   } else if (familyStep) {
     cardTitle = `Quelle expérience avez-vous avec : ${familyStep[1]} ?`;
     cardDescription = 'Indiquez votre niveau de pratique réel. Cette information permet de vérifier que les produits étudiés restent adaptés à votre expérience.';
@@ -363,7 +373,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
             </div>
           </div>
         </div>}
-        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{currentQuestion.options?.map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
+        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{displayedOptions(currentQuestion).map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
 
         {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => {
           const selected = (multi[currentQuestion.id] ?? []).includes(option.code);
