@@ -346,6 +346,18 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   return <div>
     <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
     <PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
+    {mode === 'ESG' && currentIndex === 0 && <section className="rounded-[22px] border border-[#dbe4ef] bg-white p-5 shadow-sm sm:p-6">
+      <div className="max-w-3xl">
+        <h2 className="text-lg font-bold text-[#0b1f3a]">Que signifie « durabilité » pour vos placements ?</h2>
+        <p className="mt-1.5 text-sm leading-6 text-[#5b6b82]">Il s’agit de la manière dont les entreprises prennent en compte les trois critères ESG dans leurs activités.</p>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><p className="font-semibold text-emerald-900">Environnement</p><p className="mt-1 text-sm leading-5 text-emerald-800">Climat, pollution, ressources naturelles et biodiversité.</p></div>
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><p className="font-semibold text-blue-900">Social</p><p className="mt-1 text-sm leading-5 text-blue-800">Droits humains, conditions de travail, santé et sécurité.</p></div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4"><p className="font-semibold text-amber-900">Gouvernance</p><p className="mt-1 text-sm leading-5 text-amber-800">Éthique des affaires, corruption, dirigeants et droits des actionnaires.</p></div>
+      </div>
+      <p className="mt-4 text-sm leading-6 text-[#33465f]">Il n’y a pas de bonne ou de mauvaise réponse : indiquez simplement les critères que vous souhaitez voir pris en compte dans les solutions proposées.</p>
+    </section>}
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
