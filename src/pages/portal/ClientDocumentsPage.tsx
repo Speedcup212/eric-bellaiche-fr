@@ -52,7 +52,9 @@ export default function ClientDocumentsPage() {
   };
 
   useEffect(() => {
+    let active = true;
     void fetchPortalProgress().then(async (rows) => {
+      if (!active) return;
       setProgressRows(rows);
       const row = selectedProgress(rows, dossierId);
       if (!row) return;
@@ -60,9 +62,14 @@ export default function ClientDocumentsPage() {
         navigate(nextStepHref(row), { replace: true });
         return;
       }
-      if (!row.transmitted_at) await supabase.rpc('start_my_documents', { p_dossier_id: row.dossier_id });
+      if (!row.transmitted_at) {
+        const { error: startError } = await supabase.rpc('start_my_documents', { p_dossier_id: row.dossier_id });
+        if (startError) throw startError;
+      }
+      if (!active) return;
       await loadDocuments(row);
-    }).catch((error) => setErrorMessage(messageFromError(error)));
+    }).catch((error) => { if (active) setErrorMessage(messageFromError(error)); });
+    return () => { active = false; };
   }, [dossierId, navigate]);
 
   const upload = async (event: React.FormEvent) => {
@@ -117,11 +124,14 @@ export default function ClientDocumentsPage() {
 
   const openPrivateFile = async (bucket: string, path: string) => {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 90);
-    if (error) { setErrorMessage(error.message); return; }
+    if (error) { setErrorMessage(messageFromError(error)); return; }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
-  if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
+  if (!progress) {
+    if (errorMessage) return <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>;
+    return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
+  }
   const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';
   const transmitted = Boolean(progress.transmitted_at);
 
