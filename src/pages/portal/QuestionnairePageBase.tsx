@@ -15,7 +15,7 @@ export interface QpiResultRow { profil_indicatif: string | null; profil_operatio
 const experienceFamilies = [
   ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'],
 ] as const;
-const experienceLevels = [['jamais', 'Jamais utilisé'], ['deja_detenu', 'Déjà détenu'], ['plusieurs_operations', 'Plusieurs opérations'], ['pratique_reguliere', 'Pratique régulière']] as const;
+const experienceLevels = [['jamais', 'Jamais utilisé'], ['deja_detenu', 'Utilisé une fois'], ['plusieurs_operations', 'Quelques opérations'], ['pratique_reguliere', 'Utilisation régulière']] as const;
 const knowledgeSources = [['formation', 'Formation financière ou patrimoniale'], ['profession', 'Expérience professionnelle liée à la finance'], ['lecture', 'Lecture / autoformation régulière'], ['autre', 'Autre source de connaissance']] as const;
 const seniorityOptions = [['aucune', 'Aucune expérience'], ['moins_2_ans', 'Moins de 2 ans'], ['2_5_ans', '2 à 5 ans'], ['5_10_ans', '5 à 10 ans'], ['plus_10_ans', 'Plus de 10 ans']] as const;
 const amountOptions = [['moins_10k', 'Moins de 10 000 €'], ['10_50k', '10 000 à 50 000 €'], ['50_100k', '50 000 à 100 000 €'], ['plus_100k', 'Plus de 100 000 €']] as const;
