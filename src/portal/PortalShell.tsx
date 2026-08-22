@@ -10,6 +10,7 @@ export default function PortalShell() {
   const [authError, setAuthError] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const isRecueil = location.pathname === '/espace-client/recueil';
 
   useEffect(() => {
     let active = true;
@@ -63,7 +64,7 @@ export default function PortalShell() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#0b1f3a]">
+    <div className={`min-h-screen text-[#0b1f3a] transition-colors duration-300 ${isRecueil ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
       <header className="sticky top-0 z-50 border-b border-[#dbe4ef] bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => navigate('/espace-client')} className="text-left">

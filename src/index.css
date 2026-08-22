@@ -15,15 +15,15 @@
 
 /* Parcours client - Recueil : portail clair, questionnaire bleu nuit */
 .recueil-safe section {
-  border-color: #173967;
-  background: #0b1f3a;
-  color: #fff;
-  box-shadow: 0 24px 60px -32px rgb(11 31 58 / 0.55);
+  border-color: #1e293b;
+  background: #0f172a;
+  color: #f1f5f9;
+  box-shadow: 0 26px 70px -34px rgb(15 23 42 / 0.5);
 }
 
 .recueil-safe section label,
 .recueil-safe section .text-slate-700 {
-  color: #fff;
+  color: #f1f5f9;
 }
 
 .recueil-safe section label {
@@ -40,11 +40,21 @@
   border-color: #dbe4ef;
   background: #fff;
   color: #1e293b;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .recueil-safe section input::placeholder,
 .recueil-safe section textarea::placeholder {
-  color: #94a3b8;
+  color: #64748b;
+  opacity: 1;
+}
+
+.recueil-safe section input:focus,
+.recueil-safe section textarea:focus,
+.recueil-safe section select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.3);
+  outline: none;
 }
 
 .recueil-safe section .bg-white,
@@ -52,6 +62,27 @@
 .recueil-safe section .bg-slate-100,
 .recueil-safe section .bg-\[\#f7f9fc\] {
   color: #1e293b;
+}
+
+.recueil-safe section .bg-white label,
+.recueil-safe section .bg-slate-50 label,
+.recueil-safe section .bg-slate-100 label,
+.recueil-safe section .bg-\[\#f7f9fc\] label {
+  color: #334155;
+}
+
+.recueil-safe button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recueil-safe *,
+  .recueil-safe *::before,
+  .recueil-safe *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .recueil-safe [data-recueil-missing="1"] {
