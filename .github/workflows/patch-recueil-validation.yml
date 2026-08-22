@@ -1,0 +1,158 @@
+name: Patch recueil validation visual
+on:
+  push:
+    branches: [ux/recueil-validation-missing]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/recueil-validation-missing
+          fetch-depth: 0
+      - name: Highlight incomplete recueil items
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+
+          old = "  const [errorMessage, setErrorMessage] = useState('');\n"
+          new = "  const [errorMessage, setErrorMessage] = useState('');\n  const [validationAttempted, setValidationAttempted] = useState(false);\n"
+          if old not in s: raise SystemExit('state marker missing')
+          s = s.replace(old, new, 1)
+
+          marker = "  const saveCurrent = async () => {\n"
+          helper = r'''  const missingItemsForSection = (code: SectionCode): string[] => {
+    const sectionForm = forms[code];
+    const missing: string[] = [];
+    if (code === 'identity') {
+      const required = [
+        ['Civilité', sectionForm.civilite], ['Prénom', sectionForm.prenom], ['Nom', sectionForm.nom],
+        ['Date de naissance', sectionForm.date_naissance], ['Lieu de naissance', sectionForm.lieu_naissance],
+        ['Pays de naissance', sectionForm.pays_naissance], ['Nationalité', sectionForm.nationalite], ['Mobile', sectionForm.mobile],
+      ] as const;
+      for (const [label, value] of required) if (isBlank(value)) missing.push(label);
+      if (String(sectionForm.civilite ?? '').trim().toLowerCase() === 'mme' && isBlank(sectionForm.nom_naissance)) missing.push('Nom de naissance');
+      const addressRequired = [['N° et voie', sectionForm.address?.numero_voie], ['Code postal', sectionForm.address?.code_postal], ['Ville', sectionForm.address?.ville], ['Pays', sectionForm.address?.pays], ['Type de logement', sectionForm.address?.type_logement]] as const;
+      for (const [label, value] of addressRequired) if (isBlank(value)) missing.push(label);
+    }
+    if (code === 'family') {
+      if (isBlank(sectionForm.situation)) missing.push('Situation familiale');
+      if (isBlank(sectionForm.nombre_enfants)) missing.push('Nombre d’enfants');
+      const situation = String(sectionForm.situation ?? '').toLowerCase();
+      if (situation.includes('mari') || situation.includes('pacs')) {
+        if (isBlank(sectionForm.date_evenement)) missing.push('Date mariage / PACS');
+        if (isBlank(sectionForm.regime_convention)) missing.push('Régime / convention');
+      }
+    }
+    if (code === 'professional') {
+      if (isBlank(sectionForm.profession_actuelle)) missing.push('Profession actuelle');
+      if (isBlank(sectionForm.secteur_activite)) missing.push('Secteur d’activité');
+      if (isBlank(sectionForm.statut)) missing.push('Statut');
+      const statut = String(sectionForm.statut ?? '').toLowerCase();
+      const inactive = statut.includes('retrait') || statut.includes('sans activité') || statut.includes('sans activite') || statut.includes('étudiant') || statut.includes('etudiant');
+      if (!inactive) {
+        if (isBlank(sectionForm.societe)) missing.push('Entreprise');
+        if (isBlank(sectionForm.date_entree)) missing.push('Date d’entrée dans l’entreprise');
+      }
+      if ((statut.includes('sans activité') || statut.includes('sans activite')) && isBlank(sectionForm.origine_revenus_sans_activite)) missing.push('Origine des revenus');
+      if (!statut.includes('retrait')) {
+        if (sectionForm.changement_professionnel_prevu === '') missing.push('Changement professionnel prévu : Oui / Non');
+        if (sectionForm.changement_professionnel_prevu === true && isBlank(sectionForm.changement_professionnel_details)) missing.push('Précision du changement professionnel');
+      }
+    }
+    if (code === 'objectives') {
+      const items = Array.isArray(sectionForm.items) ? sectionForm.items : [];
+      if (items.length === 0) missing.push('Sélectionnez au moins un objectif');
+      for (const item of items) {
+        const label = item.label || objectiveOptions.find(([optionCode]) => optionCode === item.code_objectif)?.[1] || 'Objectif';
+        if (isBlank(item.horizon_annees) || Number(item.horizon_annees) < 0) missing.push(`${label} : horizon`);
+        if (item.code_objectif !== 'retraite' && isBlank(item.montant_cible)) missing.push(`${label} : montant`);
+        if (item.code_objectif === 'autre' && isBlank(item.libelle_autre)) missing.push('Autres objectifs : précision');
+      }
+    }
+    if (code === 'capacity') {
+      const required = [
+        ['Revenus professionnels de l’année en cours', sectionForm.estimation_revenus_travail_annuels],
+        ['Revenus immobiliers de l’année en cours', sectionForm.estimation_revenus_fonciers_annuels],
+        ['Épargne de précaution', sectionForm.epargne_precaution_cible],
+        ['Capacité d’épargne mensuelle', sectionForm.capacite_epargne_mensuelle],
+      ] as const;
+      for (const [label, value] of required) if (isBlank(value)) missing.push(label);
+    }
+    if (code === 'regulatory') {
+      if (isBlank(sectionForm.pays_residence_fiscale)) missing.push('Pays de résidence fiscale');
+      const bools = [
+        ['Citoyen / résident fiscal américain', 'citoyen_ou_resident_us'],
+        ['Sanctions internationales', 'sanctions_declarees'],
+        ['Personne politiquement exposée (PPE)', 'ppe_declaree'],
+        ['Préférences de durabilité', 'esg_opt_in'],
+      ] as const;
+      for (const [label, key] of bools) if (sectionForm[key] === '') missing.push(label);
+      if (sectionForm.citoyen_ou_resident_us === true && isBlank(sectionForm.code_tin)) missing.push('Code TIN');
+      if (sectionForm.ppe_declaree === true) {
+        const ppe = [['Personne exposée', sectionForm.ppe_personne_exposee], ['Motif / fonction PPE', sectionForm.ppe_motif], ['Pays d’exercice PPE', sectionForm.ppe_pays_exercice], ['Ancienneté PPE', sectionForm.ppe_anciennete]] as const;
+        for (const [label, value] of ppe) if (isBlank(value)) missing.push(label);
+      }
+    }
+    if (code === 'patrimony') {
+      for (const [index, account] of (sectionForm.comptes_courants ?? []).entries()) {
+        const prefix = `Compte courant ${index + 1}`;
+        if (isBlank(account.banque)) missing.push(`${prefix} : établissement bancaire`);
+        if (isBlank(account.titulaire)) missing.push(`${prefix} : titulaire`);
+        if (isBlank(account.solde_actuel)) missing.push(`${prefix} : solde actuel`);
+        if (isBlank(account.montant_mobilisable)) missing.push(`${prefix} : montant mobilisable`);
+        if (!isBlank(account.solde_actuel) && !isBlank(account.montant_mobilisable) && parseAmount(account.montant_mobilisable) > parseAmount(account.solde_actuel)) missing.push(`${prefix} : montant mobilisable supérieur au solde`);
+      }
+      for (const [index, item] of (sectionForm.immobilier ?? []).entries()) {
+        const prefix = `Bien immobilier ${index + 1}`;
+        if (isBlank(item.libelle)) missing.push(`${prefix} : type / libellé`);
+        if (isBlank(item.adresse)) missing.push(`${prefix} : adresse`);
+        if (isBlank(item.valeur_actuelle)) missing.push(`${prefix} : valeur actuelle`);
+        if (isBlank(item.usage_bien)) missing.push(`${prefix} : usage`);
+        if (isBlank(item.mode_detention)) missing.push(`${prefix} : mode de détention`);
+      }
+      for (const [index, item] of (sectionForm.placements ?? []).entries()) {
+        const prefix = `Placement ${index + 1}`;
+        if (isBlank(item.type_contrat)) missing.push(`${prefix} : type de contrat`);
+        if (isBlank(item.organisme)) missing.push(`${prefix} : organisme`);
+        if (isBlank(item.montant_actuel)) missing.push(`${prefix} : montant actuel`);
+        if (isBlank(item.montant_reemploi_possible)) missing.push(`${prefix} : montant mobilisable / de réemploi`);
+      }
+    }
+    return missing;
+  };
+
+  const sectionValidationStatus = sections.map((section, index) => ({ section, index, missing: missingItemsForSection(section.code), saved: doneSections.has(section.code) }));
+  const incompleteSections = sectionValidationStatus.filter((item) => item.missing.length > 0 || !item.saved);
+
+'''
+          if marker not in s: raise SystemExit('saveCurrent marker missing')
+          s = s.replace(marker, helper + marker, 1)
+
+          old = "  const next = async () => {\n    if (!progress) return;\n    setBusy(true);\n    setErrorMessage('');\n    try {\n      await saveCurrent();\n      if (step < sections.length - 1) { setStep(step + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }\n      const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });\n      if (error) throw error;\n      const refreshed = await fetchPortalProgress();\n      setRows(refreshed);\n      navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id));\n    } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }\n  };\n"
+          new = "  const next = async () => {\n    if (!progress) return;\n    setBusy(true);\n    setErrorMessage('');\n    try {\n      await saveCurrent();\n      if (step < sections.length - 1) { setStep(step + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }\n      setValidationAttempted(true);\n      const savedAfterCurrent = new Set([...doneSections, current.code]);\n      const remaining = sections.map((section, index) => ({ section, index, missing: missingItemsForSection(section.code), saved: savedAfterCurrent.has(section.code) })).filter((item) => item.missing.length > 0 || !item.saved);\n      if (remaining.length > 0) {\n        setStep(remaining[0].index);\n        setErrorMessage(`${remaining.length} partie${remaining.length > 1 ? 's restent' : ' reste'} à compléter ou enregistrer avant la validation.`);\n        window.scrollTo({ top: 0, behavior: 'smooth' });\n        return;\n      }\n      const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });\n      if (error) throw error;\n      const refreshed = await fetchPortalProgress();\n      setRows(refreshed);\n      navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id));\n    } catch (error) { setValidationAttempted(true); setErrorMessage(messageFromError(error)); } finally { setBusy(false); }\n  };\n"
+          if old not in s: raise SystemExit('next block missing')
+          s = s.replace(old, new, 1)
+
+          old = "      <div className=\"border-b border-slate-100 px-6 py-4 sm:px-9\"><div className=\"flex flex-wrap gap-2\">{sections.map((section, index) => <button key={section.code} type=\"button\" onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${index === step ? 'bg-slate-950 text-white' : doneSections.has(section.code) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}</button>)}</div></div>\n"
+          new = "      <div className=\"border-b border-slate-100 px-6 py-4 sm:px-9\"><div className=\"flex flex-wrap gap-2\">{sections.map((section, index) => { const status = sectionValidationStatus[index]; const invalid = validationAttempted && (status.missing.length > 0 || !status.saved); return <button key={section.code} type=\"button\" onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${invalid ? index === step ? 'bg-red-700 text-white ring-2 ring-red-200' : 'bg-red-50 text-red-700 ring-1 ring-red-200' : index === step ? 'bg-slate-950 text-white' : doneSections.has(section.code) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{invalid ? '⚠ ' : doneSections.has(section.code) ? '✓ ' : ''}{index + 1}</button>; })}</div></div>\n"
+          if old not in s: raise SystemExit('nav marker missing')
+          s = s.replace(old, new, 1)
+
+          old = "        {errorMessage && <p className=\"rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n        <SecureNote>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits ne vous sont pas demandés ici : ils seront renseignés à partir des justificatifs transmis en fin de parcours. Chaque partie est enregistrée et horodatée. Après validation finale du recueil, vos réponses sont figées pour préserver la piste d’audit.</SecureNote>\n"
+          new = "        {validationAttempted && incompleteSections.length > 0 && <div className=\"rounded-2xl border-2 border-red-200 bg-red-50 p-5\">\n          <div className=\"flex items-start justify-between gap-4\"><div><p className=\"font-semibold text-red-800\">Validation impossible : éléments à compléter</p><p className=\"mt-1 text-sm leading-6 text-red-700\">Les parties signalées en rouge doivent être complétées ou enregistrées avant de valider le recueil.</p></div><span className=\"shrink-0 rounded-full bg-red-700 px-3 py-1 text-xs font-bold text-white\">{incompleteSections.length} restante{incompleteSections.length > 1 ? 's' : ''}</span></div>\n          <div className=\"mt-4 grid gap-2\">{incompleteSections.map(({ section, index, missing, saved }) => <button key={section.code} type=\"button\" onClick={() => { setStep(index); setErrorMessage(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`rounded-xl border px-4 py-3 text-left text-sm transition ${index === step ? 'border-red-700 bg-red-700 text-white' : 'border-red-200 bg-white text-red-800 hover:border-red-400 hover:bg-red-100'}`}><span className=\"font-semibold\">À compléter · {section.title}</span><span className={`mt-1 block text-xs leading-5 ${index === step ? 'text-red-100' : 'text-red-700'}`}>{missing.length > 0 ? missing.join(' · ') : !saved ? 'Cette partie doit être enregistrée.' : ''}</span></button>)}</div>\n        </div>}\n        {validationAttempted && missingItemsForSection(current.code).length > 0 && <div className=\"rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800\"><p className=\"font-semibold\">À compléter dans cette partie :</p><p className=\"mt-1 leading-6\">{missingItemsForSection(current.code).join(' · ')}</p></div>}\n        {errorMessage && <p className=\"rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n        <SecureNote>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits ne vous sont pas demandés ici : ils seront renseignés à partir des justificatifs transmis en fin de parcours. Chaque partie est enregistrée et horodatée. Après validation finale du recueil, vos réponses sont figées pour préserver la piste d’audit.</SecureNote>\n"
+          if old not in s: raise SystemExit('summary marker missing')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Signaler les éléments manquants dans le recueil"
+          git push origin ux/recueil-validation-missing
