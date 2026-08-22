@@ -353,7 +353,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
             </span>
             <div className="min-w-0">
               <p className="font-semibold">Informations déjà reprises de votre recueil</p>
-              <p className="mt-1 leading-5 text-blue-800 sm:leading-6">Tes objectifs, leurs horizons et ta capacité d’épargne sont déjà intégrés. Tu n’as pas à les saisir une seconde fois.</p>
+              <p className="mt-1 leading-5 text-blue-800 sm:leading-6">Vos objectifs, leurs horizons et votre capacité d’épargne sont déjà intégrés. Vous n’avez pas à les saisir une seconde fois.</p>
               {recueilSummary.objectives.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{recueilSummary.objectives.map((item, index) => <span key={`${item.label}-${index}`} className="rounded-full border border-blue-100 bg-white px-3 py-1.5 font-medium shadow-sm">{item.label} · {item.horizon}</span>)}</div>}
               {(recueilSummary.monthlySavings !== null || recueilSummary.precautionSavings !== null) && <p className="mt-3 text-xs font-medium leading-5 text-blue-700">Capacité d’épargne : {recueilSummary.monthlySavings?.toLocaleString('fr-FR') ?? '—'} €/mois · Épargne de précaution : {recueilSummary.precautionSavings?.toLocaleString('fr-FR') ?? '—'} €</p>}
             </div>
