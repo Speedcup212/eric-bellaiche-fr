@@ -7,6 +7,7 @@ export interface PortalProgress {
   reference: string | null;
   libelle: string | null;
   recueil_status: string;
+  dossier_recueil_status: string;
   qpi_status: string;
   esg_opt_in: boolean | null;
   esg_status: string;
