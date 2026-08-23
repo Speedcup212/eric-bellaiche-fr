@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, ChevronDown, FileCheck2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ChevronDown, FileCheck2, ShieldCheck, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { JourneyProgress, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
@@ -29,7 +29,7 @@ function currentStepTitle(step: PortalProgress['next_step']) {
     case 'RECUEIL': return 'Recueil d’informations';
     case 'QPI': return 'Profil investisseur';
     case 'ESG': return 'Préférences de durabilité';
-    case 'DOCUMENTS': return 'Transmission des documents';
+    case 'DOCUMENTS': return 'Documents du dossier';
     default: return 'Dossier transmis';
   }
 }
@@ -76,6 +76,8 @@ export default function ClientDashboardPage() {
         const qpiDone = ['completed', 'validated'].includes(row.qpi_status);
         const esgRequired = row.esg_opt_in === true;
         const esgDone = !esgRequired || ['completed', 'validated'].includes(row.esg_status);
+        const individualDone = recueilDone && qpiDone && esgDone;
+        const coupleWaiting = row.is_couple && individualDone && !row.dossier_ready_for_documents;
         const allDone = row.next_step === 'TERMINE';
         const docs = documentCounts[row.dossier_id] ?? 0;
         const stage = row.next_step === 'RECUEIL' ? 'recueil' : row.next_step === 'QPI' ? 'qpi' : row.next_step === 'ESG' ? 'esg' : row.next_step === 'DOCUMENTS' ? 'documents' : 'done';
@@ -88,14 +90,14 @@ export default function ClientDashboardPage() {
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                   <div className="max-w-2xl">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Dossier sécurisé · {row.reference || 'Dossier patrimonial'}</p>
-                    <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{allDone ? 'Votre dossier est transmis' : 'Reprenez votre parcours'}</h2>
+                    <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{allDone ? 'Votre dossier est transmis' : coupleWaiting ? 'Votre partie individuelle est terminée' : 'Reprenez votre parcours'}</h2>
                     <p className="mt-3 text-sm leading-6 text-blue-100/80">
-                      {allDone ? 'Le cabinet dispose maintenant des éléments transmis pour poursuivre l’analyse.' : <>Étape actuelle : <span className="font-semibold text-white">{currentStepTitle(row.next_step)}</span>. Vos réponses sont enregistrées au fur et à mesure.</>}
+                      {allDone ? 'Le cabinet dispose maintenant des éléments transmis pour poursuivre l’analyse.' : coupleWaiting ? <>Le dossier commun est en attente de l’autre personne. <span className="font-semibold text-white">{row.dossier_members_ready}/{row.dossier_members_total} parcours individuels terminés.</span> Vous pouvez déjà déposer les justificatifs communs.</> : <>Étape actuelle : <span className="font-semibold text-white">{currentStepTitle(row.next_step)}</span>. Vos réponses sont enregistrées au fur et à mesure.</>}
                     </p>
                   </div>
                   {!allDone ? (
                     <Link to={nextStepHref(row)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#0b1f3a] shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:bg-blue-50">
-                      Continuer <ArrowRight className="h-4 w-4" />
+                      {coupleWaiting ? 'Déposer les documents' : 'Continuer'} <ArrowRight className="h-4 w-4" />
                     </Link>
                   ) : (
                     <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white ring-1 ring-inset ring-white/15"><CheckCircle2 className="h-4 w-4" /> Dossier transmis</span>
@@ -104,12 +106,22 @@ export default function ClientDashboardPage() {
                 <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-5 text-xs text-blue-100/70">
                   <span>{row.libelle || 'Accompagnement patrimonial'}</span>
                   <span>Reprise possible à tout moment</span>
+                  {row.is_couple && <span>{row.dossier_members_ready}/{row.dossier_members_total} parcours individuels terminés</span>}
                   {docs > 0 && <span>{docs} document{docs === 1 ? '' : 's'} déjà transmis</span>}
                 </div>
               </div>
             </WizardCard>
 
             <JourneyProgress current={stage} esgEnabled={esgRequired || row.esg_opt_in === null} />
+
+            {row.is_couple && !row.dossier_ready_for_documents && !allDone && (
+              <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm sm:px-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><UsersRound className="h-5 w-5" /></div>
+                  <div><h3 className="font-semibold text-amber-950">Dossier couple : validation commune en attente</h3><p className="mt-1.5 text-sm leading-6 text-amber-800">Chaque personne conserve son propre recueil, son profil investisseur et ses préférences de durabilité. La transmission finale sera disponible uniquement lorsque les {row.dossier_members_total} parcours individuels seront terminés.</p>{!row.partner_activated && <p className="mt-2 text-sm font-semibold text-amber-900">L’autre personne n’a pas encore activé son accès sécurisé.</p>}</div>
+                </div>
+              </div>
+            )}
 
             {!allDone && (
               <div className="rounded-[22px] border border-[#dbe4ef] bg-white px-5 py-4 shadow-sm sm:px-6">
@@ -118,8 +130,8 @@ export default function ClientDashboardPage() {
                     <FileCheck2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-[#0b1f3a]">Documents à préparer pour la fin du parcours</h3>
-                    <p className="mt-1.5 text-sm leading-6 text-[#5b6b82]">Gardez à portée de main vos principaux justificatifs : avis d’imposition, relevés de placements, tableaux d’amortissement ou crédits et éléments immobiliers. Le dépôt se fera lors de l’étape « Documents ».</p>
+                    <h3 className="font-semibold text-[#0b1f3a]">Documents du foyer à préparer</h3>
+                    <p className="mt-1.5 text-sm leading-6 text-[#5b6b82]">Avis d’imposition, relevés de placements, crédits, immobilier et documents de SCI peuvent être déposés une seule fois pour le dossier commun. Les justificatifs strictement personnels peuvent être ajoutés par chacun.</p>
                   </div>
                 </div>
               </div>
@@ -134,8 +146,8 @@ export default function ClientDashboardPage() {
                 <JourneyLine number={1} title="Recueil d’informations" detail="Renseignez vos objectifs, votre situation professionnelle, vos capacités financières et votre choix de durabilité." done={recueilDone} active={row.next_step === 'RECUEIL'} href={dossierHref('/espace-client/recueil', row.dossier_id)} />
                 <JourneyLine number={2} title="Profil investisseur" detail="Répondez question par question sur votre expérience, votre capacité de perte et votre tolérance au risque." done={qpiDone} active={row.next_step === 'QPI'} href={recueilDone ? dossierHref('/espace-client/profil-investisseur', row.dossier_id) : undefined} />
                 {(esgRequired || row.esg_opt_in === null) && <JourneyLine number={3} title="Préférences de durabilité" detail="Précisez les critères environnementaux, sociaux et de gouvernance (ESG) à intégrer aux recommandations." done={esgDone && esgRequired} active={row.next_step === 'ESG'} href={row.next_step === 'ESG' || esgDone ? dossierHref('/espace-client/esg', row.dossier_id) : undefined} />}
-                <JourneyLine number={esgRequired || row.esg_opt_in === null ? 4 : 3} title="Transmettre les documents" detail="Déposez les justificatifs préparés afin que le cabinet puisse vérifier et contrôler votre dossier." done={docsDone} active={row.next_step === 'DOCUMENTS'} href={documentsUnlocked ? dossierHref('/espace-client/documents', row.dossier_id) : undefined} />
-                <JourneyLine number={esgRequired || row.esg_opt_in === null ? 5 : 4} title="Transmission au cabinet" detail="Le cabinet reprend ensuite les éléments pour analyse, contrôle et préparation de la recommandation." done={allDone} active={false} />
+                <JourneyLine number={esgRequired || row.esg_opt_in === null ? 4 : 3} title="Documents du dossier" detail="Déposez les justificatifs communs une seule fois. La transmission finale reste verrouillée tant que tous les parcours individuels ne sont pas terminés." done={docsDone} active={row.next_step === 'DOCUMENTS'} href={documentsUnlocked ? dossierHref('/espace-client/documents', row.dossier_id) : undefined} />
+                <JourneyLine number={esgRequired || row.esg_opt_in === null ? 5 : 4} title="Transmission au cabinet" detail="Un seul envoi final clôt le dossier commun après contrôle de la complétion de chaque personne." done={allDone} active={false} />
               </div>
             </details>
           </div>
