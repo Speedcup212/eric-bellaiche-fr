@@ -50,6 +50,7 @@ const ClientInvitationPage = lazyWithReload(() => import('./pages/portal/ClientI
 const PortalShell = lazyWithReload(() => import('./portal/PortalShell'), 'portal-shell');
 const ClientDashboardPage = lazyWithReload(() => import('./pages/portal/ClientDashboardPage'), 'client-dashboard');
 const ClientDocumentsPage = lazyWithReload(() => import('./pages/portal/ClientDocumentsPage'), 'client-documents');
+const ClientRecueilEntryPage = lazyWithReload(() => import('./pages/portal/ClientRecueilEntryPage'), 'client-recueil-entry');
 const ClientRecueilPage = lazyWithReload(() => import('./pages/portal/ClientRecueilJourneyPage'), 'client-recueil');
 const QuestionnairePage = lazyWithReload(() => import('./pages/portal/QuestionnairePage'), 'client-questionnaire');
 const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');
@@ -79,7 +80,7 @@ export default function App() {
     <Route path="/merci" element={<ThankYouPage />} /><Route path="/eric-bellaiche-cgp-cif" element={<CgpCifRedirect />} /><Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} /><Route path="/conseiller-scpi" element={<ConseillerScpiRedirect />} /><Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
     <Route path="/articles" element={<ArticlesHubPage />} />{articleSlugs.map((slug) => <Route key={slug} path={`/articles/${slug}`} element={<ArticlePageWrapper slug={slug} />} />)}{articleSlugs.map((slug) => <Route key={`${slug}-wildcard`} path={`/articles/${slug}/*`} element={<ArticlePageWrapper slug={slug} />} />)}
     <Route path="/espace-client/connexion" element={<PortalErrorBoundary><ClientLoginPage /></PortalErrorBoundary>} /><Route path="/espace-client/invitation" element={<PortalErrorBoundary><ClientInvitationPage /></PortalErrorBoundary>} />
-    <Route path="/espace-client" element={<PortalErrorBoundary><PortalShell /></PortalErrorBoundary>}><Route index element={<ClientDashboardPage />} /><Route path="documents" element={<ClientDocumentsPage />} /><Route path="recueil" element={<ClientRecueilPage />} /><Route path="profil-investisseur" element={<QuestionnairePage mode="QPI" />} /><Route path="esg" element={<QuestionnairePage mode="ESG" />} /><Route path="synthese" element={<ClientSummaryPage />} /></Route>
+    <Route path="/espace-client" element={<PortalErrorBoundary><PortalShell /></PortalErrorBoundary>}><Route index element={<ClientDashboardPage />} /><Route path="documents" element={<ClientDocumentsPage />} /><Route path="recueil" element={<ClientRecueilEntryPage />} /><Route path="recueil/parcours" element={<ClientRecueilPage />} /><Route path="profil-investisseur" element={<QuestionnairePage mode="QPI" />} /><Route path="esg" element={<QuestionnairePage mode="ESG" />} /><Route path="synthese" element={<ClientSummaryPage />} /></Route>
     <Route path="/cabinet" element={<PortalErrorBoundary><CifAdminPage /></PortalErrorBoundary>} />
     <Route path="*" element={<HomePage />} />
   </Routes></Suspense></BrowserRouter>;
