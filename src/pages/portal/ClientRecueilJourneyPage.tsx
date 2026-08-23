@@ -217,21 +217,28 @@ export default function ClientRecueilJourneyPage() {
           <label className="mt-6 block text-sm font-semibold text-slate-700">Nombre d’enfants *<input type="number" min="0" value={family.nombre_enfants} onChange={(event) => setFamily((state) => ({ ...state, nombre_enfants: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
         </>}
 
-        {isCouple && family.situation && <div className="mt-7 rounded-2xl border border-blue-200 bg-blue-50/60 p-5 sm:p-6">
-          <h3 className="font-semibold text-slate-900">Deuxième personne du dossier</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Le dossier comportera deux personnes. Les informations communes du foyer ne seront pas redemandées inutilement ; les données personnelles, le profil investisseur et la durabilité restent propres à chacun.</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div><p className="text-sm font-semibold text-slate-700">Civilité *</p><div className="mt-2 grid grid-cols-2 gap-2">{['Mr', 'Mme'].map((item) => <button key={item} type="button" onClick={() => setFamily((state) => ({ ...state, conjoint_civilite: item }))} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${family.conjoint_civilite === item ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{item}</button>)}</div></div>
-            <label className="text-sm font-semibold text-slate-700">Prénom *<input value={family.conjoint_prenom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_prenom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-            <label className="text-sm font-semibold text-slate-700">Nom *<input value={family.conjoint_nom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_nom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-            <label className="text-sm font-semibold text-slate-700">Email personnel *<input type="email" value={family.conjoint_email} onChange={(event) => setFamily((state) => ({ ...state, conjoint_email: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-            <label className="text-sm font-semibold text-slate-700">Mobile<input value={family.conjoint_mobile} onChange={(event) => setFamily((state) => ({ ...state, conjoint_mobile: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-            {legalDetailsRequired && <>
-              <label className="text-sm font-semibold text-slate-700">Date du mariage / PACS *<input type="month" value={family.date_evenement ? family.date_evenement.slice(0, 7) : ''} onChange={(event) => setFamily((state) => ({ ...state, date_evenement: event.target.value ? `${event.target.value}-01` : '' }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Régime / convention *<select value={family.regime_convention} onChange={(event) => setFamily((state) => ({ ...state, regime_convention: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><option value="">Sélectionner</option>{regimes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-            </>}
+        {isCouple && family.situation && <>
+          <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p className="font-semibold text-slate-900">Personne 1 — Vous</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Vos informations d’identité et vos coordonnées sont déjà enregistrées dans votre dossier. Elles seront utilisées pour votre propre recueil, votre profil investisseur et votre questionnaire de durabilité.</p>
           </div>
-        </div>}
+
+          <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-5 sm:p-6">
+            <h3 className="font-semibold text-slate-900">Personne 2 — conjoint / partenaire</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Renseignez ici les informations de la deuxième personne. Les informations communes du foyer ne seront pas redemandées inutilement ; les données personnelles, le profil investisseur et la durabilité restent propres à chacun.</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div><p className="text-sm font-semibold text-slate-700">Civilité *</p><div className="mt-2 grid grid-cols-2 gap-2">{['Mr', 'Mme'].map((item) => <button key={item} type="button" onClick={() => setFamily((state) => ({ ...state, conjoint_civilite: item }))} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${family.conjoint_civilite === item ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{item}</button>)}</div></div>
+              <label className="text-sm font-semibold text-slate-700">Prénom *<input value={family.conjoint_prenom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_prenom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+              <label className="text-sm font-semibold text-slate-700">Nom *<input value={family.conjoint_nom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_nom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+              <label className="text-sm font-semibold text-slate-700">Email personnel *<input type="email" value={family.conjoint_email} onChange={(event) => setFamily((state) => ({ ...state, conjoint_email: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+              <label className="text-sm font-semibold text-slate-700">Mobile<input value={family.conjoint_mobile} onChange={(event) => setFamily((state) => ({ ...state, conjoint_mobile: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+              {legalDetailsRequired && <>
+                <label className="text-sm font-semibold text-slate-700">Date du mariage / PACS *<input type="month" value={family.date_evenement ? family.date_evenement.slice(0, 7) : ''} onChange={(event) => setFamily((state) => ({ ...state, date_evenement: event.target.value ? `${event.target.value}-01` : '' }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+                <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Régime / convention *<select value={family.regime_convention} onChange={(event) => setFamily((state) => ({ ...state, regime_convention: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><option value="">Sélectionner</option>{regimes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              </>}
+            </div>
+          </div>
+        </>}
 
         {family.dossier_scope === 'individual' && family.situation && <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Dossier individuel.</strong> Un seul profil investisseur et un seul questionnaire individuel seront créés.</div>}
         {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
