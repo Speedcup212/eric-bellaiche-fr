@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, FileCheck2, FileUp, Loader2, Trash2, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Download, FileCheck2, FileUp, Loader2, Trash2, UploadCloud, UsersRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
@@ -42,6 +42,12 @@ export default function ClientDocumentsPage() {
   const dossierId = searchParams.get('dossier');
   const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
 
+  const refreshProgress = async () => {
+    const rows = await fetchPortalProgress();
+    setProgressRows(rows);
+    return selectedProgress(rows, dossierId);
+  };
+
   const loadDocuments = async (row: PortalProgress) => {
     const [{ data: sourceData, error: sourceError }, { data: regulatoryData, error: regulatoryError }] = await Promise.all([
       supabase.from('documents_sources').select('id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,created_at').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
@@ -74,6 +80,12 @@ export default function ClientDocumentsPage() {
     return () => { active = false; };
   }, [dossierId, navigate]);
 
+  useEffect(() => {
+    if (!progress?.is_couple || progress.dossier_ready_for_documents || progress.transmitted_at) return;
+    const timer = window.setInterval(() => { void refreshProgress().catch(() => undefined); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [progress?.is_couple, progress?.dossier_ready_for_documents, progress?.transmitted_at, dossierId]);
+
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!progress || !file || progress.transmitted_at) return;
@@ -87,7 +99,7 @@ export default function ClientDocumentsPage() {
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
       const input = document.getElementById('client-document-file') as HTMLInputElement | null; if (input) input.value = '';
-      setMessage('Document transmis. Vous pouvez en ajouter un autre avant de finaliser votre dossier.');
+      setMessage('Document transmis au dossier commun. Vous pouvez en ajouter un autre avant la transmission finale.');
       await loadDocuments(progress);
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
   };
@@ -118,6 +130,8 @@ export default function ClientDocumentsPage() {
     if (!progress || progress.transmitted_at) return;
     setFinishBusy(true); setErrorMessage('');
     try {
+      const refreshed = await refreshProgress();
+      if (!refreshed?.dossier_ready_for_documents) throw new Error('La transmission finale reste verrouillée tant que chaque personne du dossier n’a pas terminé son parcours individuel.');
       const { error } = await supabase.rpc('complete_my_documents', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
       navigate(dossierHref('/espace-client/synthese', progress.dossier_id));
@@ -136,16 +150,18 @@ export default function ClientDocumentsPage() {
   }
   const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';
   const transmitted = Boolean(progress.transmitted_at);
+  const waitingPartner = progress.is_couple && !progress.dossier_ready_for_documents && !transmitted;
 
   return (
     <div>
       <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Dernière étape" title="Transmettre vos documents" description="Vous avez terminé les questionnaires. Déposez maintenant vos justificatifs : les informations utiles seront associées à votre dossier sans nouvelle saisie de votre part." icon={<UploadCloud className="h-5 w-5" />} />
+      <PageIntro eyebrow="Dernière étape" title="Documents du dossier" description="Déposez les justificatifs une seule fois pour le foyer. Chaque personne conserve ses questionnaires individuels ; les documents communs sont rattachés au même dossier." icon={<UploadCloud className="h-5 w-5" />} />
       <WizardCard>
+        {waitingPartner && <div className="border-b border-amber-200 bg-amber-50 px-6 py-5 sm:px-9"><div className="flex items-start gap-3"><UsersRound className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div><p className="font-semibold text-amber-950">Transmission finale en attente de l’autre personne</p><p className="mt-1 text-sm leading-6 text-amber-800">{progress.dossier_members_ready}/{progress.dossier_members_total} parcours individuels sont terminés. Tu peux déjà déposer les justificatifs communs ; le bouton de transmission finale se débloquera automatiquement lorsque les deux parcours seront complets.</p>{!progress.partner_activated && <p className="mt-2 text-sm font-semibold text-amber-900">L’autre personne n’a pas encore activé son accès sécurisé.</p>}</div></div></div>}
         {!transmitted ? (
           <div className="px-6 py-7 sm:px-9 sm:py-9">
             <h3 className="text-xl font-semibold text-slate-950">Ajouter un justificatif</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choisissez la catégorie, puis sélectionnez un PDF, un scan ou une capture d’écran lisible. Vous pouvez transmettre autant de documents que nécessaire.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choisissez la catégorie, puis sélectionnez un PDF, un scan ou une capture d’écran lisible. Pour un couple, les documents communs ne sont à transmettre qu’une seule fois.</p>
             <form onSubmit={upload} className="mt-7 space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-semibold text-slate-700">Type de document<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -164,10 +180,10 @@ export default function ClientDocumentsPage() {
         )}
 
         <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-6 sm:px-9">
-          <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents transmis</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} déjà enregistré${sources.length > 1 ? 's' : ''}.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
+          <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents du dossier</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} déjà enregistré${sources.length > 1 ? 's' : ''} dans le dossier commun.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
           {sources.length > 0 && <div className="mt-5 divide-y divide-slate-200/70 rounded-2xl border border-slate-200 bg-white px-4">{sources.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{doc.nom_fichier}</p><p className="mt-1 text-xs text-slate-400">{categoryLabel(doc.categorie)}</p></div><div className="flex shrink-0 items-center gap-2">{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}{!transmitted && <button type="button" disabled={deletingId === doc.id} onClick={() => void deleteSource(doc)} className="rounded-xl border border-red-100 p-2 text-red-500 transition hover:bg-red-50 disabled:opacity-40" title="Supprimer ce justificatif">{deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>}</div></div>)}</div>}
         </div>
-        {!transmitted && <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel="Finaliser et transmettre" nextDisabled={sources.length === 0} busy={finishBusy} />}
+        {!transmitted && <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel={waitingPartner ? 'En attente des deux parcours' : 'Finaliser et transmettre le dossier'} nextDisabled={sources.length === 0 || waitingPartner} busy={finishBusy} />}
       </WizardCard>
       {regulatory.length > 0 && <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><p className="text-sm font-semibold text-slate-800">Documents réglementaires disponibles</p></div><div className="mt-3 space-y-2">{regulatory.map((doc) => { const path = doc.storage_path_pdf || doc.storage_path_docx; return <div key={doc.id} className="flex items-center justify-between text-sm"><span className="capitalize text-slate-600">{doc.type_document.replaceAll('_', ' ')}</span>{path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || REGULATORY_DOCUMENTS_BUCKET, path)} className="inline-flex items-center gap-1.5 font-semibold text-slate-800"><Download className="h-4 w-4" /> Ouvrir</button>}</div>; })}</div></div>}
     </div>
