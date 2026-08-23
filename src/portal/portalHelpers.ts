@@ -15,6 +15,11 @@ export interface PortalProgress {
   documents_status: 'pending' | 'in_progress' | 'completed';
   documents_completed_at: string | null;
   transmitted_at: string | null;
+  dossier_members_total: number;
+  dossier_members_ready: number;
+  dossier_ready_for_documents: boolean;
+  is_couple: boolean;
+  partner_activated: boolean;
   next_step: 'DOCUMENTS' | 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
 }
 
