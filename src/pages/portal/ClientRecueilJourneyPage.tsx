@@ -192,9 +192,9 @@ export default function ClientRecueilJourneyPage() {
   if (!progress) return <p className="text-sm text-slate-500">Dossier introuvable.</p>;
 
   if (!familyReady && progress.recueil_status !== 'validated') {
-    return <div>
+    return <div className="recueil-safe">
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Étape 1" title="Qui est concerné par ce dossier ?" description="Ce choix détermine le nombre de personnes à accompagner et donc le nombre de profils investisseurs et de questionnaires individuels à compléter." icon={<UsersRound className="h-5 w-5" />} />
+      <PageIntro variant="recueil" eyebrow="Étape 1" title="Qui est concerné par ce dossier ?" description="Ce choix détermine le nombre de personnes à accompagner et donc le nombre de profils investisseurs et de questionnaires individuels à compléter." icon={<UsersRound className="h-5 w-5" />} />
       <WizardCard className="p-6 sm:p-8">
         <p className="text-sm font-semibold text-slate-800">Ce dossier concerne : *</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -242,15 +242,15 @@ export default function ClientRecueilJourneyPage() {
 
         {family.dossier_scope === 'individual' && family.situation && <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Dossier individuel.</strong> Un seul profil investisseur et un seul questionnaire individuel seront créés.</div>}
         {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
-        <button type="button" disabled={busy || !family.dossier_scope || !family.situation} onClick={() => void saveFamilySetup()} className="mt-6 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Enregistrement…' : 'Continuer le recueil'}</button>
+        <button type="button" disabled={busy || !family.dossier_scope || !family.situation} onClick={() => void saveFamilySetup()} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-[#2563EB] disabled:opacity-50">{busy ? 'Enregistrement…' : 'Continuer le recueil'}</button>
       </WizardCard>
     </div>;
   }
 
   if (!editing && progress.recueil_status === 'validated' && !progress.transmitted_at) {
-    return <div>
+    return <div className="recueil-safe">
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil est validé. Vous pouvez encore corriger ou compléter vos informations tant que le dossier n’a pas été transmis définitivement au cabinet." icon={<CheckCircle2 className="h-5 w-5" />} />
+      <PageIntro variant="recueil" eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil est validé. Vous pouvez encore corriger ou compléter vos informations tant que le dossier n’a pas été transmis définitivement au cabinet." icon={<CheckCircle2 className="h-5 w-5" />} />
       <WizardCard className="p-8">
         <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800">
           <p className="font-semibold">Recueil validé</p>
@@ -258,7 +258,7 @@ export default function ClientRecueilJourneyPage() {
         </div>
         {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mon recueil'}</button>
+          <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mon recueil'}</button>
           <button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Continuer</button>
         </div>
       </WizardCard>
