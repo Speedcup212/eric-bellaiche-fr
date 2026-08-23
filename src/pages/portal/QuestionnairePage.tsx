@@ -63,6 +63,9 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const title = mode === 'QPI' ? 'Profil investisseur' : 'Préférences de durabilité';
   const eyebrow = mode === 'QPI' ? 'Étape 2' : 'Étape 3';
   const stage = mode === 'QPI' ? 'qpi' : 'esg';
+  const continueLabel = mode === 'QPI'
+    ? (progress.esg_opt_in === true ? 'Continuer vers mes préférences de durabilité' : 'Continuer vers les documents')
+    : 'Continuer vers les documents';
 
   if (!editing && completed && !progress.transmitted_at) {
     return <div>
@@ -71,9 +74,10 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       <WizardCard className="p-8">
         {mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Questionnaire validé</p><p className="mt-1 text-sm leading-6">Vos préférences de durabilité sont enregistrées.</p></div>}
         <p className="mt-5 text-sm leading-6 text-slate-500">Vous pouvez modifier vos réponses tant que le dossier n’est pas transmis. Une nouvelle validation recalculera le résultat et conservera la traçabilité.</p>
+        {progress.is_couple && !progress.dossier_ready_for_documents && <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">Votre partie individuelle est enregistrée. Le dossier commun ne pourra être transmis définitivement qu’après la complétion des deux parcours individuels.</p>}
         {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{mode === 'QPI' ? 'Continuer vers les documents' : 'Continuer'}</button>
+          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{continueLabel}</button>
           <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mes réponses'}</button>
         </div>
       </WizardCard>
