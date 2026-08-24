@@ -1,0 +1,43 @@
+name: Make journey tabs always clickable
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-make-journey-tabs-clickable.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch journey navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/portal/FintechJourney.tsx')
+          s = p.read_text()
+          old = "const href = dossierId && index <= currentIndex ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;"
+          new = "const href = dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;"
+          if old not in s:
+              raise SystemExit('journey href guard not found')
+          s = s.replace(old, new)
+          s = s.replace('Les étapes déjà ouvertes restent accessibles. Les étapes suivantes se débloquent au fur et à mesure.', 'Vous pouvez accéder à chaque étape du parcours en cliquant directement sur son onglet.')
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/portal/FintechJourney.tsx
+          git commit -m 'Keep all journey tabs clickable'
+          git push origin main
