@@ -474,7 +474,7 @@ export default function ClientRecueilJourneyPage() {
         </div>}
 
         {current.code === 'patrimony' && <div className="space-y-7">
-          <RecueilInfoNote title="Informations immobilières uniquement"><p>Renseignez vos biens directement dans le recueil. <strong>Aucun justificatif immobilier n’est demandé.</strong></p><p className="mt-1.5 text-[#aebfd4]">Les prêts éventuels sont renseignés séparément dans la partie « Crédits en cours ».</p></RecueilInfoNote>
+          <div className="rounded-xl border border-sky-300/20 bg-[#17263f] px-4 py-2.5 text-xs leading-5 text-[#cfdef0]"><strong className="text-white">Aucun justificatif immobilier n’est demandé.</strong> Les prêts éventuels sont renseignés séparément dans « Crédits en cours ».</div>
           <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => {
             if (!v && (form.immobilier ?? []).length > 0 && !window.confirm('Vous avez déjà renseigné un ou plusieurs biens. Passer à « Non » supprimera ces informations. Confirmez-vous ?')) return;
             const existing = form.immobilier ?? [];
