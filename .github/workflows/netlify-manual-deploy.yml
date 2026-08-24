@@ -1,0 +1,22 @@
+name: Netlify manual production deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/netlify-manual-deploy.yml
+      - scripts/netlify_redeploy_20260824_0753.txt
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Netlify production
+        run: npx netlify-cli@latest deploy --dir=dist --prod --site=3416bd60-2577-431f-a991-40847c2b657b --auth="${{ secrets.NETLIFY_AUTH_TOKEN }}"
