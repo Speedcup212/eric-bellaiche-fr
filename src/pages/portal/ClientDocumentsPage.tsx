@@ -128,7 +128,8 @@ export default function ClientDocumentsPage() {
       const row = selectedProgress(rows, dossierId);
       if (!row) return;
       if (row.next_step !== 'DOCUMENTS' && row.documents_status !== 'completed' && row.next_step !== 'TERMINE') {
-        navigate(nextStepHref(row), { replace: true });
+        // The general journey tabs remain navigable. Show a read-only preview here
+        // instead of redirecting the client away from the tab they selected.
         return;
       }
       if (!row.transmitted_at) {
@@ -261,6 +262,21 @@ export default function ClientDocumentsPage() {
   if (!progress) {
     if (errorMessage) return <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>;
     return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
+  }
+
+  const documentsAvailable = progress.next_step === 'DOCUMENTS' || progress.documents_status === 'completed' || progress.next_step === 'TERMINE';
+  if (!documentsAvailable) {
+    return <div>
+      <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
+      <PageIntro eyebrow="Étape Documents" title="Documents du dossier" description="Vous pouvez consulter cette étape dès maintenant. Le dépôt des justificatifs s’ouvrira lorsque votre recueil, votre profil investisseur et, le cas échéant, vos préférences de durabilité seront terminés." icon={<UploadCloud className="h-5 w-5" />} />
+      <WizardCard className="p-6 sm:p-8">
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
+          <p className="font-semibold">Cette étape n’est pas encore à compléter</p>
+          <p className="mt-2 text-sm leading-6">Terminez d’abord les étapes personnelles précédentes. Vous pourrez ensuite déposer les pièces attendues ici, sans perdre les informations déjà enregistrées.</p>
+          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="mt-4 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white">Reprendre l’étape en cours</button>
+        </div>
+      </WizardCard>
+    </div>;
   }
 
   const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';
