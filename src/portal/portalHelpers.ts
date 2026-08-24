@@ -111,5 +111,5 @@ export function selectedProgress(
 ): PortalProgress | null {
   if (rows.length === 0) return null;
   if (!dossierId) return rows[0];
-  return rows.find((row) => row.dossier_id === dossierId) ?? rows[0];
+  return rows.find((row) => row.dossier_id === dossierId) ?? null;
 }
