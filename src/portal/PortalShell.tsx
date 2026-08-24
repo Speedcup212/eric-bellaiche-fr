@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -63,6 +63,34 @@ export default function PortalShell() {
     navigate('/espace-client/connexion', { replace: true });
   };
 
+  const guardRecueilNavigation = (event: MouseEvent<HTMLElement>) => {
+    if (location.pathname !== '/espace-client/recueil/parcours') return;
+    const element = event.target as HTMLElement;
+    const button = element.closest('button');
+    if (!button) return;
+
+    const buttonText = (button.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const partMatch = document.body.innerText.match(/Partie\s+(\d+)\s*\/\s*(\d+)/i);
+    const currentPart = Number(partMatch?.[1] ?? 0);
+
+    if (buttonText.includes('Précédent') && currentPart === 1) {
+      event.preventDefault();
+      event.stopPropagation();
+      navigate(`/espace-client/recueil${location.search}`);
+      return;
+    }
+
+    const sectionMatch = buttonText.match(/^(?:✓\s*)?(\d+)\.\s+(Identité|Famille|Profession|Objectifs|Revenus|Réglementaire|Patrimoine)$/i);
+    if (!sectionMatch || currentPart === 0) return;
+
+    const targetPart = Number(sectionMatch[1]);
+    const completed = buttonText.startsWith('✓');
+    if (!completed && targetPart > currentPart) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
   return (
     <div className={`min-h-screen text-[#0b1f3a] transition-colors duration-300 ${isRecueil ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
       <header className="sticky top-0 z-50 border-b border-[#dbe4ef] bg-white/95 backdrop-blur-xl">
@@ -87,7 +115,7 @@ export default function PortalShell() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main onClickCapture={guardRecueilNavigation} className="relative mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Outlet />
       </main>
     </div>
