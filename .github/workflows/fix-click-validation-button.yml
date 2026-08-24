@@ -1,0 +1,42 @@
+name: Fix clickable recueil validation
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-click-validation-button.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch recueil validation UX
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = """  const currentValidationIssue = (() => {\n    try {\n      validateSection();\n      return '';\n    } catch (error) {\n      return messageFromError(error);\n    }\n  })();\n\n"""
+          if old not in s:
+              raise SystemExit('currentValidationIssue block not found')
+          s = s.replace(old, '', 1)
+          old_alerts = """        {currentValidationIssue && <div role=\"alert\" className=\"rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm\"><p className=\"font-semibold\">À compléter avant de continuer</p><p className=\"mt-1\">{currentValidationIssue}</p></div>}\n        {errorMessage && <p className=\"rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n"""
+          new_alert = """        {errorMessage && <div role=\"alert\" className=\"rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm\"><p className=\"font-semibold\">À compléter avant de continuer</p><p className=\"mt-1\">{errorMessage}</p></div>}\n"""
+          if old_alerts not in s:
+              raise SystemExit('alert block not found')
+          s = s.replace(old_alerts, new_alert, 1)
+          old_disabled = 'disabled={busy || Boolean(currentValidationIssue)}'
+          if old_disabled not in s:
+              raise SystemExit('disabled condition not found')
+          s = s.replace(old_disabled, 'disabled={busy}', 1)
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m 'Keep recueil validation button clickable'
+          git push origin main
