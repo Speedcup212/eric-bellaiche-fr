@@ -1,0 +1,62 @@
+name: Crash-test fixes family setup
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-crash-fixes-family.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch family setup validation and error UX
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyPage.tsx')
+          s = p.read_text()
+
+          marker = "const regimes = ['Communauté réduite aux acquêts', 'Communauté universelle', 'Séparation de biens', 'Participation aux acquêts', 'PACS - séparation des patrimoines', 'PACS - indivision', 'Sans convention / non applicable'];\n"
+          addition = marker + "\nfunction isValidEmail(value: string): boolean {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value.trim());\n}\n\nfunction isValidMobile(value: string): boolean {\n  const compact = value.trim().replace(/[\\s().-]/g, '');\n  if (!compact) return true;\n  if (/^0[67]\\d{8}$/.test(compact)) return true;\n  if (/^\\+33[67]\\d{8}$/.test(compact)) return true;\n  return /^\\+[1-9]\\d{7,14}$/.test(compact);\n}\n"
+          if marker not in s:
+              raise SystemExit('regimes marker not found')
+          s = s.replace(marker, addition, 1)
+
+          old = """      if (!family.dossier_scope) throw new Error('Indiquez si ce dossier concerne une personne ou un couple.');\n      if (!family.situation || family.nombre_enfants === '') throw new Error('Indiquez votre situation familiale et le nombre d’enfants.');\n      if (legalDetailsRequired && (!family.date_evenement || !family.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez la date et le régime / la convention.');\n      if (isCouple && (!family.conjoint_civilite || !family.conjoint_prenom.trim() || !family.conjoint_nom.trim() || !family.conjoint_email.trim())) {\n        throw new Error('Complétez les informations de la deuxième personne : civilité, prénom, nom et email personnel.');\n      }\n"""
+          new = """      if (!family.dossier_scope) throw new Error('Indiquez si ce dossier concerne une personne ou un couple.');\n      if (!family.situation) throw new Error('Indiquez votre situation familiale.');\n      const childCount = Number(family.nombre_enfants);\n      if (family.nombre_enfants === '' || !Number.isInteger(childCount) || childCount < 0) throw new Error('Indiquez un nombre d’enfants valide, supérieur ou égal à 0.');\n      if (legalDetailsRequired && (!family.date_evenement || !family.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez la date et le régime / la convention.');\n      if (isCouple && (!family.conjoint_civilite || !family.conjoint_prenom.trim() || !family.conjoint_nom.trim() || !family.conjoint_email.trim())) {\n        throw new Error('Complétez les informations de l’Identifiant 2 : civilité, prénom, nom et email personnel.');\n      }\n      if (isCouple && !isValidEmail(family.conjoint_email)) throw new Error('Indiquez une adresse email personnelle valide pour l’Identifiant 2.');\n      if (isCouple && family.conjoint_mobile.trim() && !isValidMobile(family.conjoint_mobile)) throw new Error('Indiquez un numéro de mobile valide pour l’Identifiant 2.');\n"""
+          if old not in s:
+              raise SystemExit('validation block not found')
+          s = s.replace(old, new, 1)
+
+          old_error = """        {errorMessage && <p className=\"mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700\">{errorMessage}</p>}\n"""
+          new_error = """        {errorMessage && <div id=\"family-validation-alert\" role=\"alert\" tabIndex={-1} className=\"mt-5 scroll-mt-28 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950\"><p className=\"font-semibold\">À compléter avant de continuer</p><p className=\"mt-1\">{errorMessage}</p></div>}\n"""
+          if old_error not in s:
+              raise SystemExit('family error block not found')
+          s = s.replace(old_error, new_error, 1)
+
+          effect_marker = """  const saveFamilySetup = async () => {\n"""
+          effect = """  useEffect(() => {\n    if (!errorMessage) return;\n    const timer = window.setTimeout(() => {\n      const alert = document.getElementById('family-validation-alert');\n      alert?.scrollIntoView({ behavior: 'smooth', block: 'center' });\n      alert?.focus({ preventScroll: true });\n    }, 50);\n    return () => window.clearTimeout(timer);\n  }, [errorMessage]);\n\n  const saveFamilySetup = async () => {\n"""
+          if effect_marker not in s:
+              raise SystemExit('saveFamilySetup marker not found')
+          s = s.replace(effect_marker, effect, 1)
+
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/ClientRecueilJourneyPage.tsx
+          git commit -m 'Harden family setup validation and error UX'
+          git push origin main
