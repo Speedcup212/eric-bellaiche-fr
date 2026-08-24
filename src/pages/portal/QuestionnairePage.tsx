@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import QuestionnairePageBase, { QpiResultSummary, type QpiResultRow } from './QuestionnairePageBase';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
-import { fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
+import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 type Mode = 'QPI' | 'ESG';
 
@@ -66,6 +66,9 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const continueLabel = mode === 'QPI'
     ? (progress.esg_opt_in === true ? 'Continuer vers mes préférences de durabilité' : 'Continuer vers les documents')
     : 'Continuer vers les documents';
+  const continueHref = mode === 'QPI' && progress.esg_opt_in === true
+    ? dossierHref('/espace-client/esg', progress.dossier_id)
+    : dossierHref('/espace-client/documents', progress.dossier_id);
 
   if (!editing && completed && !progress.transmitted_at) {
     return <div>
@@ -77,7 +80,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         {progress.is_couple && !progress.dossier_ready_for_documents && <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">Votre partie individuelle est enregistrée. Le dossier commun ne pourra être transmis définitivement qu’après la complétion des deux parcours individuels.</p>}
         {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={() => navigate(nextStepHref(progress))} className="rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{continueLabel}</button>
+          <button type="button" onClick={() => navigate(continueHref)} className="rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{continueLabel}</button>
           <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mes réponses'}</button>
         </div>
       </WizardCard>
