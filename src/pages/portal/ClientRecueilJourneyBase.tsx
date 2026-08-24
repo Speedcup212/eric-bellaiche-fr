@@ -324,7 +324,7 @@ export default function ClientRecueilJourneyPage() {
       if (form.has_real_estate === true) {
         if (!Array.isArray(form.immobilier) || form.immobilier.length === 0) throw new Error('Ajoutez au moins un bien immobilier.');
         for (const item of form.immobilier ?? []) {
-          if ([item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.quote_part, item.valeur_actuelle, item.adresse, item.ville].some(isBlank)) throw new Error('Complétez les informations principales de chaque bien immobilier.');
+          if ([item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.quote_part, item.valeur_actuelle, item.ville].some(isBlank)) throw new Error('Complétez les informations principales de chaque bien immobilier.');
         }
       }
     }
@@ -462,7 +462,7 @@ export default function ClientRecueilJourneyPage() {
           <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => patchCurrent({ has_real_estate: v, immobilier: v ? (form.immobilier ?? []) : [] })} />
           {form.has_real_estate === false && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun bien immobilier déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
           {form.has_real_estate === true && <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Vos biens immobiliers</h3><p className="mt-1 text-sm text-slate-500">Ajoutez chaque bien détenu, y compris la résidence principale, les biens locatifs et les résidences secondaires.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { type_bien: '', usage: '', proprietaire: '', mode_detention: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', adresse: '', code_postal: '', ville: '', loyer_annuel: '', commentaire: '' }] })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter un bien</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Vos biens immobiliers</h3><p className="mt-1 text-sm text-slate-500">Ajoutez chaque bien détenu. Seule la ville est demandée pour sa localisation.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { type_bien: '', usage: '', proprietaire: '', mode_detention: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', ville: '', loyer_annuel: '', commentaire: '' }] })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter un bien</button></div>
             {(form.immobilier ?? []).length === 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Vous avez indiqué détenir un bien immobilier. Ajoutez au moins un bien pour poursuivre.</div>}
             {(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Bien {index + 1}</p><h4 className="mt-1 font-semibold text-slate-900">{item.type_bien || 'Bien immobilier'}</h4></div><button type="button" onClick={() => removeList('immobilier', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>
@@ -475,8 +475,6 @@ export default function ClientRecueilJourneyPage() {
                 <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
                 <Field label="Date d’acquisition" type="month" value={item.date_acquisition} onChange={(v) => updateList('immobilier', index, { date_acquisition: v })} />
                 <MoneyField label="Prix d’acquisition (€)" value={item.prix_acquisition} onChange={(v) => updateList('immobilier', index, { prix_acquisition: v })} />
-                <Field label="Adresse du bien" required value={item.adresse} onChange={(v) => updateList('immobilier', index, { adresse: v })} placeholder="Numéro et voie" />
-                <Field label="Code postal" value={item.code_postal} onChange={(v) => updateList('immobilier', index, { code_postal: v })} />
                 <Field label="Ville" required value={item.ville} onChange={(v) => updateList('immobilier', index, { ville: v })} />
                 {item.usage === 'Locatif' && <MoneyField label="Loyer annuel hors charges (€)" value={item.loyer_annuel} onChange={(v) => updateList('immobilier', index, { loyer_annuel: v })} />}
               </div>
