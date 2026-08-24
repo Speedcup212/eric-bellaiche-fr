@@ -331,7 +331,8 @@ export default function ClientRecueilJourneyPage() {
           if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) throw new Error('Précisez le type du bien immobilier.');
           if (item.usage === 'Autre' && isBlank(item.usage_autre)) throw new Error('Précisez l’usage du bien immobilier.');
           if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) throw new Error('Précisez comment le bien immobilier est détenu.');
-          if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
+          const quotePartValue = Number(String(item.quote_part ?? '').replace(',', '.').replace('%', '').trim());
+          if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || !Number.isFinite(quotePartValue) || quotePartValue <= 0 || quotePartValue >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
           if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) throw new Error('Indiquez le loyer annuel hors charges pour chaque bien locatif.');
         }
       }
@@ -341,6 +342,15 @@ export default function ClientRecueilJourneyPage() {
     }
   };
 
+  const currentValidationIssue = (() => {
+    try {
+      validateSection();
+      return '';
+    } catch (error) {
+      return messageFromError(error);
+    }
+  })();
+
   const saveCurrent = async () => {
     if (!progress) return;
     validateSection();
@@ -348,7 +358,7 @@ export default function ClientRecueilJourneyPage() {
     if (current.code === 'objectives') payloadToSave = { ...form, items: (form.items ?? []).map((item: AnyPayload, index: number) => ({ ...item, priorite: index + 1 })) };
     if (current.code === 'patrimony') {
       const placementsWithoutAccounts = (form.placements ?? []).filter((placement: AnyPayload) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant');
-      payloadToSave = { ...form, collection_mode: 'real_estate_manual', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
+      payloadToSave = { ...form, immobilier: (form.immobilier ?? []).map((item: AnyPayload) => ({ ...item, quote_part: isBlank(item.quote_part) ? item.quote_part : String(item.quote_part).replace(',', '.').replace('%', '').trim() })), collection_mode: 'real_estate_manual', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
     }
     const { error } = await supabase.rpc('save_my_recueil_section', { p_dossier_id: progress.dossier_id, p_section_code: current.code, p_payload: payloadToSave, p_completed: true });
     if (error) throw error;
@@ -407,7 +417,8 @@ export default function ClientRecueilJourneyPage() {
     if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) return false;
     if (item.usage === 'Autre' && isBlank(item.usage_autre)) return false;
     if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) return false;
-    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) return false;
+    const quotePartValue = Number(String(item.quote_part ?? '').replace(',', '.').replace('%', '').trim());
+    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || !Number.isFinite(quotePartValue) || quotePartValue <= 0 || quotePartValue >= 100)) return false;
     if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) return false;
     return true;
   }));
@@ -507,10 +518,11 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Type de crédit" required value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Autre crédit" /><Field label="Banque" required value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" required value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" required value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" required value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" required type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" required type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" required value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} placeholder="Autre type de prêt" /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}
 
+        {currentValidationIssue && <div role="alert" className="rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{currentValidationIssue}</p></div>}
         {errorMessage && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         {current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits seront renseignés à partir des justificatifs transmis en fin de parcours.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}
       </div>
-      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy || !patrimonyReady} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
+      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy || Boolean(currentValidationIssue)} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
   </div>;
 }
