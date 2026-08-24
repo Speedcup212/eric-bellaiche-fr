@@ -68,7 +68,9 @@ export default function ClientRecueilEntryPage() {
   if (!familyReady) return <ClientRecueilJourneyPage />;
 
   const isCouple = scope === 'couple';
-  const roleLabel = progress.role_dossier === 'investisseur_1' ? 'Personne 1' : 'Personne 2';
+  const identifierNumber = progress.role_dossier === 'investisseur_1' ? 1 : 2;
+  const identifierLabel = `Identifiant ${identifierNumber}`;
+  const personLabel = `Personne ${identifierNumber}`;
   const legalDetails = ['Marié', 'Pacsé'].includes(String(family?.situation ?? ''));
 
   const scopeCardClass = (selected: boolean) => `rounded-2xl border p-5 text-left transition ${selected
@@ -81,13 +83,21 @@ export default function ClientRecueilEntryPage() {
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
       <PageIntro
         variant="recueil"
-        eyebrow="Étape 1"
+        eyebrow={`Étape 1 · ${identifierLabel}`}
         title="Qui est concerné par ce dossier ?"
         description="Cette première page rappelle le périmètre du dossier avant d'accéder aux informations personnelles de chaque personne."
         icon={<UsersRound className="h-5 w-5" />}
       />
 
       <WizardCard className="p-6 sm:p-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Parcours en cours</p>
+            <p className="mt-1 text-base font-semibold text-slate-900">{identifierLabel} — {personLabel}</p>
+          </div>
+          <span className="rounded-full bg-[#0B1F3A] px-3 py-1.5 text-xs font-bold text-white">Vous êtes l’{identifierLabel.toLowerCase()}</span>
+        </div>
+
         <p className="text-sm font-semibold text-slate-800">Ce dossier concerne :</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className={scopeCardClass(scope === 'individual')}>
@@ -103,7 +113,7 @@ export default function ClientRecueilEntryPage() {
         <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-slate-900">{roleLabel} — votre parcours</p>
+              <p className="text-sm font-semibold text-slate-900">{identifierLabel} — votre parcours personnel</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {isCouple
                   ? 'Les informations communes du foyer sont déjà enregistrées. Vous poursuivez maintenant uniquement votre partie personnelle.'
@@ -141,7 +151,7 @@ export default function ClientRecueilEntryPage() {
           onClick={() => navigate(dossierHref('/espace-client/recueil/parcours', progress.dossier_id))}
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-[#2563EB]"
         >
-          Continuer le recueil <ArrowRight className="h-4 w-4" />
+          Continuer le recueil — {identifierLabel} <ArrowRight className="h-4 w-4" />
         </button>
       </WizardCard>
     </div>
