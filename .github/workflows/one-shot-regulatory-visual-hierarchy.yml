@@ -1,0 +1,42 @@
+name: Improve regulatory visual hierarchy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-regulatory-visual-hierarchy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Add regulatory wrapper class
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = "{current.code === 'regulatory' && <div className=\"divide-y divide-slate-400/50 [&>*]:py-7 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0\">"
+          new = "{current.code === 'regulatory' && <div className=\"recueil-regulatory\">"
+          if old not in s:
+              raise SystemExit('regulatory container not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m 'Make regulatory questions more visible'
+          git push origin main
