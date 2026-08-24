@@ -1,0 +1,44 @@
+name: One-shot fix real estate quote validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-fix-real-estate-quote-validation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Accept and normalize percentage quote parts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = """    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) return false;"""
+          new = """    const quotePart = Number(String(item.quote_part ?? '').replace('%', '').trim());
+    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || !Number.isFinite(quotePart) || quotePart <= 0 || quotePart >= 100)) return false;"""
+          if old not in s:
+              raise SystemExit('Validation target not found')
+          s = s.replace(old, new, 1)
+          old2 = """onChange={(v) => updateList('immobilier', index, { quote_part: v })}"""
+          new2 = """onChange={(v) => updateList('immobilier', index, { quote_part: String(v).replace('%', '').trim() })}"""
+          if old2 not in s:
+              raise SystemExit('Quote-part onChange target not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Fix real estate quote-part validation"
+          git push origin main
