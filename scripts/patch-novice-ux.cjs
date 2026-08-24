@@ -41,6 +41,24 @@ function patchQuestionnaireCta() {
   fs.writeFileSync(path, s);
 }
 
+function patchDocumentsDarkWrapper() {
+  const path = 'src/pages/portal/ClientDocumentsPage.tsx';
+  let s = fs.readFileSync(path, 'utf8');
+  if (!s.includes('className="documents-dark"')) {
+    const preview = `    return <div>\n      <JourneyProgress current="documents"`;
+    const previewPatched = `    return <div className="documents-dark">\n      <JourneyProgress current="documents"`;
+    if (!s.includes(preview)) throw new Error('Documents preview wrapper marker not found');
+    s = s.replace(preview, previewPatched, 1);
+
+    const main = `  return (\n    <div>\n      <JourneyProgress current="documents"`;
+    const mainPatched = `  return (\n    <div className="documents-dark">\n      <JourneyProgress current="documents"`;
+    if (!s.includes(main)) throw new Error('Documents main wrapper marker not found');
+    s = s.replace(main, mainPatched, 1);
+  }
+  fs.writeFileSync(path, s);
+}
+
 patchFamilyEntry();
 patchQuestionnaireCta();
+patchDocumentsDarkWrapper();
 console.log('Novice UX hardening patch applied');
