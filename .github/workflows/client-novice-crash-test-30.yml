@@ -1,0 +1,28 @@
+name: Client novice crash test 30 scenarios
+
+on:
+  push:
+    paths:
+      - 'scripts/crash-test-novice-30.mjs'
+      - '.github/workflows/client-novice-crash-test-30.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  novice-crash-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: npm ci
+      - name: Apply production build patches
+        run: |
+          node scripts/patch-numeric-ux.cjs
+          node scripts/patch-recueil-order.cjs
+      - name: Typecheck portal
+        run: npm run typecheck:portal
+      - name: Build
+        run: npm run build
+      - name: Run novice UX scenarios
+        run: node scripts/crash-test-novice-30.mjs
