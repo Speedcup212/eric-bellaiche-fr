@@ -88,6 +88,11 @@ export default function ClientRecueilEntryPage() {
       />
 
       <WizardCard className="p-6 sm:p-8">
+        <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
+          <p className="text-base font-semibold text-[#0B1F3A]">Temps estimé : environ 45 minutes</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">C’est le temps moyen nécessaire pour compléter l’ensemble du questionnaire. Vous pouvez interrompre le parcours et le reprendre à tout moment.</p>
+        </div>
+
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Parcours en cours</p>
