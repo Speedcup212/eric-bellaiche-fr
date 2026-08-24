@@ -1,0 +1,37 @@
+name: One-shot inline owner buttons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-owner-buttons-inline.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Put owner choices on one line
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = """    const isCivility = label === 'Civilité';\n    return <div className=\"text-sm font-semibold text-slate-700\">\n      <p>{label}{required && ' *'}</p>\n      <div className={`mt-2 gap-2 ${isCivility ? 'grid grid-cols-2' : 'flex flex-wrap'}`}>\n        {choice.options.map((option) => <button key={option} type=\"button\" onClick={() => onChange(option)} className={`${isCivility ? 'w-full min-w-0' : 'min-w-[8.5rem]'} rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}\n      </div>"""
+          new = """    const isCivility = label === 'Civilité';\n    const isPropertyOwner = label === 'Propriétaire du bien';\n    return <div className=\"text-sm font-semibold text-slate-700\">\n      <p>{label}{required && ' *'}</p>\n      <div className={`mt-2 gap-2 ${isCivility ? 'grid grid-cols-2' : isPropertyOwner ? 'grid grid-cols-3' : 'flex flex-wrap'}`}>\n        {choice.options.map((option) => <button key={option} type=\"button\" onClick={() => onChange(option)} className={`${isCivility || isPropertyOwner ? 'w-full min-w-0' : 'min-w-[8.5rem]'} ${isPropertyOwner ? 'whitespace-nowrap px-2 text-[11px] sm:text-xs' : 'px-3.5 text-sm'} rounded-xl border py-2.5 font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}\n      </div>"""
+          if old not in s:
+              raise SystemExit('Target block not found; no changes made')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "Speedcup212"
+          git config user.email "eric.bellaiche@gmail.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Keep real estate owner choices on one line"
+          git push origin main
