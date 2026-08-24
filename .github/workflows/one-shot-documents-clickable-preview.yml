@@ -1,0 +1,48 @@
+name: Keep Documents tab accessible as preview
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-documents-clickable-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch Documents early-access behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientDocumentsPage.tsx')
+          s = p.read_text()
+          old = """      if (row.next_step !== 'DOCUMENTS' && row.documents_status !== 'completed' && row.next_step !== 'TERMINE') {\n        navigate(nextStepHref(row), { replace: true });\n        return;\n      }\n      if (!row.transmitted_at) {\n"""
+          new = """      if (row.next_step !== 'DOCUMENTS' && row.documents_status !== 'completed' && row.next_step !== 'TERMINE') {\n        // The general journey tabs remain navigable. Show a read-only preview here\n        // instead of redirecting the client away from the tab they selected.\n        return;\n      }\n      if (!row.transmitted_at) {\n"""
+          if old not in s:
+              raise SystemExit('documents redirect block not found')
+          s = s.replace(old, new, 1)
+
+          marker = """  const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';\n"""
+          replacement = """  const documentsAvailable = progress.next_step === 'DOCUMENTS' || progress.documents_status === 'completed' || progress.next_step === 'TERMINE';\n  if (!documentsAvailable) {\n    return <div>\n      <JourneyProgress current=\"documents\" esgEnabled={progress.esg_opt_in !== false} />\n      <PageIntro eyebrow=\"Étape Documents\" title=\"Documents du dossier\" description=\"Vous pouvez consulter cette étape dès maintenant. Le dépôt des justificatifs s’ouvrira lorsque votre recueil, votre profil investisseur et, le cas échéant, vos préférences de durabilité seront terminés.\" icon={<UploadCloud className=\"h-5 w-5\" />} />\n      <WizardCard className=\"p-6 sm:p-8\">\n        <div className=\"rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950\">\n          <p className=\"font-semibold\">Cette étape n’est pas encore à compléter</p>\n          <p className=\"mt-2 text-sm leading-6\">Terminez d’abord les étapes personnelles précédentes. Vous pourrez ensuite déposer les pièces attendues ici, sans perdre les informations déjà enregistrées.</p>\n          <button type=\"button\" onClick={() => navigate(nextStepHref(progress))} className=\"mt-4 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white\">Reprendre l’étape en cours</button>\n        </div>\n      </WizardCard>\n    </div>;\n  }\n\n  const previousPath = progress.esg_opt_in ? '/espace-client/esg' : '/espace-client/profil-investisseur';\n"""
+          if marker not in s:
+              raise SystemExit('documents render marker not found')
+          s = s.replace(marker, replacement, 1)
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/ClientDocumentsPage.tsx
+          git commit -m 'Keep Documents tab accessible before prerequisites'
+          git push origin main
