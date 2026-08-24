@@ -34,8 +34,8 @@ const categories = [
   ['justificatif_domicile', 'Justificatif de domicile'],
   ['avis_imposition', 'Avis d’imposition'],
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
-  ['comptes_liquidites', 'Comptes bancaires / liquidités'],
-  ['patrimoine_financier', 'Placements / épargne'],
+  ['comptes_liquidites', 'Comptes courants'],
+  ['patrimoine_financier', 'Épargne / placements'],
   ['patrimoine_immobilier', 'Bien immobilier / acte notarié'],
   ['sci_societe', 'SCI / société'],
   ['autre', 'Autre document'],
@@ -246,8 +246,8 @@ export default function ClientDocumentsPage() {
     { category: 'identite', label: 'Pièce d’identité', description: `Document officiel en cours de validité avec photographie, pour chaque personne du dossier (${progress.dossier_members_total} au total). CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: categoryCounts.identite ?? 0 },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
-    { category: 'comptes_liquidites', label: 'Comptes bancaires / liquidités', description: 'À transmettre lorsque des comptes ou liquidités doivent être intégrés à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
-    { category: 'patrimoine_financier', label: 'Placements / épargne', description: 'À transmettre en présence d’assurance-vie, PER, PEA, compte-titres, SCPI ou autres placements.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
+    { category: 'comptes_liquidites', label: 'Comptes courants', description: 'À transmettre si vous détenez un ou plusieurs comptes courants à intégrer à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
+    { category: 'patrimoine_financier', label: 'Épargne / placements', description: 'À transmettre si vous détenez de l’épargne ou des placements : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI ou autres placements.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
     { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'À transmettre si vous détenez un bien immobilier.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
     { category: 'tableau_amortissement', label: 'Crédits en cours', description: 'À transmettre si un crédit est en cours : tableau d’amortissement ou justificatif équivalent.', status: conditionalStatus(aggregate.credits), expectedCount: aggregate.credits ? 1 : 0, receivedCount: categoryCounts.tableau_amortissement ?? 0 },
     { category: 'sci_societe', label: 'SCI / société', description: 'À transmettre si une SCI ou une société doit être prise en compte dans l’analyse.', status: conditionalStatus(aggregate.sci), expectedCount: aggregate.sci ? 1 : 0, receivedCount: categoryCounts.sci_societe ?? 0 },
@@ -299,8 +299,8 @@ export default function ClientDocumentsPage() {
             {currentContext?.tax_status === 'attached_parents' && <p className="mt-3 text-sm leading-6 text-slate-500">L’avis d’imposition des parents pourra être transmis s’il est utile au dossier, mais il n’est pas considéré comme une pièce personnelle obligatoire.</p>}
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {boolChoice('Détenez-vous des liquidités ou des comptes bancaires à prendre en compte dans l’analyse patrimoniale ? Exemples : compte courant, Livret A, LDDS, LEP, livrets bancaires, comptes à terme ou autres liquidités disponibles.', 'has_liquidities', currentContext?.has_liquidities)}
-            {boolChoice('Détenez-vous des placements ou produits d’épargne ?', 'has_financial_assets', currentContext?.has_financial_assets)}
+            {boolChoice('Détenez-vous un ou plusieurs comptes courants à prendre en compte dans l’analyse patrimoniale ?', 'has_liquidities', currentContext?.has_liquidities)}
+            {boolChoice('Détenez-vous de l’épargne ou des placements à prendre en compte dans l’analyse patrimoniale ? Exemples : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI.', 'has_financial_assets', currentContext?.has_financial_assets)}
             {boolChoice('Détenez-vous un ou plusieurs biens immobiliers ?', 'has_real_estate', currentContext?.has_real_estate)}
             {boolChoice('Avez-vous un ou plusieurs crédits en cours ?', 'has_credits', currentContext?.has_credits)}
             {boolChoice('Détenez-vous une SCI ou une société à intégrer à l’analyse ?', 'has_sci_company', currentContext?.has_sci_company)}
