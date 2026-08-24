@@ -110,13 +110,22 @@ export default function ClientRecueilEntryPage() {
           </div>
         </div>
 
+        {isCouple && <div className="mt-5 rounded-2xl border border-blue-200 bg-[#F5F9FF] p-5 text-sm leading-6 text-slate-700">
+          <p className="font-semibold text-[#0B1F3A]">Règle du dossier couple</p>
+          <div className="mt-2 space-y-2">
+            <p><strong>Identifiant 1 :</strong> constitue le dossier couple, renseigne les informations communes du foyer et complète son propre parcours personnel.</p>
+            <p><strong>Identifiant 2 :</strong> active ensuite son propre accès sécurisé et complète son recueil personnel, son profil investisseur et ses préférences de durabilité si elles sont applicables.</p>
+            <p><strong>Les informations communes du couple ne sont saisies qu’une seule fois.</strong> Elles sont reprises automatiquement pour l’Identifiant 2 et ne lui sont pas redemandées.</p>
+          </div>
+        </div>}
+
         <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">{identifierLabel} — votre parcours personnel</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {isCouple
-                  ? 'Les informations communes du foyer sont déjà enregistrées. Vous poursuivez maintenant uniquement votre partie personnelle.'
+                  ? `Vous êtes actuellement l’${identifierLabel.toLowerCase()}. Les informations communes du couple sont déjà enregistrées ; vous allez maintenant compléter uniquement les informations qui vous concernent personnellement.`
                   : 'Vous poursuivez maintenant votre recueil personnel.'}
               </p>
             </div>
