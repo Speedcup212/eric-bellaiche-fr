@@ -474,7 +474,7 @@ export default function ClientRecueilJourneyPage() {
         </div>}
 
         {current.code === 'patrimony' && <div className="space-y-7">
-          <div className="rounded-xl border border-sky-300/20 bg-[#17263f] px-4 py-2.5 text-xs leading-5 text-[#cfdef0]"><strong className="text-white">Aucun justificatif immobilier n’est demandé.</strong> Les prêts éventuels sont renseignés séparément dans « Crédits en cours ».</div>
+          <div className="rounded-xl border border-sky-300/20 bg-[#17263f] px-4 py-2.5 text-xs leading-5 text-[#cfdef0]"><strong className="text-white">Aucun justificatif immobilier n’est demandé.</strong> Les prêts éventuels seront à transmettre dans la partie « Justificatifs ».</div>
           <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => {
             if (!v && (form.immobilier ?? []).length > 0 && !window.confirm('Vous avez déjà renseigné un ou plusieurs biens. Passer à « Non » supprimera ces informations. Confirmez-vous ?')) return;
             const existing = form.immobilier ?? [];
