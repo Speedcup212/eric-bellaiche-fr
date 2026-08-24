@@ -316,7 +316,14 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   if (done) {
     const nextPath = nextStepHref(progress);
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={mode === 'QPI' ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.' : 'Cette étape a été validée.'} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">Continuer vers les documents</button></WizardCard></div>;
+    const qpiNextIsEsg = mode === 'QPI' && progress.esg_opt_in === true;
+    const completionDescription = mode === 'QPI'
+      ? qpiNextIsEsg
+        ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers vos préférences de durabilité.'
+        : 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.'
+      : 'Cette étape a été validée.';
+    const completionCta = qpiNextIsEsg ? 'Continuer vers la durabilité' : 'Continuer vers les documents';
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{completionCta}</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
