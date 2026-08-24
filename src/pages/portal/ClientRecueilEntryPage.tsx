@@ -71,6 +71,11 @@ export default function ClientRecueilEntryPage() {
   const roleLabel = progress.role_dossier === 'investisseur_1' ? 'Personne 1' : 'Personne 2';
   const legalDetails = ['Marié', 'Pacsé'].includes(String(family?.situation ?? ''));
 
+  const scopeCardClass = (selected: boolean) => `rounded-2xl border p-5 text-left transition ${selected
+    ? 'border-[#3B82F6] bg-[#EFF6FF] ring-2 ring-blue-400/20 shadow-sm'
+    : 'border-[#CBD5E1] bg-white'
+  }`;
+
   return (
     <div className="recueil-safe">
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
@@ -85,11 +90,11 @@ export default function ClientRecueilEntryPage() {
       <WizardCard className="p-6 sm:p-8">
         <p className="text-sm font-semibold text-slate-800">Ce dossier concerne :</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className={`rounded-2xl border p-5 text-left ${scope === 'individual' ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white opacity-60'}`}>
+          <div className={scopeCardClass(scope === 'individual')}>
             <span className="block font-semibold text-slate-900">Une seule personne</span>
             <span className="mt-1 block text-sm leading-6 text-slate-600">1 recueil, 1 profil investisseur et 1 questionnaire de durabilité si applicable.</span>
           </div>
-          <div className={`rounded-2xl border p-5 text-left ${scope === 'couple' ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white opacity-60'}`}>
+          <div className={scopeCardClass(scope === 'couple')}>
             <span className="block font-semibold text-slate-900">Un couple</span>
             <span className="mt-1 block text-sm leading-6 text-slate-600">2 personnes : chacun conserve son recueil personnel, son profil investisseur et ses préférences de durabilité.</span>
           </div>
