@@ -1,4 +1,4 @@
-name: Make journey tabs always clickable
+name: Reorder recueil with regulatory last
 
 on:
   push:
@@ -15,18 +15,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Patch journey navigation
+      - name: Reorder recueil sections
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('src/portal/FintechJourney.tsx')
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
           s = p.read_text()
-          old = "const href = dossierId && index <= currentIndex ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;"
-          new = "const href = dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;"
+          old = """  { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
+  { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
+  { code: 'patrimony', title: 'Patrimoine immobilier', description: 'Renseignez les biens immobiliers détenus et leur valeur estimée. Aucun justificatif immobilier n’est demandé à cette étape.' },"""
+          new = """  { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
+  { code: 'patrimony', title: 'Patrimoine immobilier', description: 'Renseignez les biens immobiliers détenus et leur valeur estimée. Aucun justificatif immobilier n’est demandé à cette étape.' },
+  { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },"""
           if old not in s:
-              raise SystemExit('journey href guard not found')
-          s = s.replace(old, new)
-          s = s.replace('Les étapes déjà ouvertes restent accessibles. Les étapes suivantes se débloquent au fur et à mesure.', 'Vous pouvez accéder à chaque étape du parcours en cliquant directement sur son onglet.')
+              raise SystemExit('sections order block not found')
+          s = s.replace(old, new, 1)
+          old_labels = "['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Réglementaire', 'Patrimoine']"
+          new_labels = "['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Patrimoine', 'Réglementaire']"
+          if old_labels not in s:
+              raise SystemExit('section labels order not found')
+          s = s.replace(old_labels, new_labels, 1)
           p.write_text(s)
           PY
       - name: Verify
@@ -38,6 +46,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/portal/FintechJourney.tsx
-          git commit -m 'Keep all journey tabs clickable'
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m 'Move regulatory section to end of recueil'
           git push origin main
