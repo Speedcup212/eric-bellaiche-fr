@@ -72,6 +72,11 @@
   .recueil-question-grid--3 > :nth-child(3n + 1):not(:nth-last-child(-n + 3))::after { width: calc(300% + 3rem); }
 }
 
+/* Page réglementaire : plus de respiration après l'encart d'introduction. */
+.recueil-safe section .divide-y > :first-child {
+  margin-bottom: 1.5rem;
+}
+
 /* Recueil desktop : hiérarchie visuelle selon la densité réelle des informations */
 @media (min-width: 900px) {
   /* Situation professionnelle : colonne métier prioritaire à gauche, informations complémentaires à droite. */
