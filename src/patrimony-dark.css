@@ -15,10 +15,15 @@
   color: #f1f5f9 !important;
 }
 
+/* Secondary text must remain clearly readable on navy backgrounds. */
+.recueil-safe section:has(div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6) .text-slate-400,
+.recueil-safe section:has(div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6) .text-slate-500,
+.recueil-safe section:has(div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6) .text-slate-600,
+.recueil-safe section:has(div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6) .text-\[\#94A3B8\],
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 .text-slate-400,
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 .text-slate-500,
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 .text-\[\#94A3B8\] {
-  color: #94a3b8 !important;
+  color: #cbd5e1 !important;
 }
 
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 input,
@@ -32,7 +37,7 @@
 
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 input::placeholder,
 .recueil-safe section div.rounded-2xl.border.border-slate-200.bg-white.p-5.text-slate-800.shadow-sm.sm\:p-6 textarea::placeholder {
-  color: #64748b !important;
+  color: #94a3b8 !important;
   opacity: 1;
 }
 
