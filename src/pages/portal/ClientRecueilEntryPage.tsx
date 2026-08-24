@@ -64,7 +64,6 @@ export default function ClientRecueilEntryPage() {
   if (errorMessage && !progress) return <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>;
   if (!progress) return <p className="text-sm text-slate-500">Dossier introuvable.</p>;
 
-  // Premier passage : l'écran historique reste l'écran de constitution du foyer.
   if (!familyReady) return <ClientRecueilJourneyPage />;
 
   const isCouple = scope === 'couple';
@@ -110,12 +109,12 @@ export default function ClientRecueilEntryPage() {
           </div>
         </div>
 
-        {isCouple && <div className="mt-5 rounded-2xl border border-blue-200 bg-[#F5F9FF] p-5 text-sm leading-6 text-slate-700">
-          <p className="font-semibold text-[#0B1F3A]">Règle du dossier couple</p>
+        {isCouple && <div className="mt-5 rounded-2xl border border-[#93C5FD] bg-white p-5 text-sm leading-6 shadow-sm">
+          <p className="!text-[#0B1F3A] font-semibold">Règle du dossier couple</p>
           <div className="mt-2 space-y-2">
-            <p><strong>Identifiant 1 :</strong> constitue le dossier couple, renseigne les informations communes du foyer et complète son propre parcours personnel.</p>
-            <p><strong>Identifiant 2 :</strong> active ensuite son propre accès sécurisé et complète son recueil personnel, son profil investisseur et ses préférences de durabilité si elles sont applicables.</p>
-            <p><strong>Les informations communes du couple ne sont saisies qu’une seule fois.</strong> Elles sont reprises automatiquement pour l’Identifiant 2 et ne lui sont pas redemandées.</p>
+            <p className="!text-[#334155]"><strong className="!text-[#0B1F3A]">Identifiant 1 :</strong> constitue le dossier couple, renseigne les informations communes du foyer et complète son propre parcours personnel.</p>
+            <p className="!text-[#334155]"><strong className="!text-[#0B1F3A]">Identifiant 2 :</strong> active ensuite son propre accès sécurisé et complète son recueil personnel, son profil investisseur et ses préférences de durabilité si elles sont applicables.</p>
+            <p className="!text-[#334155]"><strong className="!text-[#0B1F3A]">Les informations communes du couple ne sont saisies qu’une seule fois.</strong> Elles sont reprises automatiquement pour l’Identifiant 2 et ne lui sont pas redemandées.</p>
           </div>
         </div>}
 
