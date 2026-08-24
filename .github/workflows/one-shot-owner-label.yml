@@ -1,0 +1,43 @@
+name: One-shot owner label update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-owner-label.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-owner-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Update property owner choices
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = "'Propriétaire du bien': { options: ['Identifiant 1', 'Identifiant 2', 'Les deux'] },"
+          new = "'Propriétaire du bien': { options: ['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'] },"
+          if old not in s:
+              raise SystemExit('Owner options line not found')
+          s = s.replace(old, new)
+          s = s.replace("item.proprietaire === 'Les deux'", "item.proprietaire === 'Identifiant 1 et 2'")
+          s = s.replace("v === 'Les deux'", "v === 'Identifiant 1 et 2'")
+          s = s.replace("item.proprietaire === 'Les deux'", "item.proprietaire === 'Identifiant 1 et 2'")
+          s = s.replace('Choisissez « Les deux » si le bien appartient aux deux personnes du dossier.', 'Choisissez « Identifiant 1 et 2 » si le bien appartient aux deux personnes du dossier.')
+          p.write_text(s)
+          PY
+      - name: Commit change
+        run: |
+          git config user.name "Speedcup212"
+          git config user.email "eric.bellaiche@gmail.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Rename joint owner choice and move it first" || exit 0
+          git push
