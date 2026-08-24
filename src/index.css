@@ -72,6 +72,25 @@
   .recueil-question-grid--3 > :nth-child(3n + 1):not(:nth-last-child(-n + 3))::after { width: calc(300% + 3rem); }
 }
 
+/* Recueil desktop : hiérarchie visuelle selon la densité réelle des informations */
+@media (min-width: 900px) {
+  /* Situation professionnelle : colonne métier prioritaire à gauche, informations complémentaires à droite. */
+  .recueil-safe .recueil-question-grid--2:has(> :nth-child(6) select[aria-label^="Mois — Date d’entrée"]) {
+    grid-template-columns: minmax(0, 65fr) minmax(0, 35fr) !important;
+  }
+
+  .recueil-safe .recueil-question-grid--2:has(> :nth-child(6) select[aria-label^="Mois — Date d’entrée"]) > :nth-child(odd):not(:nth-last-child(-n + 2))::after {
+    width: calc(153.85% + 1.5rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  /* Objectifs : la liste à choisir reste dominante, le récapitulatif sélectionné devient un vrai panneau secondaire. */
+  .recueil-safe div.grid:has(> section[aria-labelledby="available-objectives-title"]) {
+    grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr) !important;
+  }
+}
+
 /* Public site responsive: dedicated tablet behaviour */
 @media (min-width: 768px) and (max-width: 1024px) {
   main > header.fixed > div { padding-top: .55rem !important; padding-bottom: .55rem !important; }
