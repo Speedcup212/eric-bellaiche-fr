@@ -50,6 +50,23 @@ export function dossierHref(path: string, dossierId: string): string {
 }
 
 export function nextStepHref(progress: PortalProgress): string {
+  // A questionnaire can render its completion screen for one React render before
+  // portal_progress has refreshed. In that short window, progress.next_step still
+  // points to the questionnaire that has just been completed. Route explicitly
+  // from the current questionnaire so the CTA can never loop back to itself.
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname.replace(/\/$/, '');
+    if (pathname === '/espace-client/esg') {
+      return dossierHref('/espace-client/documents', progress.dossier_id);
+    }
+    if (pathname === '/espace-client/profil-investisseur') {
+      return dossierHref(
+        progress.esg_opt_in === true ? '/espace-client/esg' : '/espace-client/documents',
+        progress.dossier_id,
+      );
+    }
+  }
+
   switch (progress.next_step) {
     case 'DOCUMENTS':
       return dossierHref('/espace-client/documents', progress.dossier_id);
