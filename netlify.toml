@@ -1,5 +1,5 @@
 [build]
-  command = "node scripts/patch-numeric-ux.cjs && node scripts/patch-recueil-order.cjs && node scripts/patch-novice-ux.cjs && npm run typecheck:portal && npm run build"
+  command = "node scripts/patch-numeric-ux.cjs && node scripts/patch-recueil-order.cjs && node scripts/patch-novice-ux.cjs && node scripts/patch-documents-couple-responsibility.cjs && npm run typecheck:portal && npm run build"
   publish = "dist"
 
 [[redirects]]
