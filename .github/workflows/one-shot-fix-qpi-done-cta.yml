@@ -1,0 +1,41 @@
+name: Fix QPI completion CTA
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-fix-qpi-done-cta.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch QPI completion copy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/QuestionnairePageBase.tsx')
+          s = p.read_text()
+          old = """  if (done) {\n    const nextPath = nextStepHref(progress);\n    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={mode === 'QPI' ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.' : 'Cette étape a été validée.'} icon={<CheckCircle2 className=\"h-5 w-5\" />} /><WizardCard className=\"p-8\">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className=\"rounded-2xl bg-emerald-50 p-5 text-emerald-800\"><p className=\"font-semibold\">Étape terminée</p><p className=\"mt-1 text-sm leading-6\">Vous pouvez poursuivre votre parcours.</p></div>}<button type=\"button\" onClick={() => navigate(nextPath)} className=\"mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white\">Continuer vers les documents</button></WizardCard></div>;\n  }\n"""
+          new = """  if (done) {\n    const nextPath = nextStepHref(progress);\n    const qpiNextIsEsg = mode === 'QPI' && progress.esg_opt_in === true;\n    const completionDescription = mode === 'QPI'\n      ? qpiNextIsEsg\n        ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers vos préférences de durabilité.'\n        : 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.'\n      : 'Cette étape a été validée.';\n    const completionCta = qpiNextIsEsg ? 'Continuer vers la durabilité' : 'Continuer vers les documents';\n    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className=\"h-5 w-5\" />} /><WizardCard className=\"p-8\">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className=\"rounded-2xl bg-emerald-50 p-5 text-emerald-800\"><p className=\"font-semibold\">Étape terminée</p><p className=\"mt-1 text-sm leading-6\">Vous pouvez poursuivre votre parcours.</p></div>}<button type=\"button\" onClick={() => navigate(nextPath)} className=\"mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white\">{completionCta}</button></WizardCard></div>;\n  }\n"""
+          if old not in s:
+              raise SystemExit('QPI done block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Verify
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/QuestionnairePageBase.tsx
+          git commit -m 'Match QPI completion CTA to next step'
+          git push origin main
