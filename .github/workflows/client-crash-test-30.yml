@@ -1,0 +1,32 @@
+name: Client crash test 30 scenarios
+
+on:
+  push:
+    paths:
+      - 'scripts/crash-test-client-30.mjs'
+      - '.github/workflows/client-crash-test-30.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  crash-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: npm ci
+      - name: Apply production build patches
+        run: |
+          node scripts/patch-numeric-ux.cjs
+          node scripts/patch-recueil-order.cjs
+      - name: Typecheck portal
+        run: npm run typecheck:portal
+      - name: Build
+        run: npm run build
+      - name: Existing portal runtime safety
+        run: npm run test:portal-safety
+      - name: Built route smoke test
+        run: npm run test:routes
+      - name: Run 30 client scenarios
+        run: node scripts/crash-test-client-30.mjs
