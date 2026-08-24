@@ -7,10 +7,13 @@ import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selec
 
 interface SourceDocument { id: string; investisseur_id: string | null; categorie: string; nom_fichier: string; storage_bucket: string | null; storage_path: string | null; statut_analyse: string; created_at: string; }
 interface RegulatoryDocument { id: string; type_document: string; statut: string; storage_bucket: string | null; storage_path_pdf: string | null; storage_path_docx: string | null; date_generation: string | null; }
+type TaxAbsenceReason = 'first_declaration' | 'recent_arrival' | 'former_non_resident' | 'notice_not_issued' | 'other';
 interface DocumentContext {
   dossier_id: string;
   investisseur_id: string;
   tax_status: 'personal_notice' | 'attached_parents' | 'no_personal_notice' | null;
+  tax_absence_reason: TaxAbsenceReason | null;
+  tax_absence_other: string | null;
   has_liquidities: boolean | null;
   has_financial_assets: boolean | null;
   has_real_estate: boolean | null;
@@ -48,10 +51,23 @@ const identityTypes: Array<{ value: Exclude<IdentityType, ''>; label: string; pr
   { value: 'titre_sejour', label: 'Titre de séjour', prefix: 'TITRE-SEJOUR', help: 'Recto + verso, lisibles et complets. Réunissez de préférence les deux faces dans un seul PDF.' },
 ];
 
+const taxAbsenceReasons: Array<{ value: TaxAbsenceReason; label: string }> = [
+  { value: 'first_declaration', label: 'Première déclaration fiscale' },
+  { value: 'recent_arrival', label: 'Arrivée récente en France' },
+  { value: 'former_non_resident', label: 'Précédemment non-résident fiscal en France' },
+  { value: 'notice_not_issued', label: 'Avis d’imposition pas encore émis' },
+  { value: 'other', label: 'Autre situation' },
+];
+
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
 function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
 function contextComplete(context: DocumentContext | undefined): boolean {
-  return Boolean(context && context.tax_status !== null && context.has_liquidities !== null && context.has_financial_assets !== null && context.has_real_estate !== null && context.has_credits !== null && context.has_sci_company !== null);
+  if (!context || context.tax_status === null || context.has_liquidities === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_credits === null || context.has_sci_company === null) return false;
+  if (context.tax_status === 'no_personal_notice') {
+    if (!context.tax_absence_reason) return false;
+    if (context.tax_absence_reason === 'other' && !context.tax_absence_other?.trim()) return false;
+  }
+  return true;
 }
 function memberLabel(role: DossierMember['role_dossier']): string { return role === 'investisseur_2' ? 'Identifiant 2' : 'Identifiant 1'; }
 
@@ -88,7 +104,7 @@ export default function ClientDocumentsPage() {
     const [{ data: sourceData, error: sourceError }, { data: regulatoryData, error: regulatoryError }, { data: contextData, error: contextError }, { data: memberData, error: memberError }, { data: professionalData, error: professionalError }] = await Promise.all([
       supabase.from('documents_sources').select('id,investisseur_id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,created_at').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
       supabase.from('documents_reglementaires').select('id,type_document,statut,storage_bucket,storage_path_pdf,storage_path_docx,date_generation').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
-      supabase.from('document_context_answers').select('dossier_id,investisseur_id,tax_status,has_liquidities,has_financial_assets,has_real_estate,has_credits,has_sci_company').eq('dossier_id', row.dossier_id),
+      supabase.from('document_context_answers').select('dossier_id,investisseur_id,tax_status,tax_absence_reason,tax_absence_other,has_liquidities,has_financial_assets,has_real_estate,has_credits,has_sci_company').eq('dossier_id', row.dossier_id),
       supabase.from('dossier_investisseurs').select('investisseur_id,role_dossier').eq('dossier_id', row.dossier_id).order('role_dossier', { ascending: true }),
       supabase.from('recueil_sections').select('payload').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).eq('section_code', 'professional').maybeSingle(),
     ]);
@@ -141,6 +157,8 @@ export default function ClientDocumentsPage() {
         dossier_id: progress.dossier_id,
         investisseur_id: progress.investisseur_id,
         tax_status: currentContext?.tax_status ?? null,
+        tax_absence_reason: currentContext?.tax_absence_reason ?? null,
+        tax_absence_other: currentContext?.tax_absence_other ?? null,
         has_liquidities: currentContext?.has_liquidities ?? null,
         has_financial_assets: currentContext?.has_financial_assets ?? null,
         has_real_estate: currentContext?.has_real_estate ?? null,
@@ -148,6 +166,12 @@ export default function ClientDocumentsPage() {
         has_sci_company: currentContext?.has_sci_company ?? null,
         ...patch,
       };
+      if (next.tax_status !== 'no_personal_notice') {
+        next.tax_absence_reason = null;
+        next.tax_absence_other = null;
+      } else if (next.tax_absence_reason !== 'other') {
+        next.tax_absence_other = null;
+      }
       const { error } = await supabase.from('document_context_answers').upsert({ ...next, updated_at: new Date().toISOString() }, { onConflict: 'dossier_id,investisseur_id' });
       if (error) throw error;
       await loadDocuments(progress);
@@ -257,9 +281,9 @@ export default function ClientDocumentsPage() {
   };
   const conditionalStatus = (required: boolean): RequirementStatus => required ? 'required' : allContextsComplete ? 'optional' : 'conditional';
   const requirements: Requirement[] = [
-    { category: 'identite', label: 'Pièce d’identité', description: `Document officiel en cours de validité avec photographie pour chaque personne du dossier. CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: identityReceivedCount },
+    { category: 'identite', label: 'Pièce d’identité', description: 'Document officiel en cours de validité avec photographie pour chaque personne du dossier. CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.', status: 'required', expectedCount: progress.dossier_members_total, receivedCount: identityReceivedCount },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
-    { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
+    { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'L’avis n’est demandé que si vous en disposez. Si vous êtes rattaché au foyer fiscal de vos parents ou si aucun avis n’a encore été émis, précisez votre situation ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'comptes_liquidites', label: 'Comptes courants', description: 'À transmettre si vous détenez un ou plusieurs comptes courants à intégrer à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
     { category: 'patrimoine_financier', label: 'Épargne / placements', description: 'À transmettre si vous détenez de l’épargne ou des placements : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI ou autres placements.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
     { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'À transmettre si vous détenez un bien immobilier.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
@@ -307,10 +331,20 @@ export default function ClientDocumentsPage() {
               {[
                 ['personal_notice', 'J’ai un avis personnel ou commun'],
                 ['attached_parents', 'Je suis rattaché au foyer fiscal de mes parents'],
-                ['no_personal_notice', 'Je n’ai pas d’avis personnel'],
+                ['no_personal_notice', 'Je ne dispose pas encore d’avis d’imposition'],
               ].map(([value, label]) => <button key={value} type="button" disabled={contextBusy} onClick={() => void saveContext({ tax_status: value as DocumentContext['tax_status'] })} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${currentContext?.tax_status === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{label}</button>)}
             </div>
             {currentContext?.tax_status === 'attached_parents' && <p className="mt-3 text-sm leading-6 text-slate-500">L’avis d’imposition des parents pourra être transmis s’il est utile au dossier, mais il n’est pas considéré comme une pièce personnelle obligatoire.</p>}
+            {currentContext?.tax_status === 'no_personal_notice' && <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
+              <p className="text-sm font-semibold text-slate-900">Pour quelle raison ne disposez-vous pas encore d’un avis d’imposition ? *</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Cette situation peut notamment concerner une première déclaration, une arrivée récente en France, un ancien non-résident ou un avis qui n’a pas encore été émis.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {taxAbsenceReasons.map((reason) => <button key={reason.value} type="button" disabled={contextBusy} onClick={() => void saveContext({ tax_absence_reason: reason.value, tax_absence_other: reason.value === 'other' ? currentContext?.tax_absence_other ?? '' : null })} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${currentContext?.tax_absence_reason === reason.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{reason.label}</button>)}
+              </div>
+              {currentContext?.tax_absence_reason === 'other' && <label className="mt-3 block text-sm font-semibold text-slate-800">Précisez votre situation *
+                <textarea value={currentContext.tax_absence_other ?? ''} disabled={contextBusy} onChange={(event) => setContexts((items) => items.map((item) => item.investisseur_id === progress.investisseur_id ? { ...item, tax_absence_other: event.target.value } : item))} onBlur={(event) => void saveContext({ tax_absence_reason: 'other', tax_absence_other: event.target.value.trim() })} rows={2} className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800" placeholder="Décrivez brièvement la situation" />
+              </label>}
+            </div>}
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {boolChoice('Détenez-vous un ou plusieurs comptes courants à prendre en compte dans l’analyse patrimoniale ?', 'has_liquidities', currentContext?.has_liquidities)}
@@ -376,7 +410,7 @@ export default function ClientDocumentsPage() {
         </div>
 
         {!transmitted && <div>
-          {finalBlocked && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">{waitingPartner ? 'La transmission reste en attente de l’autre parcours individuel.' : !allContextsComplete ? 'Chaque personne doit d’abord préciser sa situation documentaire.' : `Pièce${missingRequired.length > 1 ? 's' : ''} obligatoire${missingRequired.length > 1 ? 's' : ''} manquante${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.map((item) => item.label).join(', ')}.`}</div>}
+          {finalBlocked && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">{waitingPartner ? 'La transmission reste en attente de l’autre parcours individuel.' : !allContextsComplete ? 'Chaque personne doit d’abord préciser sa situation documentaire, y compris le motif si elle ne dispose pas encore d’un avis d’imposition.' : `Pièce${missingRequired.length > 1 ? 's' : ''} obligatoire${missingRequired.length > 1 ? 's' : ''} manquante${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.map((item) => item.label).join(', ')}.`}</div>}
           <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel={finalBlocked ? 'Dossier incomplet' : 'Finaliser et transmettre le dossier'} nextDisabled={finalBlocked} busy={finishBusy} />
         </div>}
       </WizardCard>
