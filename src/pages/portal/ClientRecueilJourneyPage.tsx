@@ -196,6 +196,11 @@ export default function ClientRecueilJourneyPage() {
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
       <PageIntro variant="recueil" eyebrow="Étape 1" title="Qui est concerné par ce dossier ?" description="Ce choix détermine le nombre de personnes à accompagner et donc le nombre de profils investisseurs et de questionnaires individuels à compléter." icon={<UsersRound className="h-5 w-5" />} />
       <WizardCard className="p-6 sm:p-8">
+        <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
+          <p className="text-base font-semibold text-[#0B1F3A]">Temps estimé : environ 45 minutes</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">C’est le temps moyen nécessaire pour compléter l’ensemble du questionnaire. Vous pouvez interrompre le parcours et le reprendre à tout moment.</p>
+        </div>
+
         <p className="text-sm font-semibold text-slate-800">Ce dossier concerne : *</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => chooseScope('individual')} className={`rounded-2xl border p-5 text-left transition ${family.dossier_scope === 'individual' ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
@@ -219,12 +224,12 @@ export default function ClientRecueilJourneyPage() {
 
         {isCouple && family.situation && <>
           <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="font-semibold text-slate-900">Personne 1 — Vous</p>
+            <p className="font-semibold text-slate-900">Identifiant 1 — Vous</p>
             <p className="mt-1 text-sm leading-6 text-slate-600">Vos informations d’identité et vos coordonnées sont déjà enregistrées dans votre dossier. Elles seront utilisées pour votre propre recueil, votre profil investisseur et votre questionnaire de durabilité.</p>
           </div>
 
           <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-5 sm:p-6">
-            <h3 className="font-semibold text-slate-900">Personne 2 — conjoint / partenaire</h3>
+            <h3 className="font-semibold text-slate-900">Identifiant 2 — conjoint / partenaire</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">Renseignez ici les informations de la deuxième personne. Les informations communes du foyer ne seront pas redemandées inutilement ; les données personnelles, le profil investisseur et la durabilité restent propres à chacun.</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div><p className="text-sm font-semibold text-slate-700">Civilité *</p><div className="mt-2 grid grid-cols-2 gap-2">{['Mr', 'Mme'].map((item) => <button key={item} type="button" onClick={() => setFamily((state) => ({ ...state, conjoint_civilite: item }))} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${family.conjoint_civilite === item ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{item}</button>)}</div></div>
