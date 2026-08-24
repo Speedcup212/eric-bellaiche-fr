@@ -68,7 +68,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
             <p className="mt-1 text-sm font-semibold text-[#0b1f3a]">Votre parcours patrimonial sécurisé</p>
           )}
         </div>
-        <div className="shrink-0 rounded-full bg-[#e9f0f8] px-3 py-1 text-xs font-bold text-[#173967]">{globalPct}%</div>
+        <div className="shrink-0 rounded-full bg-[#e9f0f8] px-3 py-1 text-xs font-bold text-[#173967]">{globalPct}% du parcours global</div>
       </div>
       <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[#e7edf5]">
         <div className="h-full rounded-full bg-gradient-to-r from-[#3B82F6] to-[#60A5FA] transition-[width] duration-500 ease-out" style={{ width: `${globalPct}%` }} />
