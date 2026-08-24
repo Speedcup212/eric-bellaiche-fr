@@ -58,7 +58,7 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
   'Usage': { options: ['Résidence principale', 'Résidence secondaire', 'Locatif', 'Autre'] },
   'Type de bien': { options: ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial', 'Autre'] },
-  'Propriétaire du bien': { options: ['Identifiant 1', 'Identifiant 2', 'Les deux'] },
+  'Propriétaire du bien': { options: ['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'] },
   'Comment ce bien est-il détenu ?': { options: ['En direct', 'En indivision', 'Via une SCI', 'Nue-propriété', 'Usufruit', 'Autre'] },
   'Type de contrat': { options: ['Livret A', 'LDDS', 'LEP', 'PEL', 'CEL', 'Assurance-vie', 'PER', 'PEA', 'Compte-titres', 'SCPI', 'Compte à terme'], allowCustom: true },
   'Type de crédit': { options: ['Prêt immobilier résidence principale', 'Prêt immobilier locatif', 'Prêt à la consommation', 'Prêt automobile', 'Prêt personnel', 'Prêt professionnel'], allowCustom: true },
@@ -330,7 +330,7 @@ export default function ClientRecueilJourneyPage() {
           if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) throw new Error('Précisez le type du bien immobilier.');
           if (item.usage === 'Autre' && isBlank(item.usage_autre)) throw new Error('Précisez l’usage du bien immobilier.');
           if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) throw new Error('Précisez comment le bien immobilier est détenu.');
-          if ((item.proprietaire === 'Les deux' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
+          if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
           if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) throw new Error('Indiquez le loyer annuel hors charges pour chaque bien locatif.');
         }
       }
@@ -406,7 +406,7 @@ export default function ClientRecueilJourneyPage() {
     if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) return false;
     if (item.usage === 'Autre' && isBlank(item.usage_autre)) return false;
     if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) return false;
-    if ((item.proprietaire === 'Les deux' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) return false;
+    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) return false;
     if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) return false;
     return true;
   }));
@@ -491,9 +491,9 @@ export default function ClientRecueilJourneyPage() {
                 <div><Field label="Type de bien" required value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v, type_bien_autre: v === 'Autre' ? item.type_bien_autre : '' })} />{item.type_bien === 'Autre' && <div className="mt-3"><Field label="Précisez le type de bien" required value={item.type_bien_autre} onChange={(v) => updateList('immobilier', index, { type_bien_autre: v })} /></div>}</div>
                 <div><Field label="Usage" required value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_annuel: v === 'Locatif' ? item.loyer_annuel : '' })} />{item.usage === 'Autre' && <div className="mt-3"><Field label="Précisez l’usage" required value={item.usage_autre} onChange={(v) => updateList('immobilier', index, { usage_autre: v })} /></div>}</div>
                 <Field label="Ville" required value={item.ville} onChange={(v) => updateList('immobilier', index, { ville: v })} />
-                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Les deux' || item.mode_detention === 'En indivision' ? item.quote_part : '100' })} help="Choisissez « Les deux » si le bien appartient aux deux personnes du dossier." />
-                <div><Field label="Comment ce bien est-il détenu ?" required value={item.mode_detention} onChange={(v) => updateList('immobilier', index, { mode_detention: v, mode_detention_autre: v === 'Autre' ? item.mode_detention_autre : '', quote_part: v === 'En indivision' || item.proprietaire === 'Les deux' ? item.quote_part : '100' })} />{item.mode_detention === 'Autre' && <div className="mt-3"><Field label="Précisez le mode de détention" required value={item.mode_detention_autre} onChange={(v) => updateList('immobilier', index, { mode_detention_autre: v })} /></div>}</div>
-                {(item.proprietaire === 'Les deux' || item.mode_detention === 'En indivision') && <Field label={item.proprietaire === 'Les deux' ? 'Quote-part de l’Identifiant 1 (%)' : 'Quote-part détenue (%)'} required type="number" value={item.quote_part} onChange={(v) => updateList('immobilier', index, { quote_part: v })} placeholder="Ex. 50" help={item.proprietaire === 'Les deux' ? 'La part de l’Identifiant 2 sera déduite automatiquement (100 % moins cette valeur).' : 'Indiquez la part réellement détenue dans le bien.'} />}
+                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision' ? item.quote_part : '100' })} help="Choisissez « Identifiant 1 et 2 » si le bien appartient aux deux personnes du dossier." />
+                <div><Field label="Comment ce bien est-il détenu ?" required value={item.mode_detention} onChange={(v) => updateList('immobilier', index, { mode_detention: v, mode_detention_autre: v === 'Autre' ? item.mode_detention_autre : '', quote_part: v === 'En indivision' || item.proprietaire === 'Identifiant 1 et 2' ? item.quote_part : '100' })} />{item.mode_detention === 'Autre' && <div className="mt-3"><Field label="Précisez le mode de détention" required value={item.mode_detention_autre} onChange={(v) => updateList('immobilier', index, { mode_detention_autre: v })} /></div>}</div>
+                {(item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && <Field label={item.proprietaire === 'Identifiant 1 et 2' ? 'Quote-part de l’Identifiant 1 (%)' : 'Quote-part détenue (%)'} required type="number" value={item.quote_part} onChange={(v) => updateList('immobilier', index, { quote_part: v })} placeholder="Ex. 50" help={item.proprietaire === 'Identifiant 1 et 2' ? 'La part de l’Identifiant 2 sera déduite automatiquement (100 % moins cette valeur).' : 'Indiquez la part réellement détenue dans le bien.'} />}
                 <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
                 <Field label="Date d’acquisition" type="month" value={item.date_acquisition} onChange={(v) => updateList('immobilier', index, { date_acquisition: v })} help="Facultatif" />
                 <MoneyField label="Prix d’acquisition (€)" value={item.prix_acquisition} onChange={(v) => updateList('immobilier', index, { prix_acquisition: v })} help="Facultatif" />
