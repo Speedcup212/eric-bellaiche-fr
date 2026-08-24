@@ -56,10 +56,10 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Statut': { options: ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'], allowCustom: true },
   'Catégorie socioprofessionnelle': { options: ['Cadre', 'Profession intermédiaire', 'Employé', 'Ouvrier', 'Artisan / commerçant / chef d’entreprise', 'Profession libérale', 'Agriculteur', 'Retraité', 'Sans activité'], allowCustom: true },
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
-  'Usage': { options: ['Résidence principale', 'Résidence secondaire', 'Locatif'], allowCustom: true },
-  'Type de bien': { options: ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial'], allowCustom: true },
-  'Propriétaire du bien': { options: ['Identifiant 1', 'Identifiant 2', 'Commun / indivision'], allowCustom: true },
-  'Mode de détention': { options: ['Pleine propriété', 'Nue-propriété', 'Usufruit', 'Indivision', 'SCI'], allowCustom: true },
+  'Usage': { options: ['Résidence principale', 'Résidence secondaire', 'Locatif', 'Autre'] },
+  'Type de bien': { options: ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial', 'Autre'] },
+  'Propriétaire du bien': { options: ['Identifiant 1', 'Identifiant 2', 'Les deux'] },
+  'Comment ce bien est-il détenu ?': { options: ['En direct', 'En indivision', 'Via une SCI', 'Nue-propriété', 'Usufruit', 'Autre'] },
   'Type de contrat': { options: ['Livret A', 'LDDS', 'LEP', 'PEL', 'CEL', 'Assurance-vie', 'PER', 'PEA', 'Compte-titres', 'SCPI', 'Compte à terme'], allowCustom: true },
   'Type de crédit': { options: ['Prêt immobilier résidence principale', 'Prêt immobilier locatif', 'Prêt à la consommation', 'Prêt automobile', 'Prêt personnel', 'Prêt professionnel'], allowCustom: true },
   'Type de prêt': { options: ['Amortissable', 'In fine', 'Relais'], allowCustom: true },
@@ -324,7 +324,12 @@ export default function ClientRecueilJourneyPage() {
       if (form.has_real_estate === true) {
         if (!Array.isArray(form.immobilier) || form.immobilier.length === 0) throw new Error('Ajoutez au moins un bien immobilier.');
         for (const item of form.immobilier ?? []) {
-          if ([item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.quote_part, item.valeur_actuelle, item.ville].some(isBlank)) throw new Error('Complétez les informations principales de chaque bien immobilier.');
+          if ([item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.valeur_actuelle, item.ville].some(isBlank)) throw new Error('Complétez les informations principales de chaque bien immobilier.');
+          if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) throw new Error('Précisez le type du bien immobilier.');
+          if (item.usage === 'Autre' && isBlank(item.usage_autre)) throw new Error('Précisez l’usage du bien immobilier.');
+          if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) throw new Error('Précisez comment le bien immobilier est détenu.');
+          if ((item.proprietaire === 'Les deux' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || Number(item.quote_part) <= 0 || Number(item.quote_part) >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
+          if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) throw new Error('Indiquez le loyer annuel hors charges pour chaque bien locatif.');
         }
       }
     }
@@ -459,24 +464,27 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'patrimony' && <div className="space-y-7">
           <RecueilInfoNote title="Informations immobilières uniquement"><p>Renseignez vos biens directement dans le recueil. <strong>Aucun justificatif immobilier n’est demandé.</strong></p><p className="mt-1.5 text-[#aebfd4]">Les prêts éventuels sont renseignés séparément dans la partie « Crédits en cours ».</p></RecueilInfoNote>
-          <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => patchCurrent({ has_real_estate: v, immobilier: v ? (form.immobilier ?? []) : [] })} />
+          <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => {
+            if (!v && (form.immobilier ?? []).length > 0 && !window.confirm('Vous avez déjà renseigné un ou plusieurs biens. Passer à « Non » supprimera ces informations. Confirmez-vous ?')) return;
+            patchCurrent({ has_real_estate: v, immobilier: v ? (form.immobilier ?? []) : [] });
+          }} />
           {form.has_real_estate === false && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun bien immobilier déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
           {form.has_real_estate === true && <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Vos biens immobiliers</h3><p className="mt-1 text-sm text-slate-500">Ajoutez chaque bien détenu. Seule la ville est demandée pour sa localisation.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { type_bien: '', usage: '', proprietaire: '', mode_detention: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', ville: '', loyer_annuel: '', commentaire: '' }] })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter un bien</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Vos biens immobiliers</h3><p className="mt-1 text-sm text-slate-500">Ajoutez chaque bien détenu. Seule la ville est demandée pour sa localisation.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { type_bien: '', type_bien_autre: '', usage: '', usage_autre: '', proprietaire: '', mode_detention: '', mode_detention_autre: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', ville: '', loyer_annuel: '', commentaire: '' }] })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter un bien</button></div>
             {(form.immobilier ?? []).length === 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Vous avez indiqué détenir un bien immobilier. Ajoutez au moins un bien pour poursuivre.</div>}
-            {(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Bien {index + 1}</p><h4 className="mt-1 font-semibold text-slate-900">{item.type_bien || 'Bien immobilier'}</h4></div><button type="button" onClick={() => removeList('immobilier', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>
+            {(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-800 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Bien {index + 1}</p><h4 className="mt-1 font-semibold text-slate-900">{item.type_bien || 'Bien immobilier'}</h4></div><button type="button" onClick={() => { if (window.confirm(`Supprimer définitivement le bien ${index + 1} ?`)) removeList('immobilier', index); }} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>
               <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8">
-                <Field label="Type de bien" required value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v })} placeholder="Autre type de bien" />
-                <Field label="Usage" required value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v })} />
-                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v })} />
-                <Field label="Mode de détention" required value={item.mode_detention} onChange={(v) => updateList('immobilier', index, { mode_detention: v })} />
-                <Field label="Quote-part détenue (%)" required type="number" value={item.quote_part} onChange={(v) => updateList('immobilier', index, { quote_part: v })} placeholder="Ex. 100 ou 50" />
-                <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
-                <Field label="Date d’acquisition" type="month" value={item.date_acquisition} onChange={(v) => updateList('immobilier', index, { date_acquisition: v })} />
-                <MoneyField label="Prix d’acquisition (€)" value={item.prix_acquisition} onChange={(v) => updateList('immobilier', index, { prix_acquisition: v })} />
+                <div><Field label="Type de bien" required value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v, type_bien_autre: v === 'Autre' ? item.type_bien_autre : '' })} />{item.type_bien === 'Autre' && <div className="mt-3"><Field label="Précisez le type de bien" required value={item.type_bien_autre} onChange={(v) => updateList('immobilier', index, { type_bien_autre: v })} /></div>}</div>
+                <div><Field label="Usage" required value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_annuel: v === 'Locatif' ? item.loyer_annuel : '' })} />{item.usage === 'Autre' && <div className="mt-3"><Field label="Précisez l’usage" required value={item.usage_autre} onChange={(v) => updateList('immobilier', index, { usage_autre: v })} /></div>}</div>
                 <Field label="Ville" required value={item.ville} onChange={(v) => updateList('immobilier', index, { ville: v })} />
-                {item.usage === 'Locatif' && <MoneyField label="Loyer annuel hors charges (€)" value={item.loyer_annuel} onChange={(v) => updateList('immobilier', index, { loyer_annuel: v })} />}
+                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Les deux' || item.mode_detention === 'En indivision' ? item.quote_part : '100' })} help="Choisissez « Les deux » si le bien appartient aux deux personnes du dossier." />
+                <div><Field label="Comment ce bien est-il détenu ?" required value={item.mode_detention} onChange={(v) => updateList('immobilier', index, { mode_detention: v, mode_detention_autre: v === 'Autre' ? item.mode_detention_autre : '', quote_part: v === 'En indivision' || item.proprietaire === 'Les deux' ? item.quote_part : '100' })} />{item.mode_detention === 'Autre' && <div className="mt-3"><Field label="Précisez le mode de détention" required value={item.mode_detention_autre} onChange={(v) => updateList('immobilier', index, { mode_detention_autre: v })} /></div>}</div>
+                {(item.proprietaire === 'Les deux' || item.mode_detention === 'En indivision') && <Field label={item.proprietaire === 'Les deux' ? 'Quote-part de l’Identifiant 1 (%)' : 'Quote-part détenue (%)'} required type="number" value={item.quote_part} onChange={(v) => updateList('immobilier', index, { quote_part: v })} placeholder="Ex. 50" help={item.proprietaire === 'Les deux' ? 'La part de l’Identifiant 2 sera déduite automatiquement (100 % moins cette valeur).' : 'Indiquez la part réellement détenue dans le bien.'} />}
+                <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
+                <Field label="Date d’acquisition" type="month" value={item.date_acquisition} onChange={(v) => updateList('immobilier', index, { date_acquisition: v })} help="Facultatif" />
+                <MoneyField label="Prix d’acquisition (€)" value={item.prix_acquisition} onChange={(v) => updateList('immobilier', index, { prix_acquisition: v })} help="Facultatif" />
+                {item.usage === 'Locatif' && <MoneyField label="Loyer annuel hors charges (€)" required value={item.loyer_annuel} onChange={(v) => updateList('immobilier', index, { loyer_annuel: v })} />}
               </div>
               <label className="mt-5 block text-sm font-semibold text-slate-700">Précisions utiles<textarea value={item.commentaire ?? ''} onChange={(e) => updateList('immobilier', index, { commentaire: e.target.value })} rows={2} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" placeholder="Ex. indivision particulière, démembrement, projet de vente…" /></label>
             </div>)}
