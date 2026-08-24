@@ -79,6 +79,10 @@ export default function ClientInvitationPage() {
     }
   };
 
+  const resumeActivatedDossier = () => {
+    localStorage.removeItem('cgp_pending_invite_token');
+  };
+
   if (!token) {
     return <div className="relative min-h-screen bg-[#07111f] px-4 py-12 flex items-center justify-center"><div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(6,182,212,.2),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(79,70,229,.2),transparent_35%)]" /><div className="relative w-full max-w-lg rounded-[30px] border border-white/10 bg-white/95 p-8 shadow-2xl"><ShieldCheck className="h-8 w-8 text-slate-400" /><h1 className="mt-5 text-2xl font-semibold">Lien personnel manquant</h1><p className="mt-3 text-sm leading-6 text-slate-500">Utilisez le lien sécurisé transmis par le cabinet pour activer votre dossier.</p><Link to="/espace-client/connexion" className="mt-6 inline-block font-semibold text-slate-900 underline">Reprendre un dossier déjà activé</Link></div></div>;
   }
@@ -107,7 +111,7 @@ export default function ClientInvitationPage() {
             {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
             <button disabled={busy || loadingInvite || !email} className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? 'Activation…' : loadingInvite ? 'Vérification…' : 'Commencer mon dossier'}</button>
           </form>
-          <p className="mt-6 text-center text-xs leading-5 text-slate-400">Dossier déjà activé ? <Link to={`/espace-client/connexion?token=${encodeURIComponent(token)}`} className="font-semibold text-slate-700 underline">Reprendre mon dossier</Link></p>
+          <p className="mt-6 text-center text-xs leading-5 text-slate-400">Dossier déjà activé ? <Link to="/espace-client/connexion" onClick={resumeActivatedDossier} className="font-semibold text-slate-700 underline">Reprendre mon dossier</Link></p>
         </div>
       </div>
     </div>
