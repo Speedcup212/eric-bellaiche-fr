@@ -77,7 +77,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
         {visible.map((stage, index) => {
           const complete = index < currentIndex;
           const active = index === currentIndex;
-          const href = dossierId && index <= currentIndex ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;
+          const href = dossierId ? `${stagePaths[stage.key]}?dossier=${encodeURIComponent(dossierId)}` : null;
           const stageContent = (
             <div className={`flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 transition sm:px-3 ${active ? 'bg-[#3B82F6] text-white shadow-md shadow-blue-950/15' : complete ? 'bg-[#10B981] text-white shadow-sm' : 'bg-[#f6f8fb] text-[#9aa9bc]'} ${href ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sm' : ''}`}>
               <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-white/15 text-white' : complete ? 'bg-white/20 text-white' : 'bg-white text-[#7f8da1]'}`}>
@@ -97,7 +97,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
           );
         })}
       </div>
-      <p className="mt-2 px-1 text-[11px] text-[#7f8da1]">Les étapes déjà ouvertes restent accessibles. Les étapes suivantes se débloquent au fur et à mesure.</p>
+      <p className="mt-2 px-1 text-[11px] text-[#7f8da1]">Vous pouvez accéder à chaque étape du parcours en cliquant directement sur son onglet.</p>
     </div>
   );
 }
