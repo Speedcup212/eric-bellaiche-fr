@@ -149,3 +149,15 @@
   main > header.fixed p::after { font-size: .62rem; }
   main > header.fixed + section h1 { font-size: 1.62rem !important; }
 }
+
+/* Public site: phone CTAs must never be icon-only or invisible. */
+a[href="tel:+33652565654"]:empty::after {
+  content: '06 52 56 56 54';
+  font-weight: 700;
+}
+
+a[href="tel:+33652565654"]:has(svg)::after {
+  content: 'Appeler';
+  font-weight: 700;
+  margin-left: .2rem;
+}
