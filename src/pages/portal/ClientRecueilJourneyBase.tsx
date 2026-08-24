@@ -15,7 +15,7 @@ const sections: Array<{ code: SectionCode; title: string; description: string }>
   { code: 'objectives', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs, classez-les par priorité et indiquez leur horizon.' },
   { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
-  { code: 'patrimony', title: 'Patrimoine immobilier et financier', description: 'Aucune saisie détaillée : vos justificatifs seront transmis à l’étape Documents pour préparer automatiquement votre dossier.' },
+  { code: 'patrimony', title: 'Patrimoine immobilier', description: 'Renseignez les biens immobiliers détenus et leur valeur estimée. Aucun justificatif immobilier n’est demandé à cette étape.' },
 ];
 
 const objectiveOptions = [
@@ -57,7 +57,9 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Catégorie socioprofessionnelle': { options: ['Cadre', 'Profession intermédiaire', 'Employé', 'Ouvrier', 'Artisan / commerçant / chef d’entreprise', 'Profession libérale', 'Agriculteur', 'Retraité', 'Sans activité'], allowCustom: true },
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
   'Usage': { options: ['Résidence principale', 'Résidence secondaire', 'Locatif'], allowCustom: true },
-  'Mode de détention': { options: ['Pleine propriété', 'Nue-propriété', 'Usufruit'], allowCustom: true },
+  'Type de bien': { options: ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial'], allowCustom: true },
+  'Propriétaire du bien': { options: ['Identifiant 1', 'Identifiant 2', 'Commun / indivision'], allowCustom: true },
+  'Mode de détention': { options: ['Pleine propriété', 'Nue-propriété', 'Usufruit', 'Indivision', 'SCI'], allowCustom: true },
   'Type de contrat': { options: ['Livret A', 'LDDS', 'LEP', 'PEL', 'CEL', 'Assurance-vie', 'PER', 'PEA', 'Compte-titres', 'SCPI', 'Compte à terme'], allowCustom: true },
   'Type de crédit': { options: ['Prêt immobilier résidence principale', 'Prêt immobilier locatif', 'Prêt à la consommation', 'Prêt automobile', 'Prêt personnel', 'Prêt professionnel'], allowCustom: true },
   'Type de prêt': { options: ['Amortissable', 'In fine', 'Relais'], allowCustom: true },
@@ -71,7 +73,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   capacity: { estimation_revenus_travail_annuels: '', estimation_revenus_fonciers_annuels: '', epargne_precaution_cible: '', capacite_epargne_mensuelle: '', apport_immobilier_possible: '' },
   tax: { annee_imposition: new Date().getFullYear().toString(), salaires_assimiles: '', pensions_retraites_rentes: '', revenus_lmnp: '', revenus_bnc_pro: '', revenus_capitaux_mobiliers: '', revenus_fonciers_nets: '', revenu_imposable: '', impot_revenu_net: '', prelevements_sociaux_nets: '', taux_imposition: '', tmi: '', revenu_fiscal_reference: '', nombre_parts: '', deficit_foncier_reportable: '', evolution_revenus_commentaire: '', plafond_disponible_avis: '', versements_a_deduire: '', plafond_non_utilise_calcule: '', ifi_concerne: false, ifi_base_imposable: '', ifi_tmi: '', ifi_net_a_payer: '' },
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
-  patrimony: { comptes_courants: [], immobilier: [], placements: [] },
+  patrimony: { has_real_estate: '', comptes_courants: [], immobilier: [], placements: [] },
   credits: { items: [] },
 };
 
@@ -317,6 +319,15 @@ export default function ClientRecueilJourneyPage() {
       if (form.sanctions_declarees === true && isBlank(form.commentaire_lcbft)) throw new Error('Précisez la mesure de sanction ou de gel des avoirs qui vous concerne.');
       if (form.ppe_declaree === true && [form.ppe_personne_exposee, form.ppe_motif, form.ppe_pays_exercice, form.ppe_anciennete].some(isBlank)) throw new Error('Complétez toutes les informations relatives à la personne politiquement exposée.');
     }
+    if (current.code === 'patrimony') {
+      if (form.has_real_estate === '') throw new Error('Indiquez si vous détenez un ou plusieurs biens immobiliers.');
+      if (form.has_real_estate === true) {
+        if (!Array.isArray(form.immobilier) || form.immobilier.length === 0) throw new Error('Ajoutez au moins un bien immobilier.');
+        for (const item of form.immobilier ?? []) {
+          if ([item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.quote_part, item.valeur_actuelle, item.adresse, item.ville].some(isBlank)) throw new Error('Complétez les informations principales de chaque bien immobilier.');
+        }
+      }
+    }
     if (current.code === 'credits') {
       for (const item of form.items ?? []) if ([item.type_credit, item.banque, item.montant_initial, item.capital_restant_du, item.mensualite, item.duree_mois, item.taux, item.type_pret].some(isBlank)) throw new Error('Complétez toutes les informations principales de chaque crédit.');
     }
@@ -329,7 +340,7 @@ export default function ClientRecueilJourneyPage() {
     if (current.code === 'objectives') payloadToSave = { ...form, items: (form.items ?? []).map((item: AnyPayload, index: number) => ({ ...item, priorite: index + 1 })) };
     if (current.code === 'patrimony') {
       const placementsWithoutAccounts = (form.placements ?? []).filter((placement: AnyPayload) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant');
-      payloadToSave = { ...form, collection_mode: 'documents', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
+      payloadToSave = { ...form, collection_mode: 'real_estate_manual', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
     }
     const { error } = await supabase.rpc('save_my_recueil_section', { p_dossier_id: progress.dossier_id, p_section_code: current.code, p_payload: payloadToSave, p_completed: true });
     if (error) throw error;
@@ -446,18 +457,32 @@ export default function ClientRecueilJourneyPage() {
           <RecueilInfoNote title="Si vous choisissez « Oui »">Un questionnaire simple sur vos préférences de durabilité sera proposé après le profil investisseur. Il précisera vos priorités et vos éventuelles exclusions, sans modifier votre profil de risque.</RecueilInfoNote>
         </div>}
 
-        {current.code === 'patrimony' && <div className="space-y-8">
-          <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 text-slate-800 shadow-sm sm:p-6">
-            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#3B82F6] text-white shadow-sm"><Sparkles className="h-5 w-5" /></div><div><h3 className="text-lg font-semibold text-[#0b1f3a]">Aucun patrimoine à saisir manuellement</h3><p className="mt-1.5 text-sm leading-6 text-slate-600">À l’étape Documents, déposez simplement vos justificatifs. Les informations utiles pourront ainsi être intégrées à votre dossier sans recopier les montants, les adresses ou les contrats.</p></div></div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#3B82F6]"><Landmark className="h-5 w-5" /></div><h3 className="mt-4 font-semibold text-[#0b1f3a]">Comptes et placements</h3><p className="mt-2 text-sm leading-6 text-slate-600">Relevé PDF de situation ou capture lisible de votre espace bancaire, assurance-vie, PER, PEA, compte-titres ou SCPI.</p></div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#3B82F6]"><Building2 className="h-5 w-5" /></div><h3 className="mt-4 font-semibold text-[#0b1f3a]">Biens immobiliers</h3><p className="mt-2 text-sm leading-6 text-slate-600">Attestation de propriété ou pages utiles de l’acte notarié. Ajoutez le tableau du prêt si le bien est financé.</p></div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#3B82F6]"><FileText className="h-5 w-5" /></div><h3 className="mt-4 font-semibold text-[#0b1f3a]">SCI et sociétés</h3><p className="mt-2 text-sm leading-6 text-slate-600">Statuts à jour, répartition des parts et dernier bilan ou déclaration 2072 selon le régime fiscal de la SCI.</p></div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm leading-6 text-[#CBD5E1]"><p><strong className="text-white">Vous pourrez continuer sans document à cette étape.</strong> Le dépôt sécurisé intervient après le profil investisseur. Les fichiers acceptés seront les PDF, scans et captures d’écran.</p></div>
+        {current.code === 'patrimony' && <div className="space-y-7">
+          <RecueilInfoNote title="Informations immobilières uniquement"><p>Renseignez vos biens directement dans le recueil. <strong>Aucun justificatif immobilier n’est demandé.</strong></p><p className="mt-1.5 text-[#aebfd4]">Les prêts éventuels sont renseignés séparément dans la partie « Crédits en cours ».</p></RecueilInfoNote>
+          <BoolChoice label="Détenez-vous un ou plusieurs biens immobiliers ?" value={form.has_real_estate ?? ''} onChange={(v) => patchCurrent({ has_real_estate: v, immobilier: v ? (form.immobilier ?? []) : [] })} />
+          {form.has_real_estate === false && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun bien immobilier déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
+          {form.has_real_estate === true && <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Vos biens immobiliers</h3><p className="mt-1 text-sm text-slate-500">Ajoutez chaque bien détenu, y compris la résidence principale, les biens locatifs et les résidences secondaires.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), { type_bien: '', usage: '', proprietaire: '', mode_detention: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', adresse: '', code_postal: '', ville: '', loyer_annuel: '', commentaire: '' }] })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter un bien</button></div>
+            {(form.immobilier ?? []).length === 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Vous avez indiqué détenir un bien immobilier. Ajoutez au moins un bien pour poursuivre.</div>}
+            {(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Bien {index + 1}</p><h4 className="mt-1 font-semibold text-slate-900">{item.type_bien || 'Bien immobilier'}</h4></div><button type="button" onClick={() => removeList('immobilier', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>
+              <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8">
+                <Field label="Type de bien" required value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v })} placeholder="Autre type de bien" />
+                <Field label="Usage" required value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v })} />
+                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v })} />
+                <Field label="Mode de détention" required value={item.mode_detention} onChange={(v) => updateList('immobilier', index, { mode_detention: v })} />
+                <Field label="Quote-part détenue (%)" required type="number" value={item.quote_part} onChange={(v) => updateList('immobilier', index, { quote_part: v })} placeholder="Ex. 100 ou 50" />
+                <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
+                <Field label="Date d’acquisition" type="month" value={item.date_acquisition} onChange={(v) => updateList('immobilier', index, { date_acquisition: v })} />
+                <MoneyField label="Prix d’acquisition (€)" value={item.prix_acquisition} onChange={(v) => updateList('immobilier', index, { prix_acquisition: v })} />
+                <Field label="Adresse du bien" required value={item.adresse} onChange={(v) => updateList('immobilier', index, { adresse: v })} placeholder="Numéro et voie" />
+                <Field label="Code postal" value={item.code_postal} onChange={(v) => updateList('immobilier', index, { code_postal: v })} />
+                <Field label="Ville" required value={item.ville} onChange={(v) => updateList('immobilier', index, { ville: v })} />
+                {item.usage === 'Locatif' && <MoneyField label="Loyer annuel hors charges (€)" value={item.loyer_annuel} onChange={(v) => updateList('immobilier', index, { loyer_annuel: v })} />}
+              </div>
+              <label className="mt-5 block text-sm font-semibold text-slate-700">Précisions utiles<textarea value={item.commentaire ?? ''} onChange={(e) => updateList('immobilier', index, { commentaire: e.target.value })} rows={2} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" placeholder="Ex. indivision particulière, démembrement, projet de vente…" /></label>
+            </div>)}
+          </div>}
         </div>}
 
         {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Type de crédit" required value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Autre crédit" /><Field label="Banque" required value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" required value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" required value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" required value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" required type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" required type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" required value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} placeholder="Autre type de prêt" /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}

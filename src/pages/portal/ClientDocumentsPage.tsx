@@ -40,7 +40,6 @@ const categories = [
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
   ['comptes_liquidites', 'Comptes courants'],
   ['patrimoine_financier', 'Épargne / placements'],
-  ['patrimoine_immobilier', 'Bien immobilier / acte notarié'],
   ['sci_societe', 'SCI / société'],
   ['autre', 'Autre document'],
 ] as const;
@@ -62,7 +61,7 @@ const taxAbsenceReasons: Array<{ value: TaxAbsenceReason; label: string }> = [
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
 function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
 function contextComplete(context: DocumentContext | undefined): boolean {
-  if (!context || context.tax_status === null || context.has_liquidities === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_credits === null || context.has_sci_company === null) return false;
+  if (!context || context.tax_status === null || context.has_liquidities === null || context.has_financial_assets === null || context.has_credits === null || context.has_sci_company === null) return false;
   if (context.tax_status === 'no_personal_notice') {
     if (!context.tax_absence_reason) return false;
     if (context.tax_absence_reason === 'other' && !context.tax_absence_other?.trim()) return false;
@@ -275,7 +274,6 @@ export default function ClientDocumentsPage() {
     tax: contexts.some((item) => item.tax_status === 'personal_notice'),
     liquidities: contexts.some((item) => item.has_liquidities === true),
     assets: contexts.some((item) => item.has_financial_assets === true),
-    realEstate: contexts.some((item) => item.has_real_estate === true),
     credits: contexts.some((item) => item.has_credits === true),
     sci: contexts.some((item) => item.has_sci_company === true),
   };
@@ -286,7 +284,6 @@ export default function ClientDocumentsPage() {
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'L’avis n’est demandé que si vous en disposez. Si vous êtes rattaché au foyer fiscal de vos parents ou si aucun avis n’a encore été émis, précisez votre situation ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'comptes_liquidites', label: 'Comptes courants', description: 'À transmettre si vous détenez un ou plusieurs comptes courants à intégrer à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
     { category: 'patrimoine_financier', label: 'Épargne / placements', description: 'À transmettre si vous détenez de l’épargne ou des placements : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI ou autres placements.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
-    { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'À transmettre si vous détenez un bien immobilier.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
     { category: 'tableau_amortissement', label: 'Crédits en cours', description: 'À transmettre si un crédit est en cours : tableau d’amortissement ou justificatif équivalent.', status: conditionalStatus(aggregate.credits), expectedCount: aggregate.credits ? 1 : 0, receivedCount: categoryCounts.tableau_amortissement ?? 0 },
     { category: 'sci_societe', label: 'SCI / société', description: 'À transmettre si une SCI ou une société doit être prise en compte dans l’analyse.', status: conditionalStatus(aggregate.sci), expectedCount: aggregate.sci ? 1 : 0, receivedCount: categoryCounts.sci_societe ?? 0 },
     { category: 'autre', label: 'Autre document', description: 'Facultatif : ajoutez ici tout document complémentaire utile qui ne correspond pas aux catégories ci-dessus.', status: 'optional', expectedCount: 0, receivedCount: categoryCounts.autre ?? 0 },
@@ -349,7 +346,6 @@ export default function ClientDocumentsPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {boolChoice('Détenez-vous un ou plusieurs comptes courants à prendre en compte dans l’analyse patrimoniale ?', 'has_liquidities', currentContext?.has_liquidities)}
             {boolChoice('Détenez-vous de l’épargne ou des placements à prendre en compte dans l’analyse patrimoniale ? Exemples : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI.', 'has_financial_assets', currentContext?.has_financial_assets)}
-            {boolChoice('Détenez-vous un ou plusieurs biens immobiliers ?', 'has_real_estate', currentContext?.has_real_estate)}
             {boolChoice('Avez-vous un ou plusieurs crédits en cours ?', 'has_credits', currentContext?.has_credits)}
             {boolChoice('Détenez-vous une SCI ou une société à intégrer à l’analyse ?', 'has_sci_company', currentContext?.has_sci_company)}
           </div>
