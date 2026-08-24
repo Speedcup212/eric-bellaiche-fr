@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, FileCheck2, FileUp, Loader2, Trash2, UploadCloud, UsersRound } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Download, FileCheck2, FileUp, Loader2, Trash2, UploadCloud, UsersRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
@@ -54,7 +54,7 @@ export default function ClientDocumentsPage() {
   const [regulatory, setRegulatory] = useState<RegulatoryDocument[]>([]);
   const [contexts, setContexts] = useState<DocumentContext[]>([]);
   const [professionalStatus, setProfessionalStatus] = useState('');
-  const [category, setCategory] = useState<string>('identite');
+  const [category, setCategory] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [contextBusy, setContextBusy] = useState(false);
@@ -143,21 +143,29 @@ export default function ClientDocumentsPage() {
     }
   };
 
+  const selectCategory = (nextCategory: string) => {
+    setCategory((current) => current === nextCategory ? '' : nextCategory);
+    setFile(null);
+    setMessage('');
+    setErrorMessage('');
+  };
+
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!progress || !file || progress.transmitted_at) return;
+    if (!progress || !file || !category || progress.transmitted_at) return;
     if (file.size > 20 * 1024 * 1024) { setErrorMessage('Le fichier dépasse la limite de 20 Mo.'); return; }
     setBusy(true); setMessage(''); setErrorMessage('');
+    const uploadCategory = category;
     const path = `${progress.dossier_id}/${crypto.randomUUID()}-${safeName(file.name)}`;
     try {
       const { error: uploadError } = await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).upload(path, file, { upsert: false });
       if (uploadError) throw uploadError;
-      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id, p_categorie: category, p_nom_fichier: file.name, p_storage_path: path, p_date_document: null, p_annee_reference: null });
+      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: file.name, p_storage_path: path, p_date_document: null, p_annee_reference: null });
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
-      const input = document.getElementById('client-document-file') as HTMLInputElement | null; if (input) input.value = '';
-      setMessage('Document transmis au dossier commun. Vous pouvez en ajouter un autre avant la transmission finale.');
+      setMessage(`${categoryLabel(uploadCategory)} transmis avec succès.`);
       await loadDocuments(progress);
+      setCategory('');
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
   };
 
@@ -224,13 +232,13 @@ export default function ClientDocumentsPage() {
   const requirements: Requirement[] = [
     { category: 'identite', label: 'Pièce d’identité', description: `Une pièce d’identité est attendue pour chaque personne du dossier (${progress.dossier_members_total} au total).`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: categoryCounts.identite ?? 0 },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
-    { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessous.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
+    { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'comptes_liquidites', label: 'Comptes bancaires / liquidités', description: 'À transmettre lorsque des comptes ou liquidités doivent être intégrés à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
     { category: 'patrimoine_financier', label: 'Placements / épargne', description: 'À transmettre en présence d’assurance-vie, PER, PEA, compte-titres, SCPI ou autres placements.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
     { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'À transmettre si vous détenez un bien immobilier.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
     { category: 'tableau_amortissement', label: 'Crédits en cours', description: 'À transmettre si un crédit est en cours : tableau d’amortissement ou justificatif équivalent.', status: conditionalStatus(aggregate.credits), expectedCount: aggregate.credits ? 1 : 0, receivedCount: categoryCounts.tableau_amortissement ?? 0 },
     { category: 'sci_societe', label: 'SCI / société', description: 'À transmettre si une SCI ou une société doit être prise en compte dans l’analyse.', status: conditionalStatus(aggregate.sci), expectedCount: aggregate.sci ? 1 : 0, receivedCount: categoryCounts.sci_societe ?? 0 },
-    { category: 'autre', label: 'Autre document', description: 'Facultatif : ajoutez tout document complémentaire utile à la compréhension de votre situation.', status: 'optional', expectedCount: 0, receivedCount: categoryCounts.autre ?? 0 },
+    { category: 'autre', label: 'Autre document', description: 'Facultatif : ajoutez ici tout document complémentaire utile qui ne correspond pas aux catégories ci-dessus.', status: 'optional', expectedCount: 0, receivedCount: categoryCounts.autre ?? 0 },
   ];
   const missingRequired = requirements.filter((item) => item.status === 'required' && item.receivedCount < item.expectedCount);
   const finalBlocked = waitingPartner || !allContextsComplete || missingRequired.length > 0;
@@ -287,40 +295,50 @@ export default function ClientDocumentsPage() {
         </div>}
 
         <div className="border-b border-slate-200 px-6 py-7 sm:px-9">
-          <div className="flex items-center justify-between gap-4"><div><h3 className="text-lg font-semibold text-slate-950">Pièces attendues</h3><p className="mt-1 text-sm text-slate-500">Cliquez sur une pièce pour la sélectionner directement dans la zone de dépôt.</p></div>{missingRequired.length === 0 && allContextsComplete && <CheckCircle2 className="h-6 w-6 text-emerald-600" />}</div>
+          <div className="flex items-center justify-between gap-4"><div><h3 className="text-lg font-semibold text-slate-950">Pièces attendues</h3><p className="mt-1 text-sm text-slate-500">Cliquez sur « Importer » au niveau de la pièce concernée. La catégorie est sélectionnée automatiquement.</p></div>{missingRequired.length === 0 && allContextsComplete && <CheckCircle2 className="h-6 w-6 text-emerald-600" />}</div>
+          {message && <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
+          {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
           <div className="mt-5 grid gap-3">
             {requirements.map((item) => {
               const satisfied = item.status !== 'required' || item.receivedCount >= item.expectedCount;
-              return <button key={item.category} type="button" onClick={() => setCategory(item.category)} className={`rounded-2xl border p-4 text-left transition ${category === item.category ? 'border-blue-400 bg-blue-50/50 ring-2 ring-blue-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="font-semibold text-slate-900">{item.label}</span>{satisfied && item.receivedCount > 0 && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}</div><div className="flex items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass(item.status)}`}>{badgeLabel(item.status)}</span>{item.expectedCount > 0 && <span className="text-xs font-semibold text-slate-500">{item.receivedCount}/{item.expectedCount}</span>}</div></div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
-              </button>;
+              const active = category === item.category;
+              const itemDocs = sources.filter((doc) => doc.categorie === item.category);
+              return <div key={item.category} className={`overflow-hidden rounded-2xl border transition ${active ? 'border-blue-400 bg-blue-50/40 ring-2 ring-blue-100' : 'border-slate-200 bg-white'}`}>
+                <button type="button" disabled={transmitted} onClick={() => selectCategory(item.category)} className="w-full p-4 text-left disabled:cursor-default">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2"><span className="font-semibold text-slate-900">{item.label}</span>{satisfied && item.receivedCount > 0 && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass(item.status)}`}>{badgeLabel(item.status)}</span>
+                      {item.expectedCount > 0 && <span className="text-xs font-semibold text-slate-500">{item.receivedCount}/{item.expectedCount}</span>}
+                      {!transmitted && <span className="inline-flex items-center gap-1 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white">{active ? 'Fermer' : item.receivedCount > 0 ? 'Ajouter' : 'Importer'} <ChevronDown className={`h-3.5 w-3.5 transition ${active ? 'rotate-180' : ''}`} /></span>}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
+                </button>
+
+                {active && !transmitted && <form onSubmit={upload} className="border-t border-blue-100 bg-white px-4 py-4 sm:px-5">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <label className="text-sm font-semibold text-slate-700">Sélectionner le fichier
+                      <input type="file" required onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
+                    </label>
+                    <button type="submit" disabled={busy || !file} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre</button>
+                  </div>
+                  <div className="mt-3"><SecureNote>PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.</SecureNote></div>
+                </form>}
+
+                {itemDocs.length > 0 && <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Déjà transmis</p>
+                  <div className="mt-2 space-y-2">{itemDocs.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5"><p className="min-w-0 truncate text-sm font-medium text-slate-700">{doc.nom_fichier}</p><div className="flex shrink-0 items-center gap-1.5">{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}{!transmitted && <button type="button" disabled={deletingId === doc.id} onClick={() => void deleteSource(doc)} className="rounded-lg border border-red-100 p-2 text-red-500 hover:bg-red-50 disabled:opacity-40" title="Supprimer">{deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>}</div></div>)}</div>
+                </div>}
+              </div>;
             })}
           </div>
         </div>
 
-        {!transmitted ? (
-          <div className="px-6 py-7 sm:px-9 sm:py-9">
-            <h3 className="text-xl font-semibold text-slate-950">Ajouter un justificatif</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choisissez la catégorie, puis sélectionnez un PDF, un scan ou une capture d’écran lisible. Pour un couple, les documents communs ne sont à transmettre qu’une seule fois.</p>
-            <form onSubmit={upload} className="mt-7 space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold text-slate-700">Type de document<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <label className="text-sm font-semibold text-slate-700">Fichier<input id="client-document-file" type="file" required onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" /></label>
-              </div>
-              <SecureNote>Formats acceptés : PDF, DOCX, XLSX, JPG et PNG. Taille maximale : 20 Mo par fichier.</SecureNote>
-              {message && <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
-              {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
-              <button disabled={busy || !file} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre ce document</button>
-            </form>
-          </div>
-        ) : (
-          <div className="px-6 py-7 sm:px-9 sm:py-9"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Dossier déjà transmis</p><p className="mt-1 text-sm leading-6">Les justificatifs sont désormais figés afin de préserver la traçabilité de la transmission.</p></div></div>
-        )}
+        {transmitted && <div className="px-6 py-7 sm:px-9 sm:py-9"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Dossier déjà transmis</p><p className="mt-1 text-sm leading-6">Les justificatifs sont désormais figés afin de préserver la traçabilité de la transmission.</p></div></div>}
 
         <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-6 sm:px-9">
-          <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents du dossier</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} déjà enregistré${sources.length > 1 ? 's' : ''} dans le dossier commun.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
-          {sources.length > 0 && <div className="mt-5 divide-y divide-slate-200/70 rounded-2xl border border-slate-200 bg-white px-4">{sources.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{doc.nom_fichier}</p><p className="mt-1 text-xs text-slate-400">{categoryLabel(doc.categorie)}</p></div><div className="flex shrink-0 items-center gap-2">{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}{!transmitted && <button type="button" disabled={deletingId === doc.id} onClick={() => void deleteSource(doc)} className="rounded-xl border border-red-100 p-2 text-red-500 transition hover:bg-red-50 disabled:opacity-40" title="Supprimer ce justificatif">{deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>}</div></div>)}</div>}
+          <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents du dossier</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} enregistré${sources.length > 1 ? 's' : ''} dans le dossier commun.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
         </div>
 
         {!transmitted && <div>
