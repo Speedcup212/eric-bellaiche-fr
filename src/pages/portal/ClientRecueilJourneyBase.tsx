@@ -412,17 +412,6 @@ export default function ClientRecueilJourneyPage() {
   const updateList = (key: string, index: number, values: AnyPayload) => patchCurrent({ [key]: (form[key] ?? []).map((item: AnyPayload, i: number) => i === index ? { ...item, ...values } : item) });
   const removeList = (key: string, index: number) => patchCurrent({ [key]: (form[key] ?? []).filter((_: unknown, i: number) => i !== index) });
 
-  const patrimonyReady = current.code !== 'patrimony' || form.has_real_estate === false || (form.has_real_estate === true && Array.isArray(form.immobilier) && form.immobilier.length > 0 && form.immobilier.every((item: AnyPayload) => {
-    if ([item.intitule, item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.valeur_actuelle, item.ville].some(isBlank)) return false;
-    if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) return false;
-    if (item.usage === 'Autre' && isBlank(item.usage_autre)) return false;
-    if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) return false;
-    const quotePartValue = Number(String(item.quote_part ?? '').replace(',', '.').replace('%', '').trim());
-    if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || !Number.isFinite(quotePartValue) || quotePartValue <= 0 || quotePartValue >= 100)) return false;
-    if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) return false;
-    return true;
-  }));
-
   return <div>
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} substep={{ current: step + 1, total: sections.length, label: current.title }} />
     {current.code !== 'patrimony' && <PageIntro variant="recueil" eyebrow={`Étape 1 · Partie ${step + 1}/${sections.length}`} title={current.title} description={current.description} />}
