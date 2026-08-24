@@ -12,7 +12,7 @@ function patchFamilyEntry() {
   }
 
   const saveMarker = '  const saveFamilySetup = async () => {\n';
-  if (!s.includes("family-validation-alert'))")) {
+  if (!s.includes('id="family-validation-alert"')) {
     const effect = `  useEffect(() => {\n    if (!errorMessage) return;\n    const timer = window.setTimeout(() => {\n      const alert = document.getElementById('family-validation-alert');\n      alert?.scrollIntoView({ behavior: 'smooth', block: 'center' });\n      alert?.focus({ preventScroll: true });\n    }, 50);\n    return () => window.clearTimeout(timer);\n  }, [errorMessage]);\n\n${saveMarker}`;
     if (!s.includes(saveMarker)) throw new Error('saveFamilySetup marker not found');
     s = s.replace(saveMarker, effect);
@@ -28,16 +28,6 @@ function patchFamilyEntry() {
   if (s.includes(oldError)) s = s.replace(oldError, newError);
   else if (!s.includes('id="family-validation-alert"')) throw new Error('Family error block not found');
 
-  fs.writeFileSync(path, s);
-}
-
-function patchQuestionnaireCta() {
-  const path = 'src/pages/portal/QuestionnairePageBase.tsx';
-  let s = fs.readFileSync(path, 'utf8');
-  const oldButton = `<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">Continuer vers les documents</button>`;
-  const newButton = `<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{mode === 'QPI' && progress.esg_opt_in === true ? 'Continuer vers mes préférences de durabilité' : 'Continuer vers les documents'}</button>`;
-  if (s.includes(oldButton)) s = s.replace(oldButton, newButton);
-  else if (!s.includes("Continuer vers mes préférences de durabilité")) throw new Error('Questionnaire completion CTA not found');
   fs.writeFileSync(path, s);
 }
 
@@ -59,6 +49,5 @@ function patchDocumentsDarkWrapper() {
 }
 
 patchFamilyEntry();
-patchQuestionnaireCta();
 patchDocumentsDarkWrapper();
 console.log('Novice UX hardening patch applied');
