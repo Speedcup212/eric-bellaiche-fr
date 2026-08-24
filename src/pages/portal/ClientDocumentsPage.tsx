@@ -299,7 +299,7 @@ export default function ClientDocumentsPage() {
             {currentContext?.tax_status === 'attached_parents' && <p className="mt-3 text-sm leading-6 text-slate-500">L’avis d’imposition des parents pourra être transmis s’il est utile au dossier, mais il n’est pas considéré comme une pièce personnelle obligatoire.</p>}
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {boolChoice('Avez-vous des comptes ou liquidités à intégrer à l’analyse ?', 'has_liquidities', currentContext?.has_liquidities)}
+            {boolChoice('Détenez-vous des liquidités ou des comptes bancaires à prendre en compte dans l’analyse patrimoniale ? Exemples : compte courant, Livret A, LDDS, LEP, livrets bancaires, comptes à terme ou autres liquidités disponibles.', 'has_liquidities', currentContext?.has_liquidities)}
             {boolChoice('Détenez-vous des placements ou produits d’épargne ?', 'has_financial_assets', currentContext?.has_financial_assets)}
             {boolChoice('Détenez-vous un ou plusieurs biens immobiliers ?', 'has_real_estate', currentContext?.has_real_estate)}
             {boolChoice('Avez-vous un ou plusieurs crédits en cours ?', 'has_credits', currentContext?.has_credits)}
