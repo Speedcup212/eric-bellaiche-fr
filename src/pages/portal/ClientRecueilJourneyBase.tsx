@@ -240,7 +240,7 @@ export default function ClientRecueilJourneyPage() {
   const professionalNeedsChangeQuestion = !professionalStatus.includes('retrait');
 
   const patch = (code: SectionCode, values: AnyPayload) => setForms((state) => ({ ...state, [code]: { ...state[code], ...values } }));
-  const patchCurrent = (values: AnyPayload) => patch(current.code, values);
+  const patchCurrent = (values: AnyPayload) => { setErrorMessage(''); patch(current.code, values); };
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => setAccountEmail(data.user?.email ?? '')).catch(() => setAccountEmail(''));
