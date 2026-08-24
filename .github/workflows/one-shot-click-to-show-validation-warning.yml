@@ -1,0 +1,43 @@
+name: One-shot click-triggered validation warning
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-click-to-show-validation-warning.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch recueil validation UX
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyBase.tsx')
+          s = p.read_text()
+          old = '''        {currentValidationIssue && <div role="alert" className="rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{currentValidationIssue}</p></div>}
+        {errorMessage && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
+'''
+          new = '''        {errorMessage && <div role="alert" className="rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{errorMessage}</p></div>}
+'''
+          if old not in s:
+              raise SystemExit('warning block not found')
+          s = s.replace(old, new, 1)
+          old2 = 'disabled={busy || Boolean(currentValidationIssue)} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6]'
+          new2 = 'disabled={busy} data-validation-issue={currentValidationIssue || undefined} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6]'
+          if old2 not in s:
+              raise SystemExit('button disabled expression not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Keep recueil validation button clickable" || exit 0
+          git push
