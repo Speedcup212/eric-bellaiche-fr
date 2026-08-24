@@ -1,5 +1,5 @@
 [build]
-  command = "npm run typecheck:portal && npm run build"
+  command = "node scripts/patch-numeric-ux.js && npm run typecheck:portal && npm run build"
   publish = "dist"
 
 [[redirects]]
