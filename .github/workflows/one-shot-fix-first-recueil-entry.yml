@@ -1,0 +1,45 @@
+name: Fix first recueil entry UX
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-fix-first-recueil-entry.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch first-time recueil page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientRecueilJourneyPage.tsx')
+          s = p.read_text()
+          marker = '''      <WizardCard className="p-6 sm:p-8">\n        <p className="text-sm font-semibold text-slate-800">Ce dossier concerne : *</p>'''
+          replacement = '''      <WizardCard className="p-6 sm:p-8">\n        <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">\n          <p className="text-base font-semibold text-[#0B1F3A]">Temps estimé : environ 45 minutes</p>\n          <p className="mt-1 text-sm leading-6 text-slate-600">C’est le temps moyen nécessaire pour compléter l’ensemble du questionnaire. Vous pouvez interrompre le parcours et le reprendre à tout moment.</p>\n        </div>\n\n        <p className="text-sm font-semibold text-slate-800">Ce dossier concerne : *</p>'''
+          if marker not in s:
+              raise SystemExit('first-time WizardCard marker not found')
+          s = s.replace(marker, replacement, 1)
+          s = s.replace('Personne 1 — Vous', 'Identifiant 1 — Vous')
+          s = s.replace('Personne 2 — conjoint / partenaire', 'Identifiant 2 — conjoint / partenaire')
+          p.write_text(s)
+          PY
+      - name: Verify no Personne 1/2 labels remain
+        run: |
+          ! grep -R "Personne 1\|Personne 2" src/pages/portal/ClientRecueilJourneyPage.tsx
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/ClientRecueilJourneyPage.tsx
+          git commit -m 'Fix first recueil entry duration and labels'
+          git push origin main
