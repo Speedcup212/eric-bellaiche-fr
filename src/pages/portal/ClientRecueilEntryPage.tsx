@@ -69,7 +69,6 @@ export default function ClientRecueilEntryPage() {
   const isCouple = scope === 'couple';
   const identifierNumber = progress.role_dossier === 'investisseur_1' ? 1 : 2;
   const identifierLabel = `Identifiant ${identifierNumber}`;
-  const personLabel = `Personne ${identifierNumber}`;
   const legalDetails = ['Marié', 'Pacsé'].includes(String(family?.situation ?? ''));
 
   const scopeCardClass = (selected: boolean) => `rounded-2xl border p-5 text-left transition ${selected
@@ -92,7 +91,7 @@ export default function ClientRecueilEntryPage() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Parcours en cours</p>
-            <p className="mt-1 text-base font-semibold text-slate-900">{identifierLabel} — {personLabel}</p>
+            <p className="mt-1 text-base font-semibold text-slate-900">{identifierLabel}</p>
           </div>
           <span className="rounded-full bg-[#0B1F3A] px-3 py-1.5 text-xs font-bold text-white">Vous êtes l’{identifierLabel.toLowerCase()}</span>
         </div>
