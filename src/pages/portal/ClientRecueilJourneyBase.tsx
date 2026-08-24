@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, FileText, HelpCircle, Landmark, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
