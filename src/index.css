@@ -50,9 +50,26 @@
   }
 }
 
-.recueil-safe [data-recueil-missing="1"] { outline: 2px solid rgb(239 68 68 / 0.75); outline-offset: 2px; }
-.recueil-safe [data-recueil-missing="1"]::after { content: "À compléter"; display: inline-flex; margin-top: 0.5rem; border-radius: 0.5rem; background: #b91c1c; padding: 0.25rem 0.625rem; color: #fff; font-size: 0.75rem; font-weight: 700; }
-.recueil-safe [data-recueil-section-missing="1"] { border-color: #fca5a5 !important; background: #fef2f2 !important; color: #b91c1c !important; box-shadow: 0 0 0 1px rgb(248 113 113 / 0.35) !important; }
+/* Validation du recueil : pas de grands cadres rouges automatiques.
+   L'encart orange s'affiche après clic, et le champ HTML réellement invalide est signalé en orange. */
+.recueil-safe [data-recueil-missing="1"],
+.recueil-safe [data-recueil-section-missing="1"] {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.recueil-safe [data-recueil-missing="1"]::after {
+  content: none !important;
+  display: none !important;
+}
+.recueil-safe [data-recueil-section-missing="1"] {
+  border-color: inherit !important;
+  background: inherit !important;
+  color: inherit !important;
+}
+.recueil-safe section input:invalid {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 2px rgb(245 158 11 / 0.28) !important;
+}
 
 /* Force hide Bolt Badge */
 [class*="bolt"], [class*="made-with"], a[href*="bolt.new"] { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
@@ -123,7 +140,7 @@
   main > header.fixed + section h1 { font-size: clamp(1.72rem, 7.4vw, 2.15rem) !important; line-height: 1.12 !important; }
   main > header.fixed + section h2 { margin-top: .6rem; margin-bottom: 1.2rem !important; font-size: .94rem !important; line-height: 1.48 !important; }
   main > div[class*="fixed bottom-0"] { padding: .45rem .7rem !important; }
-  main > div[class*="fixed bottom-0"] > a { min-height: 3rem !important; padding: .55rem .9rem !important; font-size: 0 !important; line-height: 1 !important; border-radius: .7rem !important; }
+  main > div[class*="fixed bottom-0"] > a { min-height: 3rem; padding: .55rem .9rem !important; font-size: 0 !important; line-height: 1 !important; border-radius: .7rem !important; }
   main > div[class*="fixed bottom-0"] > a::before { content: '📅 Prendre rendez-vous'; font-size: .9rem; font-weight: 800; }
   main > div[class*="fixed bottom-0"] svg { width: 1rem !important; height: 1rem !important; }
 }
