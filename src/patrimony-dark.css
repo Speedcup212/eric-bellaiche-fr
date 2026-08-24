@@ -126,6 +126,77 @@
   border-color: rgba(96, 165, 250, 0.3) !important;
 }
 
+/* Documents — même thème sombre que le recueil. */
+.documents-dark .overflow-hidden.rounded-\[22px\],
+.documents-dark .overflow-hidden.rounded-2xl,
+.documents-dark .rounded-2xl.border.border-slate-200.bg-white,
+.documents-dark .border-b.border-slate-200.bg-slate-50\/70,
+.documents-dark .border-b.border-slate-200.px-6.py-7 {
+  background: #111c31 !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  color: #f1f5f9 !important;
+}
+
+.documents-dark .bg-white,
+.documents-dark .bg-slate-50,
+.documents-dark .bg-slate-50\/70 {
+  background-color: #111c31 !important;
+}
+
+.documents-dark .text-slate-950,
+.documents-dark .text-slate-900,
+.documents-dark .text-slate-800,
+.documents-dark .text-slate-700 {
+  color: #f1f5f9 !important;
+}
+
+.documents-dark .text-slate-500,
+.documents-dark .text-slate-600,
+.documents-dark .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+.documents-dark .border-slate-100,
+.documents-dark .border-slate-200,
+.documents-dark .border-slate-300 {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+.documents-dark input,
+.documents-dark textarea,
+.documents-dark select {
+  background: #0f1b2d !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+.documents-dark input::placeholder,
+.documents-dark textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+.documents-dark button.bg-white {
+  background: #16233a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.documents-dark button.bg-white:hover {
+  background: #1d2d48 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+/* Les alertes et états métier conservent leur code couleur. */
+.documents-dark .bg-amber-50,
+.documents-dark .bg-blue-50,
+.documents-dark .bg-blue-50\/60,
+.documents-dark .bg-emerald-50,
+.documents-dark .bg-rose-50 {
+  color-scheme: light;
+}
+
 @media (max-width: 640px) {
   .recueil-regulatory > * {
     padding: 1rem !important;
