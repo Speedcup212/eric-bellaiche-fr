@@ -19,6 +19,7 @@ interface DocumentContext {
 }
 
 type RequirementStatus = 'required' | 'conditional' | 'optional';
+type IdentityType = '' | 'cni' | 'passport' | 'titre_sejour';
 interface Requirement {
   category: string;
   label: string;
@@ -40,6 +41,12 @@ const categories = [
   ['autre', 'Autre document'],
 ] as const;
 
+const identityTypes: Array<{ value: Exclude<IdentityType, ''>; label: string; prefix: string; help: string }> = [
+  { value: 'cni', label: 'Carte nationale d’identité', prefix: 'CNI', help: 'Recto + verso, lisibles et complets. Réunissez de préférence les deux faces dans un seul PDF.' },
+  { value: 'passport', label: 'Passeport', prefix: 'PASSEPORT', help: 'Page d’identité comportant votre photographie, votre identité et les dates de validité.' },
+  { value: 'titre_sejour', label: 'Titre de séjour', prefix: 'TITRE-SEJOUR', help: 'Recto + verso, lisibles et complets. Réunissez de préférence les deux faces dans un seul PDF.' },
+];
+
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
 function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
 function contextComplete(context: DocumentContext | undefined): boolean {
@@ -55,6 +62,7 @@ export default function ClientDocumentsPage() {
   const [contexts, setContexts] = useState<DocumentContext[]>([]);
   const [professionalStatus, setProfessionalStatus] = useState('');
   const [category, setCategory] = useState<string>('');
+  const [identityType, setIdentityType] = useState<IdentityType>('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [contextBusy, setContextBusy] = useState(false);
@@ -145,6 +153,7 @@ export default function ClientDocumentsPage() {
 
   const selectCategory = (nextCategory: string) => {
     setCategory((current) => current === nextCategory ? '' : nextCategory);
+    setIdentityType('');
     setFile(null);
     setMessage('');
     setErrorMessage('');
@@ -153,16 +162,20 @@ export default function ClientDocumentsPage() {
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!progress || !file || !category || progress.transmitted_at) return;
+    if (category === 'identite' && !identityType) { setErrorMessage('Sélectionnez le type de pièce d’identité avant de transmettre le fichier.'); return; }
     if (file.size > 20 * 1024 * 1024) { setErrorMessage('Le fichier dépasse la limite de 20 Mo.'); return; }
     setBusy(true); setMessage(''); setErrorMessage('');
     const uploadCategory = category;
-    const path = `${progress.dossier_id}/${crypto.randomUUID()}-${safeName(file.name)}`;
+    const identityChoice = identityTypes.find((item) => item.value === identityType);
+    const displayedName = uploadCategory === 'identite' && identityChoice ? `${identityChoice.prefix} - ${file.name}` : file.name;
+    const path = `${progress.dossier_id}/${crypto.randomUUID()}-${safeName(displayedName)}`;
     try {
       const { error: uploadError } = await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).upload(path, file, { upsert: false });
       if (uploadError) throw uploadError;
-      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: file.name, p_storage_path: path, p_date_document: null, p_annee_reference: null });
+      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
+      setIdentityType('');
       setMessage(`${categoryLabel(uploadCategory)} transmis avec succès.`);
       await loadDocuments(progress);
       setCategory('');
@@ -230,7 +243,7 @@ export default function ClientDocumentsPage() {
   };
   const conditionalStatus = (required: boolean): RequirementStatus => required ? 'required' : allContextsComplete ? 'optional' : 'conditional';
   const requirements: Requirement[] = [
-    { category: 'identite', label: 'Pièce d’identité', description: `Une pièce d’identité est attendue pour chaque personne du dossier (${progress.dossier_members_total} au total).`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: categoryCounts.identite ?? 0 },
+    { category: 'identite', label: 'Pièce d’identité', description: `Document officiel en cours de validité avec photographie, pour chaque personne du dossier (${progress.dossier_members_total} au total). CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: categoryCounts.identite ?? 0 },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'comptes_liquidites', label: 'Comptes bancaires / liquidités', description: 'À transmettre lorsque des comptes ou liquidités doivent être intégrés à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
@@ -303,6 +316,7 @@ export default function ClientDocumentsPage() {
               const satisfied = item.status !== 'required' || item.receivedCount >= item.expectedCount;
               const active = category === item.category;
               const itemDocs = sources.filter((doc) => doc.categorie === item.category);
+              const selectedIdentity = identityTypes.find((choice) => choice.value === identityType);
               return <div key={item.category} className={`overflow-hidden rounded-2xl border transition ${active ? 'border-blue-400 bg-blue-50/40 ring-2 ring-blue-100' : 'border-slate-200 bg-white'}`}>
                 <button type="button" disabled={transmitted} onClick={() => selectCategory(item.category)} className="w-full p-4 text-left disabled:cursor-default">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -317,13 +331,22 @@ export default function ClientDocumentsPage() {
                 </button>
 
                 {active && !transmitted && <form onSubmit={upload} className="border-t border-blue-100 bg-white px-4 py-4 sm:px-5">
+                  {item.category === 'identite' && <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-900">Quel document d’identité transmettez-vous ? *</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {identityTypes.map((choice) => <button key={choice.value} type="button" onClick={() => { setIdentityType(choice.value); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityType === choice.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{choice.label}</button>)}
+                    </div>
+                    <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm leading-6 text-slate-600">
+                      <strong className="text-slate-900">Document en cours de validité obligatoire.</strong>{selectedIdentity ? ` ${selectedIdentity.help}` : ' Sélectionnez le type de document pour afficher les faces à transmettre.'}
+                    </div>
+                  </div>}
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <label className="text-sm font-semibold text-slate-700">Sélectionner le fichier
-                      <input type="file" required onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
+                    <label className="text-sm font-semibold text-slate-700">{item.category === 'identite' ? 'Fichier complet de la pièce d’identité' : 'Sélectionner le fichier'}
+                      <input type="file" required disabled={item.category === 'identite' && !identityType} onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
                     </label>
-                    <button type="submit" disabled={busy || !file} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre</button>
+                    <button type="submit" disabled={busy || !file || (item.category === 'identite' && !identityType)} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre</button>
                   </div>
-                  <div className="mt-3"><SecureNote>PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.</SecureNote></div>
+                  <div className="mt-3"><SecureNote>{item.category === 'identite' ? 'PDF, JPG ou PNG recommandé. Le document doit être lisible, complet, non tronqué et en cours de validité. Pour une CNI ou un titre de séjour : recto + verso.' : 'PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.'}</SecureNote></div>
                 </form>}
 
                 {itemDocs.length > 0 && <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-5">
