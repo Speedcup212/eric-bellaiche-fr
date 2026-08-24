@@ -5,7 +5,7 @@ import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
 import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
-interface SourceDocument { id: string; categorie: string; nom_fichier: string; storage_bucket: string | null; storage_path: string | null; statut_analyse: string; created_at: string; }
+interface SourceDocument { id: string; investisseur_id: string | null; categorie: string; nom_fichier: string; storage_bucket: string | null; storage_path: string | null; statut_analyse: string; created_at: string; }
 interface RegulatoryDocument { id: string; type_document: string; statut: string; storage_bucket: string | null; storage_path_pdf: string | null; storage_path_docx: string | null; date_generation: string | null; }
 interface DocumentContext {
   dossier_id: string;
@@ -17,6 +17,7 @@ interface DocumentContext {
   has_credits: boolean | null;
   has_sci_company: boolean | null;
 }
+interface DossierMember { investisseur_id: string; role_dossier: 'investisseur_1' | 'investisseur_2'; }
 
 type RequirementStatus = 'required' | 'conditional' | 'optional';
 type IdentityType = '' | 'cni' | 'passport' | 'titre_sejour';
@@ -52,6 +53,7 @@ function categoryLabel(value: string) { return categories.find(([code]) => code 
 function contextComplete(context: DocumentContext | undefined): boolean {
   return Boolean(context && context.tax_status !== null && context.has_liquidities !== null && context.has_financial_assets !== null && context.has_real_estate !== null && context.has_credits !== null && context.has_sci_company !== null);
 }
+function memberLabel(role: DossierMember['role_dossier']): string { return role === 'investisseur_2' ? 'Identifiant 2' : 'Identifiant 1'; }
 
 export default function ClientDocumentsPage() {
   const [searchParams] = useSearchParams();
@@ -60,9 +62,11 @@ export default function ClientDocumentsPage() {
   const [sources, setSources] = useState<SourceDocument[]>([]);
   const [regulatory, setRegulatory] = useState<RegulatoryDocument[]>([]);
   const [contexts, setContexts] = useState<DocumentContext[]>([]);
+  const [dossierMembers, setDossierMembers] = useState<DossierMember[]>([]);
   const [professionalStatus, setProfessionalStatus] = useState('');
   const [category, setCategory] = useState<string>('');
   const [identityType, setIdentityType] = useState<IdentityType>('');
+  const [identityOwnerId, setIdentityOwnerId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [contextBusy, setContextBusy] = useState(false);
@@ -81,19 +85,22 @@ export default function ClientDocumentsPage() {
   };
 
   const loadDocuments = async (row: PortalProgress) => {
-    const [{ data: sourceData, error: sourceError }, { data: regulatoryData, error: regulatoryError }, { data: contextData, error: contextError }, { data: professionalData, error: professionalError }] = await Promise.all([
-      supabase.from('documents_sources').select('id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,created_at').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
+    const [{ data: sourceData, error: sourceError }, { data: regulatoryData, error: regulatoryError }, { data: contextData, error: contextError }, { data: memberData, error: memberError }, { data: professionalData, error: professionalError }] = await Promise.all([
+      supabase.from('documents_sources').select('id,investisseur_id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,created_at').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
       supabase.from('documents_reglementaires').select('id,type_document,statut,storage_bucket,storage_path_pdf,storage_path_docx,date_generation').eq('dossier_id', row.dossier_id).order('created_at', { ascending: false }),
       supabase.from('document_context_answers').select('dossier_id,investisseur_id,tax_status,has_liquidities,has_financial_assets,has_real_estate,has_credits,has_sci_company').eq('dossier_id', row.dossier_id),
+      supabase.from('dossier_investisseurs').select('investisseur_id,role_dossier').eq('dossier_id', row.dossier_id).order('role_dossier', { ascending: true }),
       supabase.from('recueil_sections').select('payload').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id).eq('section_code', 'professional').maybeSingle(),
     ]);
     if (sourceError) throw sourceError;
     if (regulatoryError) throw regulatoryError;
     if (contextError) throw contextError;
+    if (memberError) throw memberError;
     if (professionalError) throw professionalError;
     setSources((sourceData ?? []) as SourceDocument[]);
     setRegulatory((regulatoryData ?? []) as RegulatoryDocument[]);
     setContexts((contextData ?? []) as DocumentContext[]);
+    setDossierMembers((memberData ?? []) as DossierMember[]);
     const professionalPayload = (professionalData?.payload ?? {}) as Record<string, unknown>;
     setProfessionalStatus(String(professionalPayload.statut ?? ''));
   };
@@ -154,6 +161,7 @@ export default function ClientDocumentsPage() {
   const selectCategory = (nextCategory: string) => {
     setCategory((current) => current === nextCategory ? '' : nextCategory);
     setIdentityType('');
+    setIdentityOwnerId('');
     setFile(null);
     setMessage('');
     setErrorMessage('');
@@ -162,20 +170,25 @@ export default function ClientDocumentsPage() {
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!progress || !file || !category || progress.transmitted_at) return;
+    const identityTargetId = progress.is_couple ? identityOwnerId : progress.investisseur_id;
+    if (category === 'identite' && !identityTargetId) { setErrorMessage('Sélectionnez Identifiant 1 ou Identifiant 2 avant de transmettre la pièce d’identité.'); return; }
     if (category === 'identite' && !identityType) { setErrorMessage('Sélectionnez le type de pièce d’identité avant de transmettre le fichier.'); return; }
     if (file.size > 20 * 1024 * 1024) { setErrorMessage('Le fichier dépasse la limite de 20 Mo.'); return; }
     setBusy(true); setMessage(''); setErrorMessage('');
     const uploadCategory = category;
     const identityChoice = identityTypes.find((item) => item.value === identityType);
-    const displayedName = uploadCategory === 'identite' && identityChoice ? `${identityChoice.prefix} - ${file.name}` : file.name;
+    const identityMember = dossierMembers.find((item) => item.investisseur_id === identityTargetId);
+    const identityPrefix = identityMember ? memberLabel(identityMember.role_dossier) : 'Identifiant 1';
+    const displayedName = uploadCategory === 'identite' && identityChoice ? `${identityPrefix} - ${identityChoice.prefix} - ${file.name}` : file.name;
     const path = `${progress.dossier_id}/${crypto.randomUUID()}-${safeName(displayedName)}`;
     try {
       const { error: uploadError } = await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).upload(path, file, { upsert: false });
       if (uploadError) throw uploadError;
-      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
+      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: uploadCategory === 'identite' ? identityTargetId : progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
       setIdentityType('');
+      setIdentityOwnerId('');
       setMessage(`${categoryLabel(uploadCategory)} transmis avec succès.`);
       await loadDocuments(progress);
       setCategory('');
@@ -233,6 +246,7 @@ export default function ClientDocumentsPage() {
   const completeContexts = contexts.filter(contextComplete).length;
   const allContextsComplete = completeContexts >= progress.dossier_members_total;
   const categoryCounts = Object.fromEntries(categories.map(([code]) => [code, sources.filter((doc) => doc.categorie === code).length])) as Record<string, number>;
+  const identityReceivedCount = dossierMembers.filter((member) => sources.some((doc) => doc.categorie === 'identite' && doc.investisseur_id === member.investisseur_id)).length;
   const aggregate = {
     tax: contexts.some((item) => item.tax_status === 'personal_notice'),
     liquidities: contexts.some((item) => item.has_liquidities === true),
@@ -243,7 +257,7 @@ export default function ClientDocumentsPage() {
   };
   const conditionalStatus = (required: boolean): RequirementStatus => required ? 'required' : allContextsComplete ? 'optional' : 'conditional';
   const requirements: Requirement[] = [
-    { category: 'identite', label: 'Pièce d’identité', description: `Document officiel en cours de validité avec photographie, pour chaque personne du dossier (${progress.dossier_members_total} au total). CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: categoryCounts.identite ?? 0 },
+    { category: 'identite', label: 'Pièce d’identité', description: `Document officiel en cours de validité avec photographie pour chaque personne du dossier. CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.`, status: 'required', expectedCount: progress.dossier_members_total, receivedCount: identityReceivedCount },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Au moins une personne dispose d’un avis d’imposition personnel ou commun : il est attendu pour l’analyse fiscale.' : 'Il n’est demandé que si vous disposez d’un avis personnel ou commun. Un étudiant rattaché au foyer fiscal de ses parents peut l’indiquer ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'comptes_liquidites', label: 'Comptes courants', description: 'À transmettre si vous détenez un ou plusieurs comptes courants à intégrer à l’analyse patrimoniale.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
@@ -328,30 +342,27 @@ export default function ClientDocumentsPage() {
                     </div>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
+                  {item.category === 'identite' && dossierMembers.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{dossierMembers.map((member) => { const received = sources.some((doc) => doc.categorie === 'identite' && doc.investisseur_id === member.investisseur_id); return <span key={member.investisseur_id} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${received ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{memberLabel(member.role_dossier)} : {received ? 'reçu' : 'à transmettre'}</span>; })}</div>}
                 </button>
 
                 {active && !transmitted && <form onSubmit={upload} className="border-t border-blue-100 bg-white px-4 py-4 sm:px-5">
-                  {item.category === 'identite' && <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-900">Quel document d’identité transmettez-vous ? *</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      {identityTypes.map((choice) => <button key={choice.value} type="button" onClick={() => { setIdentityType(choice.value); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityType === choice.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{choice.label}</button>)}
-                    </div>
-                    <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm leading-6 text-slate-600">
-                      <strong className="text-slate-900">Document en cours de validité obligatoire.</strong>{selectedIdentity ? ` ${selectedIdentity.help}` : ' Sélectionnez le type de document pour afficher les faces à transmettre.'}
-                    </div>
+                  {item.category === 'identite' && <div className="mb-4 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    {progress.is_couple && <div><p className="text-sm font-semibold text-slate-900">À qui appartient cette pièce d’identité ? *</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{dossierMembers.map((member) => <button key={member.investisseur_id} type="button" onClick={() => { setIdentityOwnerId(member.investisseur_id); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityOwnerId === member.investisseur_id ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{memberLabel(member.role_dossier)}</button>)}</div></div>}
+                    <div><p className="text-sm font-semibold text-slate-900">Quel document d’identité transmettez-vous ? *</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{identityTypes.map((choice) => <button key={choice.value} type="button" onClick={() => { setIdentityType(choice.value); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityType === choice.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{choice.label}</button>)}</div></div>
+                    <div className="rounded-xl bg-white px-3 py-3 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Document en cours de validité obligatoire.</strong>{selectedIdentity ? ` ${selectedIdentity.help}` : ' Sélectionnez le type de document pour afficher les faces à transmettre.'}</div>
                   </div>}
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <label className="text-sm font-semibold text-slate-700">{item.category === 'identite' ? 'Fichier complet de la pièce d’identité' : 'Sélectionner le fichier'}
-                      <input type="file" required disabled={item.category === 'identite' && !identityType} onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
+                      <input type="file" required disabled={item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId))} onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
                     </label>
-                    <button type="submit" disabled={busy || !file || (item.category === 'identite' && !identityType)} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre</button>
+                    <button type="submit" disabled={busy || !file || (item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId)))} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} Transmettre</button>
                   </div>
                   <div className="mt-3"><SecureNote>{item.category === 'identite' ? 'PDF, JPG ou PNG recommandé. Le document doit être lisible, complet, non tronqué et en cours de validité. Pour une CNI ou un titre de séjour : recto + verso.' : 'PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.'}</SecureNote></div>
                 </form>}
 
                 {itemDocs.length > 0 && <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Déjà transmis</p>
-                  <div className="mt-2 space-y-2">{itemDocs.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5"><p className="min-w-0 truncate text-sm font-medium text-slate-700">{doc.nom_fichier}</p><div className="flex shrink-0 items-center gap-1.5">{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}{!transmitted && <button type="button" disabled={deletingId === doc.id} onClick={() => void deleteSource(doc)} className="rounded-lg border border-red-100 p-2 text-red-500 hover:bg-red-50 disabled:opacity-40" title="Supprimer">{deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>}</div></div>)}</div>
+                  <div className="mt-2 space-y-2">{itemDocs.map((doc) => { const owner = item.category === 'identite' ? dossierMembers.find((member) => member.investisseur_id === doc.investisseur_id) : undefined; return <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-700">{doc.nom_fichier}</p>{owner && <p className="mt-0.5 text-xs font-semibold text-slate-500">{memberLabel(owner.role_dossier)}</p>}</div><div className="flex shrink-0 items-center gap-1.5">{doc.storage_path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || SOURCE_DOCUMENTS_BUCKET, doc.storage_path!)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Ouvrir"><Download className="h-4 w-4" /></button>}{!transmitted && <button type="button" disabled={deletingId === doc.id} onClick={() => void deleteSource(doc)} className="rounded-lg border border-red-100 p-2 text-red-500 hover:bg-red-50 disabled:opacity-40" title="Supprimer">{deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button>}</div></div>; })}</div>
                 </div>}
               </div>;
             })}
