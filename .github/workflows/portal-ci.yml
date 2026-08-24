@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [feature/portail-client-cgp]
+    branches: [main, feature/portail-client-cgp]
 
 jobs:
   quality:
