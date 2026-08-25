@@ -158,6 +158,9 @@ assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir
 assert.doesNotMatch(journeyBase, /financial-section|financial-choice--selected/, 'La présentation historique de l’onglet Financier doit rester inchangée');
 assert.match(journeyBase, /montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus/, 'La question d’encours doit préciser qu’elle porte sur toutes les catégories sélectionnées');
 assert.match(journeyBase, /Un seul total est demandé, toutes catégories confondues/, 'La question d’encours ne doit pas sembler liée à la dernière catégorie cochée');
+assert.match(journeyBase, /Quels autres placements détenez-vous \?/, 'Les autres placements doivent être demandés sous forme de question');
+assert.match(journeyBase, /Cryptoactifs[\s\S]{0,500}Parts de société non cotée[\s\S]{0,500}Financement participatif/, 'Les autres placements doivent proposer des choix simples');
+assert.doesNotMatch(journeyBase, /label="Précisez les autres placements"/, 'Les autres placements ne doivent plus reposer sur un champ libre unique');
 assert.match(journeyBase, /real-estate-section space-y-6"/, 'Immobilier doit utiliser directement le fond bleu nuit commun aux autres onglets');
 assert.match(journeyBase, /group-open:hidden[\s\S]{0,220}hidden group-open:inline[\s\S]{0,80}Bien immobilier/, 'Le résumé du bien ne doit apparaître que lorsque la fiche est repliée');
 assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
