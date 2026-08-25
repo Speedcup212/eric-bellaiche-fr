@@ -77,23 +77,32 @@ const initial: Record<SectionCode, AnyPayload> = {
   credits: { items: [] },
 };
 
-function Field({ label, value, onChange, type = 'text', required = false, placeholder = '', help = '' }: { label: string; value: any; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; help?: string }) {
+function Field({ label, value, onChange, type = 'text', required = false, placeholder = '', help = '', options }: { label: string; value: any; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; help?: string; options?: string[] }) {
   const choice = choiceFields[label];
+  const optionList = useMemo(() => options ?? choice?.options ?? [], [choice, options]);
+  const normalizedValue = value === null || value === undefined ? '' : String(value);
+  const isCustomValue = normalizedValue !== '' && Boolean(choice) && !optionList.includes(normalizedValue);
+  const [customMode, setCustomMode] = useState(isCustomValue);
+
+  useEffect(() => {
+    if (isCustomValue) setCustomMode(true);
+    else if (normalizedValue && optionList.includes(normalizedValue)) setCustomMode(false);
+  }, [isCustomValue, normalizedValue, optionList]);
+
   if (choice) {
-    const normalizedValue = value === null || value === undefined ? '' : String(value);
-    const isCustomValue = normalizedValue !== '' && !choice.options.includes(normalizedValue);
     const isCivility = label === 'Civilité';
     const isPropertyOwner = label === 'Propriétaire du bien';
     return <div className="text-sm font-semibold text-slate-700">
       <p>{label}{required && ' *'}</p>
       <div className={`mt-2 gap-2 ${isCivility ? 'grid grid-cols-2' : isPropertyOwner ? 'grid grid-cols-3' : 'flex flex-wrap'}`}>
-        {choice.options.map((option) => <button key={option} type="button" onClick={() => onChange(option)} className={`${isCivility || isPropertyOwner ? 'w-full min-w-0' : 'min-w-[8.5rem]'} ${isPropertyOwner ? 'whitespace-nowrap px-2 text-xs sm:px-3 sm:text-sm' : 'px-3.5 text-sm'} rounded-xl border py-2.5 font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}
+        {optionList.map((option) => <button key={option} type="button" onClick={() => { setCustomMode(false); onChange(option); }} className={`${isCivility || isPropertyOwner ? 'w-full min-w-0' : 'min-w-[8.5rem]'} ${isPropertyOwner ? 'px-2 text-xs sm:px-3 sm:text-sm' : 'px-3.5 text-sm'} rounded-xl border py-2.5 font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}
+        {choice.allowCustom && <button type="button" onClick={() => { setCustomMode(true); if (!isCustomValue) onChange(''); }} className={`min-w-[8.5rem] rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${customMode ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-[#E2E8F0] bg-white text-slate-700'}`}>Autre</button>}
       </div>
-      {choice.allowCustom && <input type={type} value={isCustomValue ? normalizedValue : ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || 'Autre / précisez'} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />}
+      {choice.allowCustom && customMode && <input autoFocus type={type} value={isCustomValue ? normalizedValue : ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || 'Autre / précisez'} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />}
       {help && <span className="mt-2 block text-xs font-normal leading-5 text-[#94A3B8]">{help}</span>}
     </div>;
   }
-  return <label className="text-sm font-semibold text-slate-700">{label}{required && ' *'}<input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />{help && <span className="mt-2 block text-xs font-normal leading-5 text-[#94A3B8]">{help}</span>}</label>;
+  return <label className="text-sm font-semibold text-slate-700">{label}{required && ' *'}<input type={type} min={type === 'number' ? 0 : undefined} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />{help && <span className="mt-2 block text-xs font-normal leading-5 text-[#94A3B8]">{help}</span>}</label>;
 }
 
 function BoolChoice({ label, value, onChange, required = true, help = '', yesLabel = 'Oui', noLabel = 'Non' }: { label: string; value: boolean | ''; onChange: (value: boolean) => void; required?: boolean; help?: React.ReactNode; yesLabel?: string; noLabel?: string }) {
@@ -194,6 +203,11 @@ function ReadOnlyField({ label, value, help }: { label: string; value: string; h
   return <label className="text-sm font-semibold text-slate-700">{label}<input type="email" readOnly value={value} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none" />{help && <span className="mt-1.5 block text-xs font-normal leading-5 text-blue-100">{help}</span>}</label>;
 }
 function isBlank(value: unknown): boolean { return value === null || value === undefined || String(value).trim() === ''; }
+function isNonNegativeNumber(value: unknown): boolean {
+  if (isBlank(value)) return false;
+  const number = Number(String(value).replace(',', '.').trim());
+  return Number.isFinite(number) && number >= 0;
+}
 function isValidMobile(value: unknown): boolean {
   const compact = String(value ?? '').trim().replace(/[\s().-]/g, '');
   const digits = compact.replace(/\D/g, '');
@@ -238,6 +252,14 @@ export default function ClientRecueilJourneyPage() {
   const professionalNeedsEmployer = !professionalIsInactive;
   const professionalNeedsIncomeOrigin = professionalStatus.includes('sans activité') || professionalStatus.includes('sans activite');
   const professionalNeedsChangeQuestion = !professionalStatus.includes('retrait');
+  const propertyOwnerOptions = !progress?.is_couple
+    ? ['Identifiant 1']
+    : progress.role_dossier === 'investisseur_2'
+      ? ['Identifiant 2']
+      : ['Identifiant 1 et 2', 'Identifiant 1'];
+  const familySituationOptions = progress?.is_couple
+    ? ['Marié', 'Pacsé', 'Concubinage']
+    : ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Veuve'];
 
   const patch = (code: SectionCode, values: AnyPayload) => setForms((state) => ({ ...state, [code]: { ...state[code], ...values } }));
   const patchCurrent = (values: AnyPayload) => { setErrorMessage(''); patch(current.code, values); };
@@ -285,12 +307,15 @@ export default function ClientRecueilJourneyPage() {
   const validateSection = () => {
     if (current.code === 'identity') {
       if ([form.civilite, form.prenom, form.nom, form.date_naissance, form.lieu_naissance, form.pays_naissance, form.nationalite, form.mobile].some(isBlank)) throw new Error('Complétez tous les champs obligatoires de votre identité.');
+      if (new Date(`${form.date_naissance}T00:00:00`) > new Date()) throw new Error('La date de naissance ne peut pas être dans le futur.');
       if (!isValidMobile(form.mobile)) throw new Error('Indiquez un numéro de mobile valide. Les numéros fictifs comme 0000000000 sont refusés.');
       if (identityNeedsBirthName && isBlank(form.nom_naissance)) throw new Error('Indiquez votre nom de naissance. Ce champ est obligatoire lorsque la civilité est Mme.');
       if ([form.address?.numero_voie, form.address?.code_postal, form.address?.ville, form.address?.pays, form.address?.type_logement].some(isBlank)) throw new Error('Complétez tous les champs obligatoires de votre adresse fiscale.');
     }
     if (current.code === 'family') {
       if (isBlank(form.situation) || isBlank(form.nombre_enfants)) throw new Error('Renseignez votre situation familiale et le nombre d’enfants.');
+      if (!familySituationOptions.includes(String(form.situation))) throw new Error(progress?.is_couple ? 'Pour ce dossier couple, choisissez Marié, Pacsé ou Concubinage.' : 'Pour ce dossier individuel, choisissez Célibataire, Divorcé, Séparé ou Veuf / Veuve.');
+      if (!Number.isInteger(Number(form.nombre_enfants)) || Number(form.nombre_enfants) < 0) throw new Error('Le nombre d’enfants doit être un nombre entier positif ou nul.');
       if (familyNeedsEventDate && isBlank(form.date_evenement)) throw new Error(`Indiquez la ${familyEventLabel.toLowerCase()} (mois / année).`);
       if (familyNeedsConvention && isBlank(form.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez le régime / la convention.');
     }
@@ -310,6 +335,7 @@ export default function ClientRecueilJourneyPage() {
     }
     if (current.code === 'capacity') {
       if ([form.estimation_revenus_travail_annuels, form.estimation_revenus_fonciers_annuels, form.epargne_precaution_cible, form.capacite_epargne_mensuelle].some(isBlank)) throw new Error('Renseignez vos revenus estimés, votre épargne de précaution et votre capacité d’épargne. Indiquez 0 lorsqu’un montant est nul.');
+      if ([form.estimation_revenus_travail_annuels, form.estimation_revenus_fonciers_annuels, form.epargne_precaution_cible, form.capacite_epargne_mensuelle].some((value) => !isNonNegativeNumber(value)) || (!isBlank(form.apport_immobilier_possible) && !isNonNegativeNumber(form.apport_immobilier_possible))) throw new Error('Les montants de revenus, d’épargne et d’apport doivent être positifs ou nuls.');
     }
     if (current.code === 'tax') {
       if ([form.annee_imposition, form.revenu_imposable, form.revenu_fiscal_reference, form.nombre_parts, form.tmi, form.impot_revenu_net].some(isBlank)) throw new Error('Complétez les principales données fiscales obligatoires. Indiquez 0 lorsqu’un montant est nul.');
@@ -328,12 +354,19 @@ export default function ClientRecueilJourneyPage() {
         if (!Array.isArray(form.immobilier) || form.immobilier.length === 0) throw new Error('Ajoutez au moins un bien immobilier.');
         for (const item of form.immobilier ?? []) {
           if ([item.intitule, item.type_bien, item.usage, item.proprietaire, item.mode_detention, item.valeur_actuelle, item.ville].some(isBlank)) throw new Error('Complétez le nom et les informations principales de chaque bien immobilier.');
+          if (!isNonNegativeNumber(item.valeur_actuelle) || Number(String(item.valeur_actuelle).replace(',', '.')) === 0) throw new Error('La valeur estimée actuelle du bien doit être supérieure à 0 €.');
+          if (!isBlank(item.prix_acquisition) && !isNonNegativeNumber(item.prix_acquisition)) throw new Error('Le prix d’acquisition doit être positif ou nul.');
+          if (!isBlank(item.date_acquisition)) {
+            const year = Number(item.date_acquisition);
+            if (!/^\d{4}$/.test(String(item.date_acquisition)) || year < 1800 || year > new Date().getFullYear()) throw new Error(`L’année d’acquisition doit être comprise entre 1800 et ${new Date().getFullYear()}.`);
+          }
           if (item.type_bien === 'Autre' && isBlank(item.type_bien_autre)) throw new Error('Précisez le type du bien immobilier.');
           if (item.usage === 'Autre' && isBlank(item.usage_autre)) throw new Error('Précisez l’usage du bien immobilier.');
           if (item.mode_detention === 'Autre' && isBlank(item.mode_detention_autre)) throw new Error('Précisez comment le bien immobilier est détenu.');
           const quotePartValue = Number(String(item.quote_part ?? '').replace(',', '.').replace('%', '').trim());
           if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(item.quote_part) || !Number.isFinite(quotePartValue) || quotePartValue <= 0 || quotePartValue >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
           if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) throw new Error('Indiquez le loyer annuel hors charges pour chaque bien locatif.');
+          if (item.usage === 'Locatif' && !isNonNegativeNumber(item.loyer_annuel)) throw new Error('Le loyer annuel hors charges doit être positif ou nul.');
         }
       }
     }
@@ -366,7 +399,8 @@ export default function ClientRecueilJourneyPage() {
     setErrorMessage('');
     try {
       await saveCurrent();
-      if (step < sections.length - 1) { setStep(step + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      const nextIncomplete = sections.findIndex((section, index) => index !== step && !doneSections.has(section.code));
+      if (nextIncomplete >= 0) { setStep(nextIncomplete); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
       const refreshed = await fetchPortalProgress();
@@ -386,7 +420,7 @@ export default function ClientRecueilJourneyPage() {
   const previous = () => {
     setErrorMessage('');
     if (!progress) return;
-    if (step === 0) navigate(dossierHref('/espace-client', progress.dossier_id)); else { setStep(step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (step === 0) navigate(dossierHref('/espace-client', progress.dossier_id)); else { setStep(progress.role_dossier === 'investisseur_2' && step === 2 ? 0 : step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
@@ -415,7 +449,7 @@ export default function ClientRecueilJourneyPage() {
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} substep={{ current: step + 1, total: sections.length, label: current.title }} />
     {current.code !== 'patrimony' && <PageIntro variant="recueil" eyebrow={`Étape 1 · Partie ${step + 1}/${sections.length}`} title={current.title} description={current.description} />}
     <WizardCard>
-      <div className="border-b border-white/10 px-6 py-4 sm:px-9"><div className="flex flex-wrap gap-2">{sections.map((section, index) => <button key={section.code} type="button" onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Réglementaire', 'Patrimoine'][index]}</button>)}</div></div>
+      <div className="border-b border-white/10 px-6 py-4 sm:px-9"><div className="flex flex-wrap gap-2">{sections.map((section, index) => { const familyLocked = section.code === 'family' && progress.role_dossier === 'investisseur_2'; return <button key={section.code} type="button" disabled={familyLocked} title={familyLocked ? 'Informations communes gérées par l’Identifiant 1' : undefined} onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Réglementaire', 'Patrimoine'][index]}</button>; })}</div></div>
       <div className="space-y-10 px-6 py-9 sm:px-9 sm:py-12">
         {current.code === 'identity' && <><div className="recueil-question-grid recueil-question-grid--3 grid gap-x-5 gap-y-7 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-8"><Field label="Civilité" required value={form.civilite} onChange={(v) => patchCurrent({ civilite: v })} /><Field label="Prénom" required value={form.prenom} onChange={(v) => patchCurrent({ prenom: v })} /><Field label="Nom" required value={form.nom} onChange={(v) => patchCurrent({ nom: v })} /><Field label="Nom de naissance" required={identityNeedsBirthName} value={form.nom_naissance} onChange={(v) => patchCurrent({ nom_naissance: v })} placeholder="Nom figurant sur votre acte de naissance" /><Field label="Date de naissance" required type="date" value={form.date_naissance} onChange={(v) => patchCurrent({ date_naissance: v })} /><Field label="Lieu de naissance" required value={form.lieu_naissance} onChange={(v) => patchCurrent({ lieu_naissance: v })} /><Field label="Pays de naissance" required value={form.pays_naissance} onChange={(v) => patchCurrent({ pays_naissance: v })} /><Field label="Nationalité" required value={form.nationalite} onChange={(v) => patchCurrent({ nationalite: v })} /><Field label="Mobile" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder="06 12 34 56 78 ou +33 6 12 34 56 78" />{accountEmail && <ReadOnlyField label="E-mail *" value={accountEmail} help="Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie." />}</div><div className="border-t border-slate-100 pt-7"><h3 className="font-semibold text-slate-900">Adresse fiscale</h3><div className="mt-4 recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="N° et voie" required value={form.address?.numero_voie} onChange={(v) => patchCurrent({ address: { ...form.address, numero_voie: v } })} /><Field label="Complément" value={form.address?.complement} onChange={(v) => patchCurrent({ address: { ...form.address, complement: v } })} /><Field label="Code postal" required value={form.address?.code_postal} onChange={(v) => patchCurrent({ address: { ...form.address, code_postal: v } })} /><Field label="Ville" required value={form.address?.ville} onChange={(v) => patchCurrent({ address: { ...form.address, ville: v } })} /><Field label="Pays" required value={form.address?.pays} onChange={(v) => patchCurrent({ address: { ...form.address, pays: v } })} /><Field label="Type de logement" required value={form.address?.type_logement} onChange={(v) => patchCurrent({ address: { ...form.address, type_logement: v } })} /></div></div></>}
 
@@ -487,7 +521,7 @@ export default function ClientRecueilJourneyPage() {
             {(form.immobilier ?? []).map((item: AnyPayload, index: number) => <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-800 shadow-sm sm:p-6">
               <div className="mb-5 flex items-center justify-between gap-3"><div><h4 className="font-semibold text-slate-900">Bien immobilier {index + 1}{item.intitule ? ` — ${item.intitule}` : ''}</h4></div><button type="button" onClick={() => { if (window.confirm(`Supprimer définitivement le bien ${index + 1} ?`)) removeList('immobilier', index); }} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>
               <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8">
-                <Field label="Propriétaire du bien" required value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision' ? item.quote_part : '100' })} help="Choisissez « Identifiant 1 et 2 » si le bien appartient aux deux personnes du dossier." />
+                <Field label="Propriétaire du bien" required options={propertyOwnerOptions} value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision' ? item.quote_part : '100' })} help={progress.is_couple && progress.role_dossier === 'investisseur_1' ? 'Les biens communs du couple sont saisis ici une seule fois par l’Identifiant 1.' : progress.is_couple ? 'Ajoutez uniquement vos biens personnels. Les biens communs ont déjà été saisis par l’Identifiant 1.' : 'Ce dossier concerne une seule personne.'} />
                 <div className="sm:col-span-2"><Field label="Nom du bien" required value={item.intitule ?? ''} onChange={(v) => updateList('immobilier', index, { intitule: v })} placeholder="Ex. Maison principale, Appartement Grenoble, Studio locatif Lyon…" help="Donnez un nom simple qui permettra d’identifier facilement ce bien dans votre dossier." /></div>
                 <div><Field label="Type de bien" required value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v, type_bien_autre: v === 'Autre' ? item.type_bien_autre : '' })} />{item.type_bien === 'Autre' && <div className="mt-3"><Field label="Précisez le type de bien" required value={item.type_bien_autre} onChange={(v) => updateList('immobilier', index, { type_bien_autre: v })} /></div>}</div>
                 <div><Field label="Usage" required value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_annuel: v === 'Locatif' ? item.loyer_annuel : '' })} />{item.usage === 'Autre' && <div className="mt-3"><Field label="Précisez l’usage" required value={item.usage_autre} onChange={(v) => updateList('immobilier', index, { usage_autre: v })} /></div>}</div>

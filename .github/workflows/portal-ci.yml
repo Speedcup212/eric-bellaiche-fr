@@ -21,6 +21,8 @@ jobs:
         run: npm ci
       - name: Portal runtime safety
         run: npm run test:portal-safety
+      - name: Recueil crash test (100 dossiers)
+        run: npm run test:recueil-100
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal

@@ -110,6 +110,6 @@ export function selectedProgress(
   dossierId: string | null,
 ): PortalProgress | null {
   if (rows.length === 0) return null;
-  if (!dossierId) return rows[0];
+  if (!dossierId) return rows.length === 1 ? rows[0] : null;
   return rows.find((row) => row.dossier_id === dossierId) ?? null;
 }

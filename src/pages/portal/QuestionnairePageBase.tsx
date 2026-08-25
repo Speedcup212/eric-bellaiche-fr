@@ -312,6 +312,19 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     } else navigate(dossierHref(mode === 'QPI' ? '/espace-client/recueil' : '/espace-client/profil-investisseur', progress.dossier_id));
   };
 
+  const selectSingleAnswer = async (question: QuestionRow, option: OptionRow) => {
+    await upsertQuestionAnswer(question, { option_id: option.id });
+    const needsDetails = ['Q4', 'Q5', 'Q10'].includes(question.code)
+      || (['ESG_SCOPE', 'ESG_TAX_MIN', 'ESG_SFDR_MIN'].includes(question.code) && option.code === 'AUTRE');
+    if (!needsDetails && currentIndex < totalSteps - 1) {
+      window.setTimeout(() => {
+        setCurrentIndex((index) => Math.min(index + 1, totalSteps - 1));
+        setNoteOpen(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 160);
+    }
+  };
+
   if (!progress) return <p className="text-sm text-slate-500">Chargement du questionnaire…</p>;
 
   if (done) {
@@ -377,7 +390,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     <WizardCard>
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
-        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{displayedOptions(currentQuestion).map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void upsertQuestionAnswer(currentQuestion, { option_id: option.id }).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
+        {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{displayedOptions(currentQuestion).map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void selectSingleAnswer(currentQuestion, option).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
 
         {currentQuestion?.type_reponse === 'multiple' && <div className="grid gap-3 sm:grid-cols-2">{currentQuestion.options?.map((option) => {
           const selected = (multi[currentQuestion.id] ?? []).includes(option.code);

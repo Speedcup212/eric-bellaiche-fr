@@ -39,6 +39,20 @@ const individualSituations = ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Ve
 const coupleSituations = ['Marié', 'Pacsé', 'Concubinage'];
 const regimes = ['Communauté réduite aux acquêts', 'Communauté universelle', 'Séparation de biens', 'Participation aux acquêts', 'PACS - séparation des patrimoines', 'PACS - indivision', 'Sans convention / non applicable'];
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
+}
+
+function isValidMobile(value: string): boolean {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  const digits = compact.replace(/\D/g, '');
+  if (!digits || ['0000000000', '0123456789', '1234567890'].includes(digits)) return false;
+  if (/^(\d)\1+$/.test(digits) && digits.length >= 8) return false;
+  if (/^0[67]\d{8}$/.test(compact)) return true;
+  if (/^\+33[67]\d{8}$/.test(compact)) return true;
+  return /^\+[1-9]\d{7,14}$/.test(compact);
+}
+
 export default function ClientRecueilJourneyPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -100,6 +114,16 @@ export default function ClientRecueilJourneyPage() {
     return () => { active = false; };
   }, [dossierId]);
 
+  useEffect(() => {
+    if (!errorMessage || familyReady) return;
+    const timer = window.setTimeout(() => {
+      const alert = document.getElementById('family-setup-alert');
+      alert?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      alert?.focus({ preventScroll: true });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [errorMessage, familyReady]);
+
   const edit = async () => {
     if (!progress || progress.transmitted_at) return;
     setBusy(true);
@@ -137,10 +161,14 @@ export default function ClientRecueilJourneyPage() {
     try {
       if (!family.dossier_scope) throw new Error('Indiquez si ce dossier concerne une personne ou un couple.');
       if (!family.situation || family.nombre_enfants === '') throw new Error('Indiquez votre situation familiale et le nombre d’enfants.');
+      const childCount = Number(family.nombre_enfants);
+      if (!Number.isInteger(childCount) || childCount < 0) throw new Error('Le nombre d’enfants doit être un nombre entier positif ou nul.');
       if (legalDetailsRequired && (!family.date_evenement || !family.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez la date et le régime / la convention.');
       if (isCouple && (!family.conjoint_civilite || !family.conjoint_prenom.trim() || !family.conjoint_nom.trim() || !family.conjoint_email.trim())) {
         throw new Error('Complétez les informations de la deuxième personne : civilité, prénom, nom et email personnel.');
       }
+      if (isCouple && !isValidEmail(family.conjoint_email)) throw new Error('Indiquez une adresse email personnelle valide pour la deuxième personne.');
+      if (isCouple && family.conjoint_mobile.trim() && !isValidMobile(family.conjoint_mobile)) throw new Error('Indiquez un numéro de mobile valide pour la deuxième personne, ou laissez ce champ vide.');
 
       const payload = {
         dossier_scope: family.dossier_scope,
@@ -160,16 +188,9 @@ export default function ClientRecueilJourneyPage() {
         conjoint_mobile: isCouple ? family.conjoint_mobile.trim() : '',
       };
 
-      const { error: familyError } = await supabase.rpc('save_my_recueil_section', {
+      const { error: familyError } = await supabase.rpc('save_my_family_setup', {
         p_dossier_id: progress.dossier_id,
-        p_section_code: 'family',
         p_payload: payload,
-        p_completed: true,
-      });
-      if (familyError) throw familyError;
-
-      const { error: spouseError } = await supabase.rpc('sync_my_spouse_from_family', {
-        p_dossier_id: progress.dossier_id,
         p_situation: isCouple ? family.situation : 'individuel',
         p_civilite: isCouple ? family.conjoint_civilite : null,
         p_prenom: isCouple ? family.conjoint_prenom.trim() : null,
@@ -177,7 +198,7 @@ export default function ClientRecueilJourneyPage() {
         p_email: isCouple ? family.conjoint_email.trim().toLowerCase() : null,
         p_mobile: isCouple ? family.conjoint_mobile.trim() || null : null,
       });
-      if (spouseError) throw spouseError;
+      if (familyError) throw familyError;
 
       setFamilyReady(true);
     } catch (error) {
@@ -197,8 +218,8 @@ export default function ClientRecueilJourneyPage() {
       <PageIntro variant="recueil" eyebrow="Étape 1" title="Qui est concerné par ce dossier ?" description="Ce choix détermine le nombre de personnes à accompagner et donc le nombre de profils investisseurs et de questionnaires individuels à compléter." icon={<UsersRound className="h-5 w-5" />} />
       <WizardCard className="p-6 sm:p-8">
         <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
-          <p className="text-base font-semibold text-[#0B1F3A]">Temps estimé : environ 45 minutes</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">C’est le temps moyen nécessaire pour compléter l’ensemble du questionnaire. Vous pouvez interrompre le parcours et le reprendre à tout moment.</p>
+          <p className="text-base font-semibold text-[#0B1F3A]">Temps moyen : 20 à 25 minutes par personne</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Le parcours s’enregistre au fur et à mesure. Vous pouvez l’interrompre et le reprendre à tout moment.</p>
         </div>
 
         <p className="text-sm font-semibold text-slate-800">Ce dossier concerne : *</p>
@@ -246,7 +267,7 @@ export default function ClientRecueilJourneyPage() {
         </>}
 
         {family.dossier_scope === 'individual' && family.situation && <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Dossier individuel.</strong> Un seul profil investisseur et un seul questionnaire individuel seront créés.</div>}
-        {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
+        {errorMessage && <p id="family-setup-alert" role="alert" tabIndex={-1} className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <button type="button" disabled={busy || !family.dossier_scope || !family.situation} onClick={() => void saveFamilySetup()} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-[#2563EB] disabled:opacity-50">{busy ? 'Enregistrement…' : 'Continuer le recueil'}</button>
       </WizardCard>
     </div>;
