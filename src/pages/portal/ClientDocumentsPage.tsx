@@ -88,6 +88,7 @@ export default function ClientDocumentsPage() {
   const [contextBusy, setContextBusy] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [documentView, setDocumentView] = useState<'auto' | 'situation' | 'uploads'>('auto');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const dossierId = searchParams.get('dossier');
@@ -285,6 +286,8 @@ export default function ClientDocumentsPage() {
   const waitingPartner = progress.is_couple && !progress.dossier_ready_for_documents && !transmitted;
   const completeContexts = contexts.filter(contextComplete).length;
   const allContextsComplete = completeContexts >= progress.dossier_members_total;
+  const currentContextComplete = contextComplete(currentContext);
+  const activeDocumentView = transmitted || documentView === 'uploads' || (documentView === 'auto' && currentContextComplete) ? 'uploads' : 'situation';
   const categoryCounts = Object.fromEntries(categories.map(([code]) => [code, sources.filter((doc) => doc.categorie === code).length])) as Record<string, number>;
   const identityReceivedCount = dossierMembers.filter((member) => sources.some((doc) => doc.categorie === 'identite' && doc.investisseur_id === member.investisseur_id)).length;
   const aggregate = {
@@ -331,11 +334,24 @@ export default function ClientDocumentsPage() {
   return (
     <div>
       <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
-      <PageIntro eyebrow="Dernière étape" title="Documents du dossier" description="La liste des pièces attendues s’adapte à votre situation. Les documents marqués « Obligatoire » sont nécessaires pour finaliser le dossier ; les autres ne sont demandés que lorsqu’ils correspondent à votre situation." icon={<UploadCloud className="h-5 w-5" />} />
+      <PageIntro eyebrow="Dernière étape" title="Documents du dossier" description="Deux étapes courtes : précisez votre situation, puis déposez uniquement les justificatifs utiles à votre dossier." icon={<UploadCloud className="h-5 w-5" />} />
       <WizardCard>
         {waitingPartner && <div className="border-b border-amber-200 bg-amber-50 px-6 py-5 sm:px-9"><div className="flex items-start gap-3"><UsersRound className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div><p className="font-semibold text-amber-950">Transmission finale en attente de l’autre personne</p><p className="mt-1 text-sm leading-6 text-amber-800">{progress.dossier_members_ready}/{progress.dossier_members_total} parcours individuels sont terminés. Vous pouvez déjà déposer les justificatifs communs ; le bouton de transmission finale se débloquera automatiquement lorsque les deux parcours seront complets.</p>{!progress.partner_activated && <p className="mt-2 text-sm font-semibold text-amber-900">L’autre personne n’a pas encore activé son accès sécurisé.</p>}</div></div></div>}
 
-        {!transmitted && <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-7 sm:px-9">
+        {!transmitted && <div className="border-b border-slate-200 bg-white px-6 py-4 sm:px-9">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
+            <button type="button" onClick={() => setDocumentView('situation')} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${activeDocumentView === 'situation' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>
+              <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs text-white">1</span>
+              Votre situation
+            </button>
+            <button type="button" onClick={() => setDocumentView('uploads')} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${activeDocumentView === 'uploads' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>
+              <span className={`mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-white ${currentContextComplete ? 'bg-emerald-500' : 'bg-blue-600'}`}>{currentContextComplete ? '✓' : '2'}</span>
+              Justificatifs
+            </button>
+          </div>
+        </div>}
+
+        {!transmitted && activeDocumentView === 'situation' && <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-7 sm:px-9">
           <div className="flex items-start justify-between gap-4">
             <div><h3 className="text-lg font-semibold text-slate-950">Votre situation documentaire</h3><p className="mt-1 text-sm leading-6 text-slate-500">Ces réponses permettent de distinguer automatiquement les pièces obligatoires des pièces facultatives. Elles ne remplacent pas votre recueil patrimonial.</p></div>
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">{completeContexts}/{progress.dossier_members_total} personne{progress.dossier_members_total > 1 ? 's' : ''}</span>
@@ -371,7 +387,7 @@ export default function ClientDocumentsPage() {
           </div>
         </div>}
 
-        <div className="border-b border-slate-200 px-6 py-7 sm:px-9">
+        {activeDocumentView === 'uploads' && <div className="border-b border-slate-200 px-6 py-7 sm:px-9">
           <div className="flex items-center justify-between gap-4"><div><h3 className="text-lg font-semibold text-slate-950">Pièces attendues</h3><p className="mt-1 text-sm text-slate-500">Cliquez sur « Importer » au niveau de la pièce concernée. La catégorie est sélectionnée automatiquement.</p></div>{missingRequired.length === 0 && allContextsComplete && <CheckCircle2 className="h-6 w-6 text-emerald-600" />}</div>
           {message && <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
           {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
@@ -417,17 +433,22 @@ export default function ClientDocumentsPage() {
               </div>;
             })}
           </div>
-        </div>
+        </div>}
 
         {transmitted && <div className="px-6 py-7 sm:px-9 sm:py-9"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Dossier déjà transmis</p><p className="mt-1 text-sm leading-6">Les justificatifs sont désormais figés afin de préserver la traçabilité de la transmission.</p></div></div>}
 
-        <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-6 sm:px-9">
+        {activeDocumentView === 'uploads' && <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-6 sm:px-9">
           <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents du dossier</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} enregistré${sources.length > 1 ? 's' : ''} dans le dossier commun.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>
-        </div>
+        </div>}
 
-        {!transmitted && <div>
+        {!transmitted && activeDocumentView === 'situation' && <div>
+          {!currentContextComplete && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">Répondez aux questions obligatoires pour obtenir la liste exacte de vos justificatifs.</div>}
+          <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => setDocumentView('uploads')} previousLabel="Précédent" nextLabel="Voir mes justificatifs" nextDisabled={!currentContextComplete} busy={contextBusy} />
+        </div>}
+
+        {!transmitted && activeDocumentView === 'uploads' && <div>
           {finalBlocked && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">{waitingPartner ? 'La transmission reste en attente de l’autre parcours individuel.' : !allContextsComplete ? 'Chaque personne doit d’abord préciser sa situation documentaire, y compris le motif si elle ne dispose pas encore d’un avis d’imposition.' : `Pièce${missingRequired.length > 1 ? 's' : ''} obligatoire${missingRequired.length > 1 ? 's' : ''} manquante${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.map((item) => item.label).join(', ')}.`}</div>}
-          <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => void finish()} previousLabel="Précédent" nextLabel={finalBlocked ? 'Dossier incomplet' : 'Finaliser et transmettre le dossier'} nextDisabled={finalBlocked} busy={finishBusy} />
+          <WizardFooter onPrevious={() => setDocumentView('situation')} onNext={() => void finish()} previousLabel="Modifier ma situation" nextLabel={finalBlocked ? 'Dossier incomplet' : 'Finaliser et transmettre le dossier'} nextDisabled={finalBlocked} busy={finishBusy} />
         </div>}
       </WizardCard>
       {regulatory.length > 0 && <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><p className="text-sm font-semibold text-slate-800">Documents réglementaires disponibles</p></div><div className="mt-3 space-y-2">{regulatory.map((doc) => { const path = doc.storage_path_pdf || doc.storage_path_docx; return <div key={doc.id} className="flex items-center justify-between text-sm"><span className="capitalize text-slate-600">{doc.type_document.replaceAll('_', ' ')}</span>{path && <button type="button" onClick={() => void openPrivateFile(doc.storage_bucket || REGULATORY_DOCUMENTS_BUCKET, path)} className="inline-flex items-center gap-1.5 font-semibold text-slate-800"><Download className="h-4 w-4" /> Ouvrir</button>}</div>; })}</div></div>}
