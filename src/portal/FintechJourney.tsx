@@ -34,7 +34,7 @@ function publishJourneyContext(detail: JourneyContextDetail) {
   window.dispatchEvent(new CustomEvent<JourneyContextDetail>(journeyContextEvent, { detail }));
 }
 
-export function JourneyProgress({ current, esgEnabled = true, substep }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep }) {
+export function JourneyProgress({ current, esgEnabled = true, substep, sticky = true }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep; sticky?: boolean }) {
   const [detectedSubstep, setDetectedSubstep] = useState<JourneySubstep | null>(null);
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
   const currentIndex = Math.max(0, visible.findIndex((stage) => stage.key === current));
@@ -58,7 +58,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep }: { curre
   }, [current]);
 
   return (
-    <div className="sticky top-[72px] z-40 mb-6 rounded-2xl border border-[#cbd8e7] bg-white/95 p-3 shadow-[0_14px_36px_-24px_rgba(11,31,58,0.55)] backdrop-blur-xl sm:p-4">
+    <div className={`${sticky ? 'sticky top-[72px] z-40' : 'relative z-10'} mb-6 rounded-2xl border border-[#cbd8e7] bg-white/95 p-3 shadow-[0_14px_36px_-24px_rgba(11,31,58,0.55)] backdrop-blur-xl sm:p-4`}>
       <div className="flex items-start justify-between gap-4 px-1 pb-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6f8198]">Étape {currentIndex + 1} sur {visible.length} · {activeStage?.label}</p>

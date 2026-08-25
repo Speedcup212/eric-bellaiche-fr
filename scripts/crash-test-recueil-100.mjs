@@ -143,6 +143,9 @@ assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire do
 assert.match(journeyBase, /Six réponses essentielles par bien/, 'La fiche immobilière doit annoncer son format court');
 assert.match(journeyBase, /Ajouter des précisions[\s\S]{0,100}\(facultatif\)/, 'Les données immobilières secondaires doivent rester facultatives');
 assert.match(journeyBase, /collection_mode: 'real_estate_quick'/, 'La sauvegarde doit tracer le mode de recueil immobilier rapide');
+assert.match(journeyBase, /real-estate-section/, 'La partie immobilière doit disposer de son panneau clair dédié');
+assert.match(journeyBase, /real-estate-card-header/, 'Chaque bien doit avoir une hiérarchie visuelle distincte');
+assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit pas recouvrir la fiche immobilière pendant le défilement');
 assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
