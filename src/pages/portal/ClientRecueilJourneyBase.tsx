@@ -636,9 +636,9 @@ export default function ClientRecueilJourneyPage() {
 
           {(form.categories ?? []).includes('other') && <Field label="Précisez les autres placements" required value={form.other_details} onChange={(v) => patchCurrent({ other_details: v, completeness_confirmed: false })} placeholder="Ex. parts de société, cryptoactifs, actifs détenus à l’étranger…" />}
 
-          {(form.categories ?? []).length > 0 && !(form.categories ?? []).includes('none') && <fieldset>
-            <legend className="text-sm font-semibold text-slate-700">À combien estimez-vous l’ensemble de ces avoirs ? *</legend>
-            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Une fourchette suffit. Additionnez les comptes personnels et, le cas échéant, les comptes joints déclarés ici.</p>
+          {(form.categories ?? []).length > 0 && !(form.categories ?? []).includes('none') && <fieldset className="border-t border-white/10 pt-5">
+            <legend className="text-sm font-semibold text-slate-700">Quel est le montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus ? *</legend>
+            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]"><strong className="font-semibold text-[#CBD5E1]">Un seul total est demandé, toutes catégories confondues.</strong> Une fourchette suffit : additionnez les comptes personnels et, le cas échéant, les comptes joints déclarés ici.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialTotalBands.map(([code, label]) => <button key={code} type="button" aria-pressed={form.total_band === code} onClick={() => patchCurrent({ total_band: code, completeness_confirmed: false })} className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.total_band === code ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{label}</button>)}</div>
           </fieldset>}
 
