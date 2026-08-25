@@ -145,6 +145,9 @@ assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estat
 assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation documentaire doit être isolée dans un écran dédié');
 assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
+assert.match(documentsPage, /plusieurs fichiers dans chacune d’elles/, 'L’interface doit indiquer clairement que plusieurs fichiers sont acceptés par catégorie');
+assert.match(documentsPage, /Ajouter un autre/, 'Une catégorie déjà alimentée doit permettre explicitement un nouveau dépôt');
+assert.doesNotMatch(documentsPage, /item\.receivedCount\}\/\{item\.expectedCount\}[^\n]+Ajouter/, 'Le minimum documentaire ne doit pas être présenté comme une limite maximale');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
 assert.match(documentsPage, /document-identity-panel/, 'Le formulaire d’identité doit disposer d’un panneau clair et lisible dédié');
 assert.match(documentStyles, /\.document-identity-panel[\s\S]{0,180}background: #f2f7fd/, 'Le panneau d’identité doit conserver un fond clair explicite');
