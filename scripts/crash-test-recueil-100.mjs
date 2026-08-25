@@ -155,6 +155,7 @@ assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s
 assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
 assert.doesNotMatch(journeyBase, /financial-section|financial-choice--selected/, 'La présentation historique de l’onglet Financier doit rester inchangée');
 assert.match(journeyBase, /real-estate-section space-y-6"/, 'Immobilier doit utiliser directement le fond bleu nuit commun aux autres onglets');
+assert.match(journeyBase, /group-open:hidden[\s\S]{0,220}hidden group-open:inline[\s\S]{0,80}Bien immobilier/, 'Le résumé du bien ne doit apparaître que lorsque la fiche est repliée');
 assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
 assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
 assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
