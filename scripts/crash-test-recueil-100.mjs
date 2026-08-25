@@ -125,13 +125,14 @@ for (const fixture of invalidFixtures) {
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, journeyBase, helpers, migration, financialMigration] = await Promise.all([
+const [familyPage, documentsPage, journeyBase, helpers, migration, financialMigration, financialCoreMigration] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
   read('src/pages/portal/ClientDocumentsPage.tsx'),
   read('src/pages/portal/ClientRecueilJourneyBase.tsx'),
   read('src/portal/portalHelpers.ts'),
   read('supabase/migrations/20260825120000_atomic_family_setup.sql'),
   read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'),
+  read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/, 'Le setup famille doit utiliser le RPC atomique');
@@ -166,6 +167,7 @@ assert.match(journeyBase, /group-open:hidden[\s\S]{0,220}hidden group-open:inlin
 assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
 assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
 assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
+assert.match(financialCoreMigration, /'patrimony','financial','credits'/, 'La fonction centrale doit autoriser l’enregistrement de la section Financier');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
 
 const counts = profiles.reduce((result, profile) => {
