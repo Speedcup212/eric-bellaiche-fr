@@ -153,6 +153,9 @@ assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit
 assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
+assert.match(journeyBase, /financial-section[\s\S]{0,300}Une estimation globale suffit/, 'La partie financière doit reprendre le panneau clair et compact de l’immobilier');
+assert.match(journeyBase, /financial-choice[\s\S]{0,800}financial-choice--selected/, 'Les catégories financières doivent utiliser les mêmes états blanc et bleu que le reste du recueil');
+assert.match(journeyBase, /current\.code === 'patrimony' \|\| current\.code === 'financial'/, 'Immobilier et Financier doivent partager la même note de sécurité compacte');
 assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
 assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
 assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
