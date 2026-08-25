@@ -145,6 +145,8 @@ assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation 
 assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
+assert.match(documentsPage, /requirements\.slice\(activeRequirementIndex, activeRequirementIndex \+ 1\)/, 'Une seule catégorie documentaire doit être affichée à la fois');
+assert.match(documentsPage, /sticky=\{false\}/, 'Le bandeau de progression Documents ne doit pas masquer le contenu au défilement');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
 assert.match(journeyBase, /progress\.role_dossier === 'investisseur_2'[\s\S]{0,120}\['Identifiant 2'\][\s\S]{0,160}\['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'\]/, 'L’Identifiant 1 doit pouvoir déclarer un bien appartenant à l’Identifiant 2');
 assert.doesNotMatch(journeyBase, /Six informations par bien/, 'La fiche immobilière ne doit pas répéter une consigne visuelle inutile');
