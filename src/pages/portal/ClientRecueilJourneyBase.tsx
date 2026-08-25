@@ -15,12 +15,11 @@ const sections: Array<{ code: SectionCode; label: string; title: string; descrip
   { code: 'objectives', label: 'Objectifs', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs, classez-les par priorité et indiquez leur horizon.' },
   { code: 'capacity', label: 'Revenus', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'patrimony', label: 'Immobilier', title: 'Immobilier', description: 'Déclarez chaque bien en quelques réponses essentielles. Les situations particulières peuvent être précisées uniquement si nécessaire.' },
-  { code: 'financial', label: 'Financier', title: 'Patrimoine financier', description: 'Indiquez simplement les grandes catégories détenues et un encours global approximatif. Les relevés transmis ensuite permettront d’obtenir le détail.' },
+  { code: 'financial', label: 'Financier', title: 'Patrimoine financier', description: 'Indiquez le montant disponible sur vos comptes courants, puis les grandes catégories de placements détenues. Les relevés de placements transmis ensuite permettront d’obtenir le détail.' },
   { code: 'regulatory', label: 'Réglementaire', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
 ];
 
 const financialCategoryOptions = [
-  ['current_accounts', 'Comptes courants'],
   ['savings', 'Livrets et épargne bancaire'],
   ['life_insurance', 'Assurance-vie / capitalisation'],
   ['retirement', 'PER / épargne retraite'],
@@ -28,7 +27,7 @@ const financialCategoryOptions = [
   ['paper_real_estate', 'SCPI / OPCI'],
   ['employee_savings', 'Épargne salariale'],
   ['other', 'Autres placements'],
-  ['none', 'Aucun compte ni placement'],
+  ['none', 'Aucun placement'],
 ] as const;
 
 const financialTotalBands = [
@@ -108,7 +107,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   tax: { annee_imposition: new Date().getFullYear().toString(), salaires_assimiles: '', pensions_retraites_rentes: '', revenus_lmnp: '', revenus_bnc_pro: '', revenus_capitaux_mobiliers: '', revenus_fonciers_nets: '', revenu_imposable: '', impot_revenu_net: '', prelevements_sociaux_nets: '', taux_imposition: '', tmi: '', revenu_fiscal_reference: '', nombre_parts: '', deficit_foncier_reportable: '', evolution_revenus_commentaire: '', plafond_disponible_avis: '', versements_a_deduire: '', plafond_non_utilise_calcule: '', ifi_concerne: false, ifi_base_imposable: '', ifi_tmi: '', ifi_net_a_payer: '' },
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
   patrimony: { has_real_estate: '', comptes_courants: [], immobilier: [], placements: [] },
-  financial: { categories: [], total_band: '', other_details: '', completeness_confirmed: false },
+  financial: { current_accounts_amount: '', categories: [], total_band: '', other_details: '', completeness_confirmed: false },
   credits: { items: [] },
 };
 
@@ -354,6 +353,9 @@ export default function ClientRecueilJourneyPage() {
           const legacyAccounts = allPlacements.filter((placement) => String(placement.type_contrat ?? '').toLowerCase() === 'compte courant').map(accountFromPlacement);
           const accounts = Array.isArray(payload.comptes_courants) ? payload.comptes_courants : legacyAccounts;
           nextForms.patrimony = { ...nextForms.patrimony, ...payload, comptes_courants: accounts, placements: allPlacements.filter((placement) => String(placement.type_contrat ?? '').toLowerCase() !== 'compte courant') };
+        } else if (code === 'financial') {
+          const categories = Array.isArray(payload.categories) ? payload.categories.filter((category) => category !== 'current_accounts') : [];
+          nextForms.financial = { ...nextForms.financial, ...payload, categories };
         } else if (code in nextForms) {
           nextForms[code] = { ...nextForms[code], ...payload };
         }
@@ -436,8 +438,9 @@ export default function ClientRecueilJourneyPage() {
     }
     if (current.code === 'financial') {
       const categories = Array.isArray(form.categories) ? form.categories : [];
-      if (categories.length === 0) throw new Error('Sélectionnez au moins une catégorie, ou indiquez que vous ne détenez aucun compte ni placement.');
-      if (categories.includes('none') && categories.length > 1) throw new Error('Le choix « Aucun compte ni placement » ne peut pas être associé à une autre catégorie.');
+      if (!isNonNegativeNumber(form.current_accounts_amount)) throw new Error('Indiquez le montant actuellement disponible sur l’ensemble de vos comptes courants. Saisissez 0 si le solde est nul.');
+      if (categories.length === 0) throw new Error('Sélectionnez au moins une catégorie de placement, ou indiquez que vous ne détenez aucun placement.');
+      if (categories.includes('none') && categories.length > 1) throw new Error('Le choix « Aucun placement » ne peut pas être associé à une autre catégorie.');
       const otherPlacementTypes = selectedFinancialOtherTypes(form);
       if (categories.includes('other') && otherPlacementTypes.length === 0) throw new Error('Sélectionnez au moins un autre placement.');
       if (categories.includes('other') && otherPlacementTypes.includes('other') && isBlank(financialOtherCustom(form))) throw new Error('Précisez votre autre placement.');
@@ -638,11 +641,15 @@ export default function ClientRecueilJourneyPage() {
         </div>}
 
         {current.code === 'financial' && <div className="space-y-7">
-          <GuidanceNote><p>Une déclaration rapide, sans ressaisie des relevés</p><p>Sélectionnez uniquement les grandes familles de comptes et placements. Les établissements, contrats et montants exacts seront repris à partir des justificatifs transmis ensuite.</p></GuidanceNote>
+          <GuidanceNote><p>Une déclaration rapide, sans relevé de compte courant</p><p>Indiquez uniquement le montant disponible sur vos comptes courants. Pour les placements, sélectionnez les grandes familles détenues : les établissements, contrats et montants exacts seront repris à partir des justificatifs transmis ensuite.</p></GuidanceNote>
           <section>
-            <h3 className="text-sm font-semibold text-slate-700">Quels comptes ou placements détenez-vous ? *</h3>
+            <MoneyField label="Quel est le montant actuel disponible sur l’ensemble de vos comptes courants ?" required value={form.current_accounts_amount} onChange={(value) => patchCurrent({ current_accounts_amount: value, completeness_confirmed: false })} />
+            <p className="mt-2 text-xs leading-5 text-[#94A3B8]">{progress.is_couple && progress.role_dossier === 'investisseur_2' ? 'Indiquez uniquement le total de vos comptes personnels. Les comptes joints ou communs sont déclarés par l’Identifiant 1.' : progress.is_couple ? 'Additionnez vos comptes personnels ainsi que les comptes joints ou communs. Ils ne devront pas être déclarés une seconde fois par l’Identifiant 2.' : 'Additionnez l’ensemble de vos comptes personnels.'} Indiquez 0 € si aucun montant n’est disponible. Aucun relevé de compte courant n’est demandé.</p>
+          </section>
+          <section>
+            <h3 className="text-sm font-semibold text-slate-700">Quels placements détenez-vous ? *</h3>
             <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Plusieurs réponses sont possibles.</p>
-            {progress.is_couple && <p className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">{progress.role_dossier === 'investisseur_1' ? 'Indiquez vos avoirs personnels ainsi que les comptes joints ou communs. Ils ne devront pas être déclarés une seconde fois par l’Identifiant 2.' : 'Indiquez uniquement vos avoirs personnels. Les comptes joints ou communs sont déclarés par l’Identifiant 1.'}</p>}
+            {progress.is_couple && <p className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">{progress.role_dossier === 'investisseur_1' ? 'Indiquez vos placements personnels ainsi que les placements joints ou communs. Ils ne devront pas être déclarés une seconde fois par l’Identifiant 2.' : 'Indiquez uniquement vos placements personnels. Les placements joints ou communs sont déclarés par l’Identifiant 1.'}</p>}
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialCategoryOptions.map(([code, label]) => {
               const categories: string[] = Array.isArray(form.categories) ? form.categories : [];
               const selected = categories.includes(code);
@@ -674,14 +681,14 @@ export default function ClientRecueilJourneyPage() {
           </fieldset>}
 
           {(form.categories ?? []).length > 0 && !(form.categories ?? []).includes('none') && <fieldset className="border-t border-white/10 pt-5">
-            <legend className="text-sm font-semibold text-slate-700">Quel est le montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus ? *</legend>
-            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]"><strong className="font-semibold text-[#CBD5E1]">Un seul total est demandé, toutes catégories confondues.</strong> Une fourchette suffit : additionnez les comptes personnels et, le cas échéant, les comptes joints déclarés ici.</p>
+            <legend className="text-sm font-semibold text-slate-700">Quel est le montant total approximatif de tous vos placements sélectionnés ci-dessus ? *</legend>
+            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]"><strong className="font-semibold text-[#CBD5E1]">Un seul total est demandé, toutes catégories de placements confondues.</strong> Une fourchette suffit : additionnez les placements personnels et, le cas échéant, les placements joints déclarés ici.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialTotalBands.map(([code, label]) => <button key={code} type="button" aria-pressed={form.total_band === code} onClick={() => patchCurrent({ total_band: code, completeness_confirmed: false })} className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.total_band === code ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{label}</button>)}</div>
           </fieldset>}
 
-          {(form.categories ?? []).includes('none') && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun compte ni placement déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
+          {(form.categories ?? []).includes('none') && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun placement déclaré. Le montant de vos comptes courants reste enregistré séparément.</div>}
 
-          {(form.categories ?? []).length > 0 && <button type="button" aria-pressed={form.completeness_confirmed === true} onClick={() => patchCurrent({ completeness_confirmed: form.completeness_confirmed !== true })} className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.completeness_confirmed === true ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700 hover:border-[#3B82F6]'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.completeness_confirmed === true ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 bg-white'}`}>{form.completeness_confirmed === true ? '✓' : ''}</span><span><strong>Je confirme que cette déclaration couvre l’ensemble de mes comptes et placements.</strong><br /><span className="text-xs text-slate-500">Les relevés permettront ensuite au cabinet de vérifier et compléter les montants.</span></span></button>}
+          {(form.categories ?? []).length > 0 && <button type="button" aria-pressed={form.completeness_confirmed === true} onClick={() => patchCurrent({ completeness_confirmed: form.completeness_confirmed !== true })} className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.completeness_confirmed === true ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700 hover:border-[#3B82F6]'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.completeness_confirmed === true ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 bg-white'}`}>{form.completeness_confirmed === true ? '✓' : ''}</span><span><strong>Je confirme que cette déclaration couvre l’ensemble de mes comptes courants et placements.</strong><br /><span className="text-xs text-slate-500">Les relevés de placements permettront ensuite au cabinet de vérifier et compléter les montants concernés.</span></span></button>}
         </div>}
 
         {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Type de crédit" required value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Autre crédit" /><Field label="Banque" required value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" required value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" required value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" required value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" required type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" required type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" required value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} placeholder="Autre type de prêt" /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}
