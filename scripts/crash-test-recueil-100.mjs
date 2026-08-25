@@ -156,6 +156,8 @@ assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
 assert.doesNotMatch(journeyBase, /financial-section|financial-choice--selected/, 'La présentation historique de l’onglet Financier doit rester inchangée');
+assert.match(journeyBase, /montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus/, 'La question d’encours doit préciser qu’elle porte sur toutes les catégories sélectionnées');
+assert.match(journeyBase, /Un seul total est demandé, toutes catégories confondues/, 'La question d’encours ne doit pas sembler liée à la dernière catégorie cochée');
 assert.match(journeyBase, /real-estate-section space-y-6"/, 'Immobilier doit utiliser directement le fond bleu nuit commun aux autres onglets');
 assert.match(journeyBase, /group-open:hidden[\s\S]{0,220}hidden group-open:inline[\s\S]{0,80}Bien immobilier/, 'Le résumé du bien ne doit apparaître que lorsque la fiche est repliée');
 assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
