@@ -297,7 +297,7 @@ export default function ClientRecueilJourneyPage() {
     ? ['Identifiant 1']
     : progress.role_dossier === 'investisseur_2'
       ? ['Identifiant 2']
-      : ['Identifiant 1 et 2', 'Identifiant 1'];
+      : ['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'];
   const familySituationOptions = progress?.is_couple
     ? ['Marié', 'Pacsé', 'Concubinage']
     : ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Veuve'];
@@ -583,7 +583,7 @@ export default function ClientRecueilJourneyPage() {
               return <details key={index} className="real-estate-card group overflow-hidden border-t border-white/10 text-slate-100" open={!complete ? true : undefined}>
               <summary className="real-estate-card-header flex cursor-pointer list-none items-center justify-between gap-4 py-3.5"><div className="flex min-w-0 items-center gap-2.5"><Building2 className="h-4 w-4 shrink-0 text-[#60A5FA]" /><h4 className="min-w-0 truncate text-sm font-semibold text-white"><span className="group-open:hidden">{complete ? summary : `Bien immobilier ${index + 1}`}</span><span className="hidden group-open:inline">Bien immobilier {index + 1}</span></h4></div><span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#86B7FF]">{complete ? 'Modifier' : 'À compléter'}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
               <div className="border-t border-white/10 py-5">
-              {progress.is_couple && <p className="mb-4 text-xs leading-5 text-[#aebfd4]">{progress.role_dossier === 'investisseur_1' ? 'Les biens communs du couple sont déclarés ici une seule fois.' : 'Déclarez uniquement vos biens personnels.'}</p>}
+              {progress.is_couple && <p className="mb-4 text-xs leading-5 text-[#aebfd4]">{progress.role_dossier === 'investisseur_1' ? 'Déclarez ici tous les biens du couple : communs, personnels à l’Identifiant 1 ou personnels à l’Identifiant 2. Ils ne seront pas ressaisis.' : 'Déclarez uniquement vos biens personnels.'}</p>}
               <div className="real-estate-essential-grid grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                 <CompactSelectField label="Type" required options={choiceFields['Type de bien'].options} value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v, type_bien_autre: v === 'Autre' ? item.type_bien_autre : '' })} />
                 <CompactSelectField label="Usage" required options={choiceFields.Usage.options} value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_mensuel: v === 'Locatif' ? monthlyRentValue(item) : '', loyer_annuel: v === 'Locatif' ? annualRentValue(item) : '' })} />
