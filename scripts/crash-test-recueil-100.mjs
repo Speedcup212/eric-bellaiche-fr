@@ -107,6 +107,8 @@ assert.match(migration, /sync_document_real_estate_context/, 'Le contexte docume
 assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
 assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
+assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,400}code: 'regulatory'/, 'Patrimoine doit rester avant Réglementaire');
+assert.match(journeyBase, /'Revenus', 'Patrimoine', 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
 
 const counts = profiles.reduce((result, profile) => {
