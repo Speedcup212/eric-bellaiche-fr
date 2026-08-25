@@ -258,6 +258,54 @@
   -webkit-appearance: none;
 }
 
+/* Crédits — même langage visuel bleu nuit, bleu, blanc et émeraude. */
+.recueil-safe section .credit-section {
+  color: #f1f5f9 !important;
+  color-scheme: light;
+}
+
+.recueil-safe section .credit-section h3,
+.recueil-safe section .credit-section label,
+.recueil-safe section .credit-section .text-slate-700,
+.recueil-safe section .credit-section .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+
+.recueil-safe section .credit-section .text-slate-500 {
+  color: #aebfd4 !important;
+}
+
+.recueil-safe section .credit-card {
+  border-color: #254b78 !important;
+  background: #102440 !important;
+  color: #f1f5f9 !important;
+  box-shadow: none !important;
+}
+
+.recueil-safe section .credit-card input,
+.recueil-safe section .credit-card select {
+  border-color: #b9d3f4 !important;
+  background: #ffffff !important;
+  color: #0b1f3a !important;
+}
+
+.recueil-safe section .credit-card input:focus,
+.recueil-safe section .credit-card select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22) !important;
+}
+
+.recueil-safe section .credit-card .recueil-question-grid > *::after {
+  display: none !important;
+}
+
+@media (max-width: 639px) {
+  .recueil-safe section .credit-card .recueil-question-grid > * {
+    border-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
 @media (max-width: 639px) {
   .recueil-safe section .real-estate-section {
     margin-inline: 0;
