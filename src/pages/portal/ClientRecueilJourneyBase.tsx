@@ -246,7 +246,20 @@ function isValidMobile(value: unknown): boolean {
   return /^\+[1-9]\d{7,14}$/.test(compact);
 }
 
-const emptyRealEstate = () => ({ intitule: '', type_bien: '', type_bien_autre: '', usage: '', usage_autre: '', proprietaire: '', projet_bien: '', mode_detention: 'En direct', mode_detention_autre: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', ville: '', loyer_annuel: '', commentaire: '' });
+const emptyRealEstate = () => ({ intitule: '', type_bien: '', type_bien_autre: '', usage: '', usage_autre: '', proprietaire: '', projet_bien: '', mode_detention: 'En direct', mode_detention_autre: '', quote_part: '', valeur_actuelle: '', date_acquisition: '', prix_acquisition: '', ville: '', loyer_mensuel: '', loyer_annuel: '', commentaire: '' });
+
+const monthlyRentValue = (item: AnyPayload) => {
+  if (!isBlank(item.loyer_mensuel)) return String(item.loyer_mensuel);
+  if (isBlank(item.loyer_annuel) || !Number.isFinite(Number(item.loyer_annuel))) return '';
+  const storedRent = Number(item.loyer_annuel);
+  // Les premières saisies de l'interface utilisaient parfois le champ annuel comme un montant mensuel.
+  return String(storedRent > 0 && storedRent < 3000 ? storedRent : Math.round((storedRent / 12) * 100) / 100);
+};
+
+const annualRentValue = (item: AnyPayload) => {
+  const monthly = Number(String(monthlyRentValue(item)).replace(',', '.'));
+  return Number.isFinite(monthly) ? String(Math.round(monthly * 12 * 100) / 100) : '';
+};
 
 function accountFromPlacement(item: AnyPayload): AnyPayload {
   return { banque: item.organisme ?? '', titulaire: item.libelle_contrat ?? '', solde_actuel: item.montant_actuel ?? '', montant_mobilisable: item.montant_reemploi_possible ?? '', commentaire: item.commentaire ?? '' };
@@ -394,8 +407,8 @@ export default function ClientRecueilJourneyPage() {
           const defaultedQuotePart = isBlank(item.quote_part) && item.proprietaire === 'Identifiant 1 et 2' ? '50' : item.quote_part;
           const quotePartValue = Number(String(defaultedQuotePart ?? '').replace(',', '.').replace('%', '').trim());
           if ((item.proprietaire === 'Identifiant 1 et 2' || item.mode_detention === 'En indivision') && (isBlank(defaultedQuotePart) || !Number.isFinite(quotePartValue) || quotePartValue <= 0 || quotePartValue >= 100)) throw new Error('Indiquez une quote-part comprise entre 1 % et 99 % lorsque le bien est détenu à plusieurs.');
-          if (item.usage === 'Locatif' && isBlank(item.loyer_annuel)) throw new Error('Indiquez le loyer annuel hors charges pour chaque bien locatif.');
-          if (item.usage === 'Locatif' && !isNonNegativeNumber(item.loyer_annuel)) throw new Error('Le loyer annuel hors charges doit être positif ou nul.');
+          if (item.usage === 'Locatif' && isBlank(monthlyRentValue(item))) throw new Error('Indiquez le loyer mensuel hors charges pour chaque bien locatif.');
+          if (item.usage === 'Locatif' && !isNonNegativeNumber(monthlyRentValue(item))) throw new Error('Le loyer mensuel hors charges doit être positif ou nul.');
         }
       }
     }
@@ -424,6 +437,9 @@ export default function ClientRecueilJourneyPage() {
         intitule: isBlank(item.intitule) ? [item.type_bien, item.ville].filter(Boolean).join(' — ') : String(item.intitule).trim(),
         mode_detention: isBlank(item.mode_detention) ? 'En direct' : item.mode_detention,
         quote_part: String(isBlank(item.quote_part) ? (item.proprietaire === 'Identifiant 1 et 2' ? '50' : '100') : item.quote_part).replace(',', '.').replace('%', '').trim(),
+        loyer_mensuel: item.usage === 'Locatif' ? monthlyRentValue(item) : '',
+        loyer_annuel: item.usage === 'Locatif' ? annualRentValue(item) : '',
+        loyer_saisie_unite: item.usage === 'Locatif' ? 'mensuel' : '',
       })), collection_mode: 'real_estate_quick', placements: [...placementsWithoutAccounts, ...(form.comptes_courants ?? []).map(accountToPlacement)] };
     }
     const { error } = await supabase.rpc('save_my_recueil_section', { p_dossier_id: progress.dossier_id, p_section_code: current.code, p_payload: payloadToSave, p_completed: true });
@@ -558,25 +574,26 @@ export default function ClientRecueilJourneyPage() {
           }} />
           {form.has_real_estate === false && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun bien immobilier déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
           {form.has_real_estate === true && <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4 border-t border-[#e2e8f0] pt-5"><div><h3 className="text-base font-semibold text-[#0b1f3a]">Biens immobiliers</h3><p className="mt-0.5 text-xs text-[#64748b]">Six informations par bien.</p></div><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), emptyRealEstate()] })} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#173967]"><Plus className="h-4 w-4" /> Ajouter</button></div>
+            <div className="flex items-center justify-between gap-4 border-t border-[#e2e8f0] pt-5"><h3 className="text-base font-semibold text-[#0b1f3a]">Vos biens</h3><button type="button" onClick={() => patchCurrent({ immobilier: [...(form.immobilier ?? []), emptyRealEstate()] })} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#173967]"><Plus className="h-4 w-4" /> Ajouter</button></div>
             {(form.immobilier ?? []).length === 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Vous avez indiqué détenir un bien immobilier. Ajoutez au moins un bien pour poursuivre.</div>}
             {(form.immobilier ?? []).map((item: AnyPayload, index: number) => {
               const complete = ![item.type_bien, item.usage, item.proprietaire, item.projet_bien, item.valeur_actuelle, item.ville].some(isBlank);
               const valueSummary = item.valeur_actuelle && Number.isFinite(Number(item.valeur_actuelle)) ? `${Number(item.valeur_actuelle).toLocaleString('fr-FR')} €` : '';
-              return <details key={index} className="real-estate-card group overflow-hidden rounded-2xl border border-[#dbe4ef] bg-white text-slate-800" open={!complete ? true : undefined}>
-              <summary className="real-estate-card-header flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 sm:px-5"><div className="flex min-w-0 items-center gap-3"><Building2 className="h-4 w-4 shrink-0 text-[#3B82F6]" /><div className="min-w-0"><h4 className="truncate text-sm font-semibold text-[#0b1f3a]">{item.intitule || (item.type_bien || item.ville ? [item.type_bien, item.ville].filter(Boolean).join(' · ') : `Bien immobilier ${index + 1}`)}</h4>{complete && <p className="mt-0.5 truncate text-xs font-normal text-[#64748b]">{[item.usage, valueSummary, item.projet_bien].filter(Boolean).join(' · ')}</p>}</div></div><span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#3B82F6]">{complete ? 'Modifier' : 'À compléter'}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
-              <div className="border-t border-[#e7edf5] px-4 py-5 sm:px-5">
+              const summary = [item.type_bien, item.ville, item.usage, valueSummary].filter(Boolean).join(' · ');
+              return <details key={index} className="real-estate-card group overflow-hidden border-t border-[#dbe4ef] text-slate-800" open={!complete ? true : undefined}>
+              <summary className="real-estate-card-header flex cursor-pointer list-none items-center justify-between gap-4 py-3.5"><div className="flex min-w-0 items-center gap-2.5"><Building2 className="h-4 w-4 shrink-0 text-[#3B82F6]" /><h4 className="truncate text-sm font-semibold text-[#0b1f3a]">{summary || `Bien immobilier ${index + 1}`}</h4></div><span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#3B82F6]">{complete ? 'Modifier' : 'À compléter'}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
+              <div className="border-t border-[#e7edf5] py-5">
               {progress.is_couple && <p className="mb-4 text-xs leading-5 text-[#64748b]">{progress.role_dossier === 'investisseur_1' ? 'Les biens communs du couple sont déclarés ici une seule fois.' : 'Déclarez uniquement vos biens personnels.'}</p>}
               <div className="real-estate-essential-grid grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                 <CompactSelectField label="Type" required options={choiceFields['Type de bien'].options} value={item.type_bien} onChange={(v) => updateList('immobilier', index, { type_bien: v, type_bien_autre: v === 'Autre' ? item.type_bien_autre : '' })} />
-                <CompactSelectField label="Usage" required options={choiceFields.Usage.options} value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_annuel: v === 'Locatif' ? item.loyer_annuel : '' })} />
+                <CompactSelectField label="Usage" required options={choiceFields.Usage.options} value={item.usage} onChange={(v) => updateList('immobilier', index, { usage: v, usage_autre: v === 'Autre' ? item.usage_autre : '', loyer_mensuel: v === 'Locatif' ? monthlyRentValue(item) : '', loyer_annuel: v === 'Locatif' ? annualRentValue(item) : '' })} />
                 <Field label="Ville" required value={item.ville} onChange={(v) => updateList('immobilier', index, { ville: v })} />
                 <CompactSelectField label="Propriétaire" required options={propertyOwnerOptions} value={item.proprietaire} onChange={(v) => updateList('immobilier', index, { proprietaire: v, quote_part: v === 'Identifiant 1 et 2' ? (item.quote_part || '50') : item.mode_detention === 'En indivision' ? item.quote_part : '100' })} />
                 <MoneyField label="Valeur estimée actuelle (€)" required value={item.valeur_actuelle} onChange={(v) => updateList('immobilier', index, { valeur_actuelle: v })} />
                 <CompactSelectField label="Projet" required options={choiceFields['Projet concernant ce bien'].options} value={item.projet_bien ?? ''} onChange={(v) => updateList('immobilier', index, { projet_bien: v })} />
                 {item.type_bien === 'Autre' && <Field label="Précisez le type de bien" required value={item.type_bien_autre} onChange={(v) => updateList('immobilier', index, { type_bien_autre: v })} />}
                 {item.usage === 'Autre' && <Field label="Précisez l’usage" required value={item.usage_autre} onChange={(v) => updateList('immobilier', index, { usage_autre: v })} />}
-                {item.usage === 'Locatif' && <MoneyField label="Loyer annuel hors charges (€)" required value={item.loyer_annuel} onChange={(v) => updateList('immobilier', index, { loyer_annuel: v })} />}
+                {item.usage === 'Locatif' && <MoneyField label="Loyer mensuel hors charges (€)" required value={monthlyRentValue(item)} onChange={(v) => updateList('immobilier', index, { loyer_mensuel: v, loyer_annuel: String(Math.round(Number(String(v).replace(',', '.')) * 12 * 100) / 100), loyer_saisie_unite: 'mensuel' })} />}
               </div>
               <details className="real-estate-details group/details mt-5 overflow-hidden rounded-xl border border-[#e2e8f0] bg-[#f8fafc]">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#173967]"><span>Ajouter des précisions <span className="font-normal text-[#5b6b82]">(facultatif)</span></span><ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open/details:rotate-180" /></summary>
