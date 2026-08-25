@@ -411,6 +411,17 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18) !important;
 }
 
+.documents-dark .document-category-picker button {
+  color: #dbeafe;
+}
+
+.documents-dark .document-category-picker button.bg-blue-600 {
+  border-color: #3b82f6 !important;
+  background: #3b82f6 !important;
+  color: #fff !important;
+  box-shadow: 0 10px 24px -18px rgba(59, 130, 246, 0.95);
+}
+
 .documents-dark .document-upload-form {
   border-color: rgba(148, 163, 184, 0.18) !important;
   background: #f8fafc !important;
