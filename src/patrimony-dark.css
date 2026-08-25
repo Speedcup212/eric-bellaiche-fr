@@ -339,3 +339,105 @@
     padding-bottom: 0 !important;
   }
 }
+
+/* Documents — same navy, blue and emerald language as the recueil. */
+.documents-dark .documents-card {
+  border-color: #243b5c !important;
+  background: #0f1a2e !important;
+  color: #f1f5f9;
+  box-shadow: 0 26px 70px -34px rgba(2, 8, 23, 0.78) !important;
+}
+
+.documents-dark .documents-nav {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: #0b1f3a !important;
+}
+
+.documents-dark .documents-nav > div {
+  background: #111c31 !important;
+}
+
+.documents-dark .documents-nav button.bg-white {
+  background: #3b82f6 !important;
+  color: #fff !important;
+  box-shadow: 0 10px 24px -16px rgba(59, 130, 246, 0.95) !important;
+}
+
+.documents-dark .documents-nav button.text-slate-500 {
+  color: #aebfd4 !important;
+}
+
+.documents-dark .documents-situation,
+.documents-dark .document-requirements {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: transparent !important;
+}
+
+.documents-dark .documents-situation h3,
+.documents-dark .document-requirements h3,
+.documents-dark .document-summary h3 {
+  color: #fff !important;
+}
+
+.documents-dark .documents-situation > div > div > p,
+.documents-dark .document-requirements > div > div > p,
+.documents-dark .document-summary p {
+  color: #aebfd4 !important;
+}
+
+.documents-dark .document-question-card,
+.documents-dark .document-requirement-card {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  background: #111c31 !important;
+}
+
+.documents-dark .document-question-card p.text-slate-800,
+.documents-dark .document-question-card p.text-slate-900,
+.documents-dark .document-question-card label,
+.documents-dark .document-requirement-card .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+
+.documents-dark .document-question-card .text-slate-500,
+.documents-dark .document-question-card .text-slate-600,
+.documents-dark .document-requirement-card .text-slate-500,
+.documents-dark .document-requirement-card .text-slate-600 {
+  color: #aebfd4 !important;
+}
+
+.documents-dark .document-requirement-card.border-blue-400 {
+  border-color: #3b82f6 !important;
+  background: #162a46 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18) !important;
+}
+
+.documents-dark .document-upload-form {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: #f8fafc !important;
+  color: #1e293b !important;
+}
+
+.documents-dark .document-upload-form label,
+.documents-dark .document-upload-form p,
+.documents-dark .document-upload-form .text-slate-700,
+.documents-dark .document-upload-form .text-slate-900 {
+  color: #1e293b !important;
+}
+
+.documents-dark .document-summary {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: #111c31 !important;
+}
+
+.documents-dark .documents-card > div:last-child > div[class*='border-t'][class*='bg-'] {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: #111c31 !important;
+}
+
+.documents-dark .documents-card > div:last-child > div[class*='border-t'][class*='bg-'] button:first-child {
+  color: #dbeafe !important;
+}
+
+.documents-dark .documents-card > div:last-child > div[class*='border-t'][class*='bg-'] button:last-child {
+  background: #3b82f6 !important;
+}
