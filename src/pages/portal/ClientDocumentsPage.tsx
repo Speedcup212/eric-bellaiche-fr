@@ -38,7 +38,6 @@ const categories = [
   ['justificatif_domicile', 'Justificatif de domicile'],
   ['avis_imposition', 'Avis d’imposition'],
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
-  ['comptes_liquidites', 'Comptes courants'],
   ['patrimoine_financier', 'Épargne / placements'],
   ['patrimoine_immobilier', 'Patrimoine immobilier'],
   ['sci_societe', 'SCI / société'],
@@ -62,7 +61,7 @@ const taxAbsenceReasons: Array<{ value: TaxAbsenceReason; label: string }> = [
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
 function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
 function contextComplete(context: DocumentContext | undefined): boolean {
-  if (!context || context.tax_status === null || context.has_liquidities === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_credits === null || context.has_sci_company === null) return false;
+  if (!context || context.tax_status === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_credits === null || context.has_sci_company === null) return false;
   if (context.tax_status === 'no_personal_notice') {
     if (!context.tax_absence_reason) return false;
     if (context.tax_absence_reason === 'other' && !context.tax_absence_other?.trim()) return false;
@@ -296,7 +295,6 @@ export default function ClientDocumentsPage() {
   const identityReceivedCount = dossierMembers.filter((member) => sources.some((doc) => doc.categorie === 'identite' && doc.investisseur_id === member.investisseur_id)).length;
   const aggregate = {
     tax: contexts.some((item) => item.tax_status === 'personal_notice'),
-    liquidities: contexts.some((item) => item.has_liquidities === true),
     assets: contexts.some((item) => item.has_financial_assets === true),
     realEstate: contexts.some((item) => item.has_real_estate === true),
     credits: contexts.some((item) => item.has_credits === true),
@@ -307,7 +305,6 @@ export default function ClientDocumentsPage() {
     { category: 'identite', label: 'Pièce d’identité', description: 'Document officiel en cours de validité avec photographie pour chaque personne du dossier. CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.', status: 'required', expectedCount: progress.dossier_members_total, receivedCount: identityReceivedCount },
     { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile datant de moins de 3 mois est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Transmettez les avis utiles à l’analyse : avis personnel ou commun et, le cas échéant, avis rectificatif. Plusieurs fichiers sont acceptés.' : 'L’avis n’est demandé que si vous en disposez. Si vous êtes rattaché au foyer fiscal de vos parents ou si aucun avis n’a encore été émis, précisez votre situation ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
-    { category: 'comptes_liquidites', label: 'Comptes courants', description: 'Transmettez les relevés utiles de vos différents comptes courants. Vous pouvez ajouter un fichier par compte ou par établissement.', status: conditionalStatus(aggregate.liquidities), expectedCount: aggregate.liquidities ? 1 : 0, receivedCount: categoryCounts.comptes_liquidites ?? 0 },
     { category: 'patrimoine_financier', label: 'Épargne / placements', description: 'Transmettez les relevés de vos différents placements : livrets, assurance-vie, PER, PEA, compte-titres, SCPI ou autres. Ajoutez autant de fichiers que nécessaire.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
     { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'Transmettez les documents utiles pour chaque bien : titre de propriété, taxe foncière, estimation récente ou document équivalent.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
     { category: 'tableau_amortissement', label: 'Crédits en cours', description: 'Transmettez un tableau d’amortissement ou un justificatif équivalent pour chacun de vos crédits en cours.', status: conditionalStatus(aggregate.credits), expectedCount: aggregate.credits ? 1 : 0, receivedCount: categoryCounts.tableau_amortissement ?? 0 },
@@ -383,7 +380,6 @@ export default function ClientDocumentsPage() {
             </div>}
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {boolChoice('Détenez-vous un ou plusieurs comptes courants à prendre en compte dans l’analyse patrimoniale ?', 'has_liquidities', currentContext?.has_liquidities)}
             {boolChoice('Détenez-vous de l’épargne ou des placements à prendre en compte dans l’analyse patrimoniale ? Exemples : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI.', 'has_financial_assets', currentContext?.has_financial_assets)}
             {boolChoice('Détenez-vous un ou plusieurs biens immobiliers à prendre en compte dans l’analyse patrimoniale ?', 'has_real_estate', currentContext?.has_real_estate)}
             {boolChoice('Avez-vous un ou plusieurs crédits en cours ?', 'has_credits', currentContext?.has_credits)}
