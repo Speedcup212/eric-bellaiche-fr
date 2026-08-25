@@ -335,3 +335,52 @@
     padding-bottom: 0 !important;
   }
 }
+
+/* Financier — même langage visuel clair et compact que l'onglet Immobilier. */
+.recueil-safe section .financial-section {
+  color: #33465f !important;
+  color-scheme: light;
+}
+
+.recueil-safe section .financial-section label,
+.recueil-safe section .financial-section legend,
+.recueil-safe section .financial-section h3,
+.recueil-safe section .financial-section .text-slate-700,
+.recueil-safe section .financial-section .text-slate-800,
+.recueil-safe section .financial-section .text-slate-900 {
+  color: #263a53 !important;
+}
+
+.recueil-safe section .financial-section .text-slate-500,
+.recueil-safe section .financial-section .text-slate-600,
+.recueil-safe section .financial-section .text-\[\#94A3B8\] {
+  color: #64748b !important;
+}
+
+.recueil-safe section .financial-section .financial-choice,
+.recueil-safe section .financial-section .financial-band,
+.recueil-safe section .financial-section .financial-confirm {
+  box-shadow: none !important;
+}
+
+.recueil-safe section .financial-section .financial-choice--selected,
+.recueil-safe section .financial-section .financial-band--selected {
+  border-color: #3b82f6 !important;
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+.recueil-safe section .financial-section input,
+.recueil-safe section .financial-section textarea,
+.recueil-safe section .financial-section select {
+  background: #ffffff !important;
+  border-color: #cbd8e7 !important;
+  color: #1e293b !important;
+}
+
+@media (max-width: 639px) {
+  .recueil-safe section .financial-section {
+    margin-inline: -0.25rem;
+    padding: 1rem !important;
+  }
+}
