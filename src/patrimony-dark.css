@@ -353,7 +353,7 @@
 
 .documents-dark .document-upload-form {
   border-color: rgba(148, 163, 184, 0.18) !important;
-  background: #f8fafc !important;
+  background: #ffffff !important;
   color: #1e293b !important;
 }
 
@@ -378,6 +378,40 @@
 .documents-dark .document-identity-panel > div:last-child {
   background: #fff !important;
   color: #5b6b82 !important;
+}
+
+.documents-dark .document-upload-form input[type='file'] {
+  border-color: #b9d3f4 !important;
+  background: #f2f7fd !important;
+  color: #355f8d !important;
+}
+
+.documents-dark .document-transmitted-list {
+  border-color: #bfdbfe !important;
+  background: #eaf3ff !important;
+}
+
+.documents-dark .document-transmitted-list > p {
+  color: #355f8d !important;
+}
+
+.documents-dark .document-transmitted-list > div > div {
+  border: 1px solid #d7e7fa;
+  background: #ffffff !important;
+}
+
+.documents-dark .document-transmitted-list .text-slate-700 {
+  color: #0b1f3a !important;
+}
+
+.documents-dark .document-transmitted-list .text-slate-500 {
+  color: #52749c !important;
+}
+
+.documents-dark .documents-card button:disabled[class*='bg-[#0b1f3a]'] {
+  background: #173967 !important;
+  color: #93c5fd !important;
+  opacity: 1 !important;
 }
 
 .documents-dark .document-upload-form label,
