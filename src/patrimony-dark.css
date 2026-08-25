@@ -209,9 +209,9 @@
   }
 }
 
-/* Immobilier — formulaire compact, sans empilement de panneaux décoratifs. */
+/* Immobilier — même bleu nuit que les autres onglets, structure compacte conservée. */
 .recueil-safe section .real-estate-section {
-  color: #33465f !important;
+  color: #f1f5f9 !important;
   color-scheme: light;
 }
 
@@ -220,31 +220,25 @@
 .recueil-safe section .real-estate-section .text-slate-700,
 .recueil-safe section .real-estate-section .text-slate-800,
 .recueil-safe section .real-estate-section .text-slate-900 {
-  color: #263a53 !important;
+  color: #f1f5f9 !important;
 }
 
 .recueil-safe section .real-estate-section .text-slate-500,
 .recueil-safe section .real-estate-section .text-slate-600,
 .recueil-safe section .real-estate-section .text-\[\#94A3B8\] {
-  color: #64748b !important;
-}
-
-.recueil-safe section .real-estate-note,
-.recueil-safe section .real-estate-note p,
-.recueil-safe section .real-estate-note span {
-  color-scheme: light;
+  color: #aebfd4 !important;
 }
 
 .recueil-safe section .real-estate-card {
   background: transparent !important;
-  border-color: #dfe6ef !important;
-  color: #263a53 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
   box-shadow: none !important;
 }
 
 .recueil-safe section .real-estate-card-header {
   background: transparent !important;
-  border-color: #e7edf5 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .recueil-safe section .real-estate-card > summary::-webkit-details-marker,
@@ -257,7 +251,7 @@
 }
 
 .recueil-safe section .real-estate-card h4 {
-  color: #0b1f3a !important;
+  color: #ffffff !important;
 }
 
 .recueil-safe section .real-estate-card input,
@@ -277,8 +271,8 @@
 }
 
 .recueil-safe section .real-estate-card button.bg-white {
-  background: #f8fafc !important;
-  border-color: #d8e2ed !important;
+  background: #ffffff !important;
+  border-color: #dbe4ef !important;
   color: #33465f !important;
 }
 
@@ -301,8 +295,8 @@
 }
 
 .recueil-safe section .real-estate-details {
-  background: #f8fafc !important;
-  border-color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .recueil-safe section .real-estate-details summary::-webkit-details-marker {
@@ -310,7 +304,7 @@
 }
 
 .recueil-safe section .real-estate-details[open] summary {
-  background: #f3f6fa;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .recueil-safe section .real-estate-card input[type='number'] {
@@ -326,61 +320,11 @@
 
 @media (max-width: 639px) {
   .recueil-safe section .real-estate-section {
-    margin-inline: -0.25rem;
-    padding: 1rem !important;
+    margin-inline: 0;
   }
 
   .recueil-safe section .real-estate-card .recueil-question-grid > * {
     border-bottom: 0 !important;
     padding-bottom: 0 !important;
-  }
-}
-
-/* Financier — même langage visuel clair et compact que l'onglet Immobilier. */
-.recueil-safe section .financial-section {
-  color: #33465f !important;
-  color-scheme: light;
-}
-
-.recueil-safe section .financial-section label,
-.recueil-safe section .financial-section legend,
-.recueil-safe section .financial-section h3,
-.recueil-safe section .financial-section .text-slate-700,
-.recueil-safe section .financial-section .text-slate-800,
-.recueil-safe section .financial-section .text-slate-900 {
-  color: #263a53 !important;
-}
-
-.recueil-safe section .financial-section .text-slate-500,
-.recueil-safe section .financial-section .text-slate-600,
-.recueil-safe section .financial-section .text-\[\#94A3B8\] {
-  color: #64748b !important;
-}
-
-.recueil-safe section .financial-section .financial-choice,
-.recueil-safe section .financial-section .financial-band,
-.recueil-safe section .financial-section .financial-confirm {
-  box-shadow: none !important;
-}
-
-.recueil-safe section .financial-section .financial-choice--selected,
-.recueil-safe section .financial-section .financial-band--selected {
-  border-color: #3b82f6 !important;
-  background: #3b82f6 !important;
-  color: #ffffff !important;
-}
-
-.recueil-safe section .financial-section input,
-.recueil-safe section .financial-section textarea,
-.recueil-safe section .financial-section select {
-  background: #ffffff !important;
-  border-color: #cbd8e7 !important;
-  color: #1e293b !important;
-}
-
-@media (max-width: 639px) {
-  .recueil-safe section .financial-section {
-    margin-inline: -0.25rem;
-    padding: 1rem !important;
   }
 }
