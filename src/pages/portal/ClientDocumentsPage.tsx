@@ -61,7 +61,7 @@ const taxAbsenceReasons: Array<{ value: TaxAbsenceReason; label: string }> = [
 function safeName(name: string): string { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '-'); }
 function categoryLabel(value: string) { return categories.find(([code]) => code === value)?.[1] ?? value.replaceAll('_', ' '); }
 function contextComplete(context: DocumentContext | undefined): boolean {
-  if (!context || context.tax_status === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_credits === null || context.has_sci_company === null) return false;
+  if (!context || context.tax_status === null || context.has_financial_assets === null || context.has_real_estate === null || context.has_sci_company === null) return false;
   if (context.tax_status === 'no_personal_notice') {
     if (!context.tax_absence_reason) return false;
     if (context.tax_absence_reason === 'other' && !context.tax_absence_other?.trim()) return false;
@@ -382,7 +382,6 @@ export default function ClientDocumentsPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {boolChoice('Détenez-vous de l’épargne ou des placements à prendre en compte dans l’analyse patrimoniale ? Exemples : Livret A, LDDS, LEP, livrets bancaires, comptes à terme, assurance-vie, PER, PEA, compte-titres, SCPI.', 'has_financial_assets', currentContext?.has_financial_assets)}
             {boolChoice('Détenez-vous un ou plusieurs biens immobiliers à prendre en compte dans l’analyse patrimoniale ?', 'has_real_estate', currentContext?.has_real_estate)}
-            {boolChoice('Avez-vous un ou plusieurs crédits en cours ?', 'has_credits', currentContext?.has_credits)}
             {boolChoice('Détenez-vous une SCI ou une société à intégrer à l’analyse ?', 'has_sci_company', currentContext?.has_sci_company)}
           </div>
         </div>}
