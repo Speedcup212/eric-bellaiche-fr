@@ -229,6 +229,17 @@
   color: #aebfd4 !important;
 }
 
+.recueil-safe section .real-estate-section button.bg-white {
+  background: #ffffff !important;
+  border-color: #dbe4ef !important;
+  color: #33465f !important;
+}
+
+.recueil-safe section .real-estate-section button.bg-white:hover {
+  border-color: #6ea8f8 !important;
+  color: #173967 !important;
+}
+
 .recueil-safe section .real-estate-card {
   background: transparent !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
