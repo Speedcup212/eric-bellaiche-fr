@@ -16,6 +16,7 @@ const sections: Array<{ code: SectionCode; label: string; title: string; descrip
   { code: 'capacity', label: 'Revenus', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'patrimony', label: 'Immobilier', title: 'Immobilier', description: 'Déclarez chaque bien en quelques réponses essentielles. Les situations particulières peuvent être précisées uniquement si nécessaire.' },
   { code: 'financial', label: 'Financier', title: 'Patrimoine financier', description: 'Indiquez le montant disponible sur vos comptes courants, puis les grandes catégories de placements détenues. Les relevés de placements transmis ensuite permettront d’obtenir le détail.' },
+  { code: 'credits', label: 'Crédits', title: 'Crédits en cours', description: 'Déclarez rapidement vos crédits et leurs principales mensualités. Les tableaux d’amortissement permettront ensuite de reprendre les informations détaillées.' },
   { code: 'regulatory', label: 'Réglementaire', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
 ];
 
@@ -108,7 +109,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
   patrimony: { has_real_estate: '', comptes_courants: [], immobilier: [], placements: [] },
   financial: { current_accounts_amount: '', categories: [], total_band: '', other_details: '', completeness_confirmed: false },
-  credits: { items: [] },
+  credits: { has_credits: '', items: [] },
 };
 
 function Field({ label, value, onChange, type = 'text', required = false, placeholder = '', help = '', options }: { label: string; value: any; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; help?: string; options?: string[] }) {
@@ -356,6 +357,9 @@ export default function ClientRecueilJourneyPage() {
         } else if (code === 'financial') {
           const categories = Array.isArray(payload.categories) ? payload.categories.filter((category) => category !== 'current_accounts') : [];
           nextForms.financial = { ...nextForms.financial, ...payload, categories };
+        } else if (code === 'credits') {
+          const items = Array.isArray(payload.items) ? payload.items : [];
+          nextForms.credits = { ...nextForms.credits, ...payload, has_credits: typeof payload.has_credits === 'boolean' ? payload.has_credits : items.length > 0, items };
         } else if (code in nextForms) {
           nextForms[code] = { ...nextForms[code], ...payload };
         }
@@ -448,7 +452,12 @@ export default function ClientRecueilJourneyPage() {
       if (form.completeness_confirmed !== true) throw new Error('Confirmez que votre déclaration couvre l’ensemble de vos comptes et placements.');
     }
     if (current.code === 'credits') {
-      for (const item of form.items ?? []) if ([item.type_credit, item.banque, item.montant_initial, item.capital_restant_du, item.mensualite, item.duree_mois, item.taux, item.type_pret].some(isBlank)) throw new Error('Complétez toutes les informations principales de chaque crédit.');
+      if (typeof form.has_credits !== 'boolean') throw new Error('Indiquez si vous avez un ou plusieurs crédits en cours.');
+      if (form.has_credits === true && (form.items ?? []).length === 0) throw new Error('Ajoutez au moins un crédit.');
+      for (const item of form.items ?? []) {
+        if ([item.type_credit, item.emprunteur, item.capital_restant_du, item.mensualite].some(isBlank)) throw new Error('Complétez les quatre informations essentielles de chaque crédit.');
+        if (!isNonNegativeNumber(item.capital_restant_du) || !isNonNegativeNumber(item.mensualite)) throw new Error('Le capital restant dû et la mensualité doivent être positifs ou nuls.');
+      }
     }
   };
 
@@ -691,10 +700,26 @@ export default function ClientRecueilJourneyPage() {
           {(form.categories ?? []).length > 0 && <button type="button" aria-pressed={form.completeness_confirmed === true} onClick={() => patchCurrent({ completeness_confirmed: form.completeness_confirmed !== true })} className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.completeness_confirmed === true ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700 hover:border-[#3B82F6]'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.completeness_confirmed === true ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 bg-white'}`}>{form.completeness_confirmed === true ? '✓' : ''}</span><span><strong>Je confirme que cette déclaration couvre l’ensemble de mes comptes courants et placements.</strong><br /><span className="text-xs text-slate-500">Les relevés de placements permettront ensuite au cabinet de vérifier et compléter les montants concernés.</span></span></button>}
         </div>}
 
-        {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Type de crédit" required value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Autre crédit" /><Field label="Banque" required value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" required value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" required value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" required value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" required type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" required type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" required value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} placeholder="Autre type de prêt" /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}
+        {current.code === 'credits' && <div className="credit-section space-y-6">
+          <GuidanceNote><p>Une déclaration courte, complétée par les justificatifs</p><p>Renseignez quatre informations par crédit. La banque, le taux, l’assurance et l’échéancier détaillé seront repris ensuite à partir des tableaux d’amortissement.</p></GuidanceNote>
+          <BoolChoice label="Avez-vous un ou plusieurs crédits en cours ?" value={form.has_credits} onChange={(value) => patchCurrent({ has_credits: value, items: value ? ((form.items ?? []).length > 0 ? form.items : [{ type_credit: '', emprunteur: propertyOwnerOptions[0], capital_restant_du: '', mensualite: '' }]) : [] })} />
+          {form.has_credits === false && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun crédit déclaré. Aucun tableau d’amortissement ne sera demandé.</div>}
+          {form.has_credits === true && <div>
+            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-900">Vos crédits</h3><p className="mt-1 text-xs text-slate-500">Ajoutez une fiche pour chaque crédit immobilier, consommation, automobile ou professionnel.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', emprunteur: propertyOwnerOptions[0], capital_restant_du: '', mensualite: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter</button></div>
+            {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
+              <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
+              <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-2">
+                <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit automobile', 'Crédit professionnel', 'Autre crédit']} />
+                <CompactSelectField label="Emprunteur" required value={item.emprunteur} onChange={(value) => updateList('items', index, { emprunteur: value })} options={propertyOwnerOptions} />
+                <MoneyField label="Capital restant dû approximatif (€)" required value={item.capital_restant_du} onChange={(value) => updateList('items', index, { capital_restant_du: value })} />
+                <MoneyField label="Mensualité actuelle (€)" required value={item.mensualite} onChange={(value) => updateList('items', index, { mensualite: value })} />
+              </div>
+            </div>)}
+          </div>}
+        </div>}
 
         {errorMessage && <div id="recueil-validation-alert" role="alert" tabIndex={-1} className="scroll-mt-28 rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{errorMessage}</p></div>}
-        {current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les informations fiscales et les crédits seront renseignés à partir des justificatifs transmis en fin de parcours.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}
+        {current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}
       </div>
       <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
