@@ -11,6 +11,7 @@ const propertyUsages = ['Résidence principale', 'Résidence secondaire', 'Locat
 const propertyProjects = ['Conserver', 'Vendre', 'Mettre en location', 'À étudier'];
 const financialCategories = ['savings', 'life_insurance', 'retirement', 'securities', 'paper_real_estate', 'employee_savings', 'other'];
 const financialBands = ['under_10k', '10k_50k', '50k_100k', '100k_250k', '250k_500k', 'over_500k'];
+const creditTypes = ['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit automobile', 'Crédit professionnel', 'Autre crédit'];
 
 function profileAt(index) {
   const situation = familySituations[index % familySituations.length];
@@ -59,6 +60,10 @@ function profileAt(index) {
       other_details: financialCategories[index % financialCategories.length] === 'other' ? 'Parts de société non cotée' : '',
       completeness_confirmed: true,
     },
+    credits: index % 4 === 0 ? { has_credits: false, items: [] } : {
+      has_credits: true,
+      items: [{ type_credit: creditTypes[index % creditTypes.length], emprunteur: owner, capital_restant_du: 5000 + index * 100, mensualite: 150 + index }],
+    },
     documents: { tax_status: index % 10 === 0 ? 'no_personal_notice' : 'personal_notice', tax_absence_reason: index % 10 === 0 ? 'first_declaration' : null },
   };
 }
@@ -90,6 +95,13 @@ function validate(profile) {
   if (!categories.includes('none') && !financialBands.includes(profile.financial.total_band)) errors.push('financial_band');
   if (profile.financial.completeness_confirmed !== true) errors.push('financial_confirmation');
   if (profile.documents.has_financial_assets !== categories.some((category) => category !== 'none')) errors.push('financial_assets_context');
+  if (typeof profile.credits.has_credits !== 'boolean') errors.push('credits_answer');
+  if (profile.credits.has_credits && profile.credits.items.length === 0) errors.push('credits_missing');
+  if (!profile.credits.has_credits && profile.credits.items.length > 0) errors.push('credits_contradiction');
+  for (const credit of profile.credits.items) {
+    if (!credit.type_credit || !credit.emprunteur || !Number.isFinite(Number(credit.capital_restant_du)) || Number(credit.capital_restant_du) < 0 || !Number.isFinite(Number(credit.mensualite)) || Number(credit.mensualite) < 0) errors.push('credit_fields');
+  }
+  if (profile.documents.has_credits !== profile.credits.has_credits) errors.push('credits_context');
   return errors;
 }
 
@@ -97,6 +109,7 @@ const profiles = Array.from({ length: 100 }, (_, index) => profileAt(index));
 for (const profile of profiles) {
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
   profile.documents.has_financial_assets = profile.financial.categories.some((category) => category !== 'none');
+  profile.documents.has_credits = profile.credits.has_credits;
   assert.deepEqual(validate(profile), [], `Dossier ${profile.id} invalide`);
 }
 
@@ -115,17 +128,21 @@ const invalidFixtures = [
   { name: 'encours financier absent', mutate: (p) => { p.financial.total_band = ''; }, expected: 'financial_band' },
   { name: 'déclaration financière non confirmée', mutate: (p) => { p.financial.completeness_confirmed = false; }, expected: 'financial_confirmation' },
   { name: 'contexte financier contradictoire', mutate: (p) => { p.documents.has_financial_assets = false; }, expected: 'financial_assets_context' },
+  { name: 'crédits non renseignés', mutate: (p) => { p.credits.has_credits = ''; }, expected: 'credits_answer' },
+  { name: 'crédit annoncé sans fiche', mutate: (p) => { p.credits.has_credits = true; p.credits.items = []; }, expected: 'credits_missing' },
+  { name: 'contexte crédits contradictoire', mutate: (p) => { p.documents.has_credits = false; }, expected: 'credits_context' },
 ];
 
 for (const fixture of invalidFixtures) {
   const profile = structuredClone(profileAt(1));
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
   profile.documents.has_financial_assets = profile.financial.categories.some((category) => category !== 'none');
+  profile.documents.has_credits = profile.credits.has_credits;
   fixture.mutate(profile);
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration] = await Promise.all([
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
   read('src/pages/portal/ClientDocumentsPage.tsx'),
   read('src/patrimony-dark.css'),
@@ -135,6 +152,7 @@ const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migratio
   read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'),
   read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'),
   read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'),
+  read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/, 'Le setup famille doit utiliser le RPC atomique');
@@ -149,6 +167,7 @@ assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justi
 assert.match(documentsPage, /plusieurs fichiers dans chacune d’elles/, 'L’interface doit indiquer clairement que plusieurs fichiers sont acceptés par catégorie');
 assert.doesNotMatch(documentsPage, /\['comptes_liquidites', 'Comptes courants'\]/, 'Le relevé de compte courant ne doit plus être proposé comme justificatif');
 assert.doesNotMatch(documentsPage, /category: 'comptes_liquidites'/, 'Le relevé de compte courant ne doit plus être exigé');
+assert.doesNotMatch(documentsPage, /boolChoice\('Avez-vous un ou plusieurs crédits en cours/, 'La page Documents ne doit pas redemander les crédits déjà déclarés');
 assert.match(documentsPage, /Ajouter un autre/, 'Une catégorie déjà alimentée doit permettre explicitement un nouveau dépôt');
 assert.doesNotMatch(documentsPage, /item\.receivedCount\}\/\{item\.expectedCount\}[^\n]+Ajouter/, 'Le minimum documentaire ne doit pas être présenté comme une limite maximale');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
@@ -172,8 +191,8 @@ assert.match(journeyBase, /const complete = !\[item\.type_bien[\s\S]{0,500}<deta
 assert.match(journeyBase, /Loyer mensuel hors charges/, 'Le loyer doit être demandé dans une unité intuitive pour un novice');
 assert.match(journeyBase, /loyer_annuel: item\.usage === 'Locatif' \? annualRentValue\(item\)/, 'Le loyer mensuel doit être converti en montant annuel avant sauvegarde');
 assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit pas recouvrir la fiche immobilière pendant le défilement');
-assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
-assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
+assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'credits'[\s\S]{0,500}code: 'regulatory'/, 'Crédits doit être placé après Financier et avant Réglementaire');
+assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Crédits'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(journeyBase, /Les relevés de placements transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que seuls les justificatifs de placements apporteront le détail');
 assert.match(journeyBase, /Quel est le montant actuel disponible sur l’ensemble de vos comptes courants \?/, 'Le montant des comptes courants doit être demandé directement dans Financier');
 assert.match(journeyBase, /current_accounts_amount/, 'Le montant des comptes courants doit être sauvegardé dans la section Financier');
@@ -193,6 +212,16 @@ assert.match(financialCoreMigration, /'patrimony','financial','credits'/, 'La fo
 assert.match(currentAccountsMigration, /v_current_accounts_amount/, 'Le serveur doit valider le montant déclaré des comptes courants');
 assert.match(currentAccountsMigration, /'liquidities',false/, 'La transmission documentaire ne doit plus exiger de relevé de compte courant');
 assert.doesNotMatch(currentAccountsMigration, /Ajoutez un relevé du ou des comptes courants/, 'Le serveur ne doit plus bloquer la transmission faute de relevé de compte courant');
+assert.match(journeyBase, /Crédit à la consommation/, 'L’onglet Crédits doit couvrir les crédits à la consommation');
+assert.match(journeyBase, /Capital restant dû approximatif/, 'Le recueil rapide doit demander le capital restant dû');
+assert.match(journeyBase, /Mensualité actuelle/, 'Le recueil rapide doit demander la mensualité');
+assert.match(journeyBase, /className="credit-section space-y-6"/, 'L’onglet Crédits doit utiliser une classe visuelle dédiée');
+assert.match(journeyBase, /className="credit-card /, 'Chaque crédit doit utiliser une fiche compacte dédiée');
+assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/, 'Les fiches de crédit doivent rester bleu nuit, sans fond gris');
+assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/, 'Les champs de crédit doivent rester blancs et lisibles');
+assert.match(creditMigration, /validate_credit_recueil_payload/, 'Le serveur doit valider la déclaration rapide des crédits');
+assert.match(creditMigration, /sync_document_credit_context/, 'Les justificatifs de crédit doivent dépendre automatiquement de l’onglet Crédits');
+assert.match(creditMigration, /require_credit_recueil_before_validation/, 'La validation finale doit exiger la section Crédits');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
 
 const counts = profiles.reduce((result, profile) => {
