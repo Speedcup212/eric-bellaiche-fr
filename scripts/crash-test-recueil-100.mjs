@@ -144,6 +144,7 @@ assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estat
 assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation documentaire doit être isolée dans un écran dédié');
 assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
+assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
 assert.match(journeyBase, /progress\.role_dossier === 'investisseur_2'[\s\S]{0,120}\['Identifiant 2'\][\s\S]{0,160}\['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'\]/, 'L’Identifiant 1 doit pouvoir déclarer un bien appartenant à l’Identifiant 2');
 assert.doesNotMatch(journeyBase, /Six informations par bien/, 'La fiche immobilière ne doit pas répéter une consigne visuelle inutile');
