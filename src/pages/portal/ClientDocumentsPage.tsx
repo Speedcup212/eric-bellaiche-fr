@@ -399,7 +399,7 @@ export default function ClientDocumentsPage() {
             {requirements.map((item, index) => {
               const received = item.receivedCount >= Math.max(item.expectedCount, 1);
               const selected = activeRequirementIndex === index;
-              return <button key={item.category} type="button" onClick={() => { setActiveRequirementIndex(index); selectCategory(item.category); }} className={`flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${selected ? 'border-blue-500 bg-blue-600 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-blue-400/60 hover:bg-white/10'}`}>
+              return <button key={item.category} type="button" onClick={() => { setActiveRequirementIndex(index); selectCategory(item.category); }} className={`flex min-h-14 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${selected ? 'border-blue-500 bg-blue-600 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-blue-400/60 hover:bg-white/10'}`}>
                 <span>{item.label}</span>
                 {received ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : item.status === 'required' ? <span className="h-2 w-2 shrink-0 rounded-full bg-rose-400" /> : null}
               </button>;
@@ -427,7 +427,7 @@ export default function ClientDocumentsPage() {
                 </button>
 
                 {active && !transmitted && <form onSubmit={upload} className="document-upload-form border-t border-blue-100 bg-white px-4 py-4 sm:px-5">
-                  {item.category === 'identite' && <div className="mb-4 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  {item.category === 'identite' && <div className="document-identity-panel mb-4 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     {progress.is_couple && <div><p className="text-sm font-semibold text-slate-900">À qui appartient cette pièce d’identité ? *</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{dossierMembers.map((member) => <button key={member.investisseur_id} type="button" onClick={() => { setIdentityOwnerId(member.investisseur_id); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityOwnerId === member.investisseur_id ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{memberLabel(member.role_dossier)}</button>)}</div></div>}
                     <div><p className="text-sm font-semibold text-slate-900">Quel document d’identité transmettez-vous ? *</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{identityTypes.map((choice) => <button key={choice.value} type="button" onClick={() => { setIdentityType(choice.value); setFile(null); }} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${identityType === choice.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{choice.label}</button>)}</div></div>
                     <div className="rounded-xl bg-white px-3 py-3 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Document en cours de validité obligatoire.</strong>{selectedIdentity ? ` ${selectedIdentity.help}` : ' Sélectionnez le type de document pour afficher les faces à transmettre.'}</div>
