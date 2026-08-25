@@ -8,6 +8,8 @@ const familySituations = ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Veuve'
 const professionalStatuses = ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'];
 const propertyTypes = ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial', 'Autre'];
 const propertyUsages = ['Résidence principale', 'Résidence secondaire', 'Locatif', 'Autre'];
+const financialCategories = ['current_accounts', 'savings', 'life_insurance', 'retirement', 'securities', 'paper_real_estate', 'employee_savings', 'other'];
+const financialBands = ['under_10k', '10k_50k', '50k_100k', '100k_250k', '250k_500k', 'over_500k'];
 
 function profileAt(index) {
   const situation = familySituations[index % familySituations.length];
@@ -45,6 +47,14 @@ function profileAt(index) {
         loyer_annuel: usage === 'Locatif' ? 9600 : '',
       }] : [],
     },
+    financial: index % 10 === 0 ? {
+      categories: ['none'], total_band: '', other_details: '', completeness_confirmed: true,
+    } : {
+      categories: [...new Set(['current_accounts', financialCategories[index % financialCategories.length]])],
+      total_band: financialBands[index % financialBands.length],
+      other_details: financialCategories[index % financialCategories.length] === 'other' ? 'Parts de société non cotée' : '',
+      completeness_confirmed: true,
+    },
     documents: { tax_status: index % 10 === 0 ? 'no_personal_notice' : 'personal_notice', tax_absence_reason: index % 10 === 0 ? 'first_declaration' : null },
   };
 }
@@ -67,12 +77,22 @@ function validate(profile) {
   }
   if (profile.documents.tax_status === 'no_personal_notice' && !profile.documents.tax_absence_reason) errors.push('tax_reason');
   if (profile.patrimony.has_real_estate && profile.documents.has_real_estate === false) errors.push('document_context');
+  const categories = profile.financial.categories;
+  if (!Array.isArray(categories) || categories.length === 0) errors.push('financial_categories');
+  if (categories.includes('none') && categories.length > 1) errors.push('financial_none_exclusive');
+  if (categories.includes('other') && !profile.financial.other_details) errors.push('financial_other_details');
+  if (!categories.includes('none') && !financialBands.includes(profile.financial.total_band)) errors.push('financial_band');
+  if (profile.financial.completeness_confirmed !== true) errors.push('financial_confirmation');
+  if (profile.documents.has_liquidities !== categories.includes('current_accounts')) errors.push('liquidities_context');
+  if (profile.documents.has_financial_assets !== categories.some((category) => !['none', 'current_accounts'].includes(category))) errors.push('financial_assets_context');
   return errors;
 }
 
 const profiles = Array.from({ length: 100 }, (_, index) => profileAt(index));
 for (const profile of profiles) {
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
+  profile.documents.has_liquidities = profile.financial.categories.includes('current_accounts');
+  profile.documents.has_financial_assets = profile.financial.categories.some((category) => !['none', 'current_accounts'].includes(category));
   assert.deepEqual(validate(profile), [], `Dossier ${profile.id} invalide`);
 }
 
@@ -83,21 +103,30 @@ const invalidFixtures = [
   { name: 'propriétaire couple sur dossier individuel', mutate: (p) => { p.scope = 'individual'; p.patrimony.has_real_estate = true; p.patrimony.immobilier = [{ ...profileAt(1).patrimony.immobilier[0], proprietaire: 'Identifiant 1 et 2' }]; }, expected: 'individual_owner' },
   { name: 'année future', mutate: (p) => { p.patrimony.has_real_estate = true; p.patrimony.immobilier = [{ ...profileAt(1).patrimony.immobilier[0], date_acquisition: '2999' }]; }, expected: 'property_year' },
   { name: 'contexte immobilier contradictoire', mutate: (p) => { p.patrimony.has_real_estate = true; p.documents.has_real_estate = false; }, expected: 'document_context' },
+  { name: 'aucune catégorie financière', mutate: (p) => { p.financial.categories = []; }, expected: 'financial_categories' },
+  { name: 'aucun avec une autre catégorie', mutate: (p) => { p.financial.categories = ['none', 'savings']; }, expected: 'financial_none_exclusive' },
+  { name: 'autre placement non précisé', mutate: (p) => { p.financial.categories = ['other']; p.financial.other_details = ''; }, expected: 'financial_other_details' },
+  { name: 'encours financier absent', mutate: (p) => { p.financial.total_band = ''; }, expected: 'financial_band' },
+  { name: 'déclaration financière non confirmée', mutate: (p) => { p.financial.completeness_confirmed = false; }, expected: 'financial_confirmation' },
+  { name: 'contexte financier contradictoire', mutate: (p) => { p.documents.has_financial_assets = false; }, expected: 'financial_assets_context' },
 ];
 
 for (const fixture of invalidFixtures) {
   const profile = structuredClone(profileAt(1));
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
+  profile.documents.has_liquidities = profile.financial.categories.includes('current_accounts');
+  profile.documents.has_financial_assets = profile.financial.categories.some((category) => !['none', 'current_accounts'].includes(category));
   fixture.mutate(profile);
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, journeyBase, helpers, migration] = await Promise.all([
+const [familyPage, documentsPage, journeyBase, helpers, migration, financialMigration] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
   read('src/pages/portal/ClientDocumentsPage.tsx'),
   read('src/pages/portal/ClientRecueilJourneyBase.tsx'),
   read('src/portal/portalHelpers.ts'),
   read('supabase/migrations/20260825120000_atomic_family_setup.sql'),
+  read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/, 'Le setup famille doit utiliser le RPC atomique');
@@ -107,8 +136,12 @@ assert.match(migration, /sync_document_real_estate_context/, 'Le contexte docume
 assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
 assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
-assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,400}code: 'regulatory'/, 'Patrimoine doit rester avant Réglementaire');
-assert.match(journeyBase, /'Revenus', 'Patrimoine', 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
+assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
+assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
+assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
+assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
+assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
+assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
 
 const counts = profiles.reduce((result, profile) => {
@@ -118,4 +151,4 @@ const counts = profiles.reduce((result, profile) => {
 }, { individual: 0, couple: 0 });
 
 console.log(`Crash-test recueil: 100/100 dossiers valides, ${invalidFixtures.length}/${invalidFixtures.length} incohérences refusées.`);
-console.log(`Profils couverts: ${counts.individual} individuels, ${counts.couple} couples, 8 statuts professionnels, 6 types de biens, 4 usages, FATCA, PPE et ESG.`);
+console.log(`Profils couverts: ${counts.individual} individuels, ${counts.couple} couples, 8 statuts professionnels, 6 types de biens, 4 usages, 8 catégories financières, 6 tranches d’encours, FATCA, PPE et ESG.`);

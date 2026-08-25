@@ -6,17 +6,39 @@ import { supabase } from '../../lib/supabase';
 import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
 type AnyPayload = Record<string, any>;
-type SectionCode = 'identity' | 'family' | 'professional' | 'objectives' | 'capacity' | 'tax' | 'regulatory' | 'patrimony' | 'credits';
+type SectionCode = 'identity' | 'family' | 'professional' | 'objectives' | 'capacity' | 'tax' | 'regulatory' | 'patrimony' | 'financial' | 'credits';
 
-const sections: Array<{ code: SectionCode; title: string; description: string }> = [
-  { code: 'identity', title: 'Identité et coordonnées', description: 'Vérifiez vos informations personnelles, votre adresse fiscale et vos coordonnées.' },
-  { code: 'family', title: 'Situation familiale', description: 'Renseignez votre situation de famille et les éléments utiles à l’organisation patrimoniale.' },
-  { code: 'professional', title: 'Situation professionnelle', description: 'Votre activité et votre statut permettent d’apprécier la stabilité et l’origine de vos revenus.' },
-  { code: 'objectives', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs, classez-les par priorité et indiquez leur horizon.' },
-  { code: 'capacity', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
-  { code: 'patrimony', title: 'Patrimoine immobilier', description: 'Renseignez les biens immobiliers détenus et leur valeur estimée. Aucun justificatif immobilier n’est demandé à cette étape.' },
-  { code: 'regulatory', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
+const sections: Array<{ code: SectionCode; label: string; title: string; description: string }> = [
+  { code: 'identity', label: 'Identité', title: 'Identité et coordonnées', description: 'Vérifiez vos informations personnelles, votre adresse fiscale et vos coordonnées.' },
+  { code: 'family', label: 'Famille', title: 'Situation familiale', description: 'Renseignez votre situation de famille et les éléments utiles à l’organisation patrimoniale.' },
+  { code: 'professional', label: 'Profession', title: 'Situation professionnelle', description: 'Votre activité et votre statut permettent d’apprécier la stabilité et l’origine de vos revenus.' },
+  { code: 'objectives', label: 'Objectifs', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs, classez-les par priorité et indiquez leur horizon.' },
+  { code: 'capacity', label: 'Revenus', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
+  { code: 'patrimony', label: 'Immobilier', title: 'Patrimoine immobilier', description: 'Renseignez les biens immobiliers détenus et leur valeur estimée. Aucun justificatif immobilier n’est demandé à cette étape.' },
+  { code: 'financial', label: 'Financier', title: 'Patrimoine financier', description: 'Indiquez simplement les grandes catégories détenues et un encours global approximatif. Les relevés transmis ensuite permettront d’obtenir le détail.' },
+  { code: 'regulatory', label: 'Réglementaire', title: 'Situation réglementaire', description: 'Résidence fiscale, FATCA/CRS, sanctions, PPE et choix de durabilité.' },
 ];
+
+const financialCategoryOptions = [
+  ['current_accounts', 'Comptes courants'],
+  ['savings', 'Livrets et épargne bancaire'],
+  ['life_insurance', 'Assurance-vie / capitalisation'],
+  ['retirement', 'PER / épargne retraite'],
+  ['securities', 'PEA / compte-titres'],
+  ['paper_real_estate', 'SCPI / OPCI'],
+  ['employee_savings', 'Épargne salariale'],
+  ['other', 'Autres placements'],
+  ['none', 'Aucun compte ni placement'],
+] as const;
+
+const financialTotalBands = [
+  ['under_10k', 'Moins de 10 000 €'],
+  ['10k_50k', 'De 10 000 € à 50 000 €'],
+  ['50k_100k', 'De 50 000 € à 100 000 €'],
+  ['100k_250k', 'De 100 000 € à 250 000 €'],
+  ['250k_500k', 'De 250 000 € à 500 000 €'],
+  ['over_500k', 'Plus de 500 000 €'],
+] as const;
 
 const objectiveOptions = [
   ['optimisation_fiscale', 'Optimiser sa fiscalité'],
@@ -74,6 +96,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   tax: { annee_imposition: new Date().getFullYear().toString(), salaires_assimiles: '', pensions_retraites_rentes: '', revenus_lmnp: '', revenus_bnc_pro: '', revenus_capitaux_mobiliers: '', revenus_fonciers_nets: '', revenu_imposable: '', impot_revenu_net: '', prelevements_sociaux_nets: '', taux_imposition: '', tmi: '', revenu_fiscal_reference: '', nombre_parts: '', deficit_foncier_reportable: '', evolution_revenus_commentaire: '', plafond_disponible_avis: '', versements_a_deduire: '', plafond_non_utilise_calcule: '', ifi_concerne: false, ifi_base_imposable: '', ifi_tmi: '', ifi_net_a_payer: '' },
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
   patrimony: { has_real_estate: '', comptes_courants: [], immobilier: [], placements: [] },
+  financial: { categories: [], total_band: '', other_details: '', completeness_confirmed: false },
   credits: { items: [] },
 };
 
@@ -370,6 +393,14 @@ export default function ClientRecueilJourneyPage() {
         }
       }
     }
+    if (current.code === 'financial') {
+      const categories = Array.isArray(form.categories) ? form.categories : [];
+      if (categories.length === 0) throw new Error('Sélectionnez au moins une catégorie, ou indiquez que vous ne détenez aucun compte ni placement.');
+      if (categories.includes('none') && categories.length > 1) throw new Error('Le choix « Aucun compte ni placement » ne peut pas être associé à une autre catégorie.');
+      if (categories.includes('other') && isBlank(form.other_details)) throw new Error('Précisez la nature de vos autres placements.');
+      if (!categories.includes('none') && isBlank(form.total_band)) throw new Error('Indiquez l’encours financier total approximatif.');
+      if (form.completeness_confirmed !== true) throw new Error('Confirmez que votre déclaration couvre l’ensemble de vos comptes et placements.');
+    }
     if (current.code === 'credits') {
       for (const item of form.items ?? []) if ([item.type_credit, item.banque, item.montant_initial, item.capital_restant_du, item.mensualite, item.duree_mois, item.taux, item.type_pret].some(isBlank)) throw new Error('Complétez toutes les informations principales de chaque crédit.');
     }
@@ -449,7 +480,7 @@ export default function ClientRecueilJourneyPage() {
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} substep={{ current: step + 1, total: sections.length, label: current.title }} />
     {current.code !== 'patrimony' && <PageIntro variant="recueil" eyebrow={`Étape 1 · Partie ${step + 1}/${sections.length}`} title={current.title} description={current.description} />}
     <WizardCard>
-      <div className="border-b border-white/10 px-6 py-4 sm:px-9"><div className="flex flex-wrap gap-2">{sections.map((section, index) => { const familyLocked = section.code === 'family' && progress.role_dossier === 'investisseur_2'; return <button key={section.code} type="button" disabled={familyLocked} title={familyLocked ? 'Informations communes gérées par l’Identifiant 1' : undefined} onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {['Identité', 'Famille', 'Profession', 'Objectifs', 'Revenus', 'Patrimoine', 'Réglementaire'][index]}</button>; })}</div></div>
+      <div className="border-b border-white/10 px-6 py-4 sm:px-9"><div className="flex flex-wrap gap-2">{sections.map((section, index) => { const familyLocked = section.code === 'family' && progress.role_dossier === 'investisseur_2'; return <button key={section.code} type="button" disabled={familyLocked} title={familyLocked ? 'Informations communes gérées par l’Identifiant 1' : undefined} onClick={() => setStep(index)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {section.label}</button>; })}</div></div>
       <div className="space-y-10 px-6 py-9 sm:px-9 sm:py-12">
         {current.code === 'identity' && <><div className="recueil-question-grid recueil-question-grid--3 grid gap-x-5 gap-y-7 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-8"><Field label="Civilité" required value={form.civilite} onChange={(v) => patchCurrent({ civilite: v })} /><Field label="Prénom" required value={form.prenom} onChange={(v) => patchCurrent({ prenom: v })} /><Field label="Nom" required value={form.nom} onChange={(v) => patchCurrent({ nom: v })} /><Field label="Nom de naissance" required={identityNeedsBirthName} value={form.nom_naissance} onChange={(v) => patchCurrent({ nom_naissance: v })} placeholder="Nom figurant sur votre acte de naissance" /><Field label="Date de naissance" required type="date" value={form.date_naissance} onChange={(v) => patchCurrent({ date_naissance: v })} /><Field label="Lieu de naissance" required value={form.lieu_naissance} onChange={(v) => patchCurrent({ lieu_naissance: v })} /><Field label="Pays de naissance" required value={form.pays_naissance} onChange={(v) => patchCurrent({ pays_naissance: v })} /><Field label="Nationalité" required value={form.nationalite} onChange={(v) => patchCurrent({ nationalite: v })} /><Field label="Mobile" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder="06 12 34 56 78 ou +33 6 12 34 56 78" />{accountEmail && <ReadOnlyField label="E-mail *" value={accountEmail} help="Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie." />}</div><div className="border-t border-slate-100 pt-7"><h3 className="font-semibold text-slate-900">Adresse fiscale</h3><div className="mt-4 recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="N° et voie" required value={form.address?.numero_voie} onChange={(v) => patchCurrent({ address: { ...form.address, numero_voie: v } })} /><Field label="Complément" value={form.address?.complement} onChange={(v) => patchCurrent({ address: { ...form.address, complement: v } })} /><Field label="Code postal" required value={form.address?.code_postal} onChange={(v) => patchCurrent({ address: { ...form.address, code_postal: v } })} /><Field label="Ville" required value={form.address?.ville} onChange={(v) => patchCurrent({ address: { ...form.address, ville: v } })} /><Field label="Pays" required value={form.address?.pays} onChange={(v) => patchCurrent({ address: { ...form.address, pays: v } })} /><Field label="Type de logement" required value={form.address?.type_logement} onChange={(v) => patchCurrent({ address: { ...form.address, type_logement: v } })} /></div></div></>}
 
@@ -536,6 +567,40 @@ export default function ClientRecueilJourneyPage() {
               <label className="mt-5 block text-sm font-semibold text-slate-700">Précisions utiles<textarea value={item.commentaire ?? ''} onChange={(e) => updateList('immobilier', index, { commentaire: e.target.value })} rows={2} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" placeholder="Ex. indivision particulière, démembrement, projet de vente…" /></label>
             </div>)}
           </div>}
+        </div>}
+
+        {current.code === 'financial' && <div className="space-y-7">
+          <GuidanceNote><p>Une déclaration rapide, sans ressaisie des relevés</p><p>Sélectionnez uniquement les grandes familles de comptes et placements. Les établissements, contrats et montants exacts seront repris à partir des justificatifs transmis ensuite.</p></GuidanceNote>
+          <section>
+            <h3 className="text-sm font-semibold text-slate-700">Quels comptes ou placements détenez-vous ? *</h3>
+            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Plusieurs réponses sont possibles.</p>
+            {progress.is_couple && <p className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">{progress.role_dossier === 'investisseur_1' ? 'Indiquez vos avoirs personnels ainsi que les comptes joints ou communs. Ils ne devront pas être déclarés une seconde fois par l’Identifiant 2.' : 'Indiquez uniquement vos avoirs personnels. Les comptes joints ou communs sont déclarés par l’Identifiant 1.'}</p>}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialCategoryOptions.map(([code, label]) => {
+              const categories: string[] = Array.isArray(form.categories) ? form.categories : [];
+              const selected = categories.includes(code);
+              return <button key={code} type="button" aria-pressed={selected} onClick={() => {
+                if (code === 'none') {
+                  patchCurrent({ categories: selected ? [] : ['none'], total_band: '', other_details: '', completeness_confirmed: false });
+                  return;
+                }
+                const withoutNone = categories.filter((item) => item !== 'none');
+                const nextCategories = selected ? withoutNone.filter((item) => item !== code) : [...withoutNone, code];
+                patchCurrent({ categories: nextCategories, other_details: code === 'other' && selected ? '' : form.other_details, completeness_confirmed: false });
+              }} className={`min-h-14 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>;
+            })}</div>
+          </section>
+
+          {(form.categories ?? []).includes('other') && <Field label="Précisez les autres placements" required value={form.other_details} onChange={(v) => patchCurrent({ other_details: v, completeness_confirmed: false })} placeholder="Ex. parts de société, cryptoactifs, actifs détenus à l’étranger…" />}
+
+          {(form.categories ?? []).length > 0 && !(form.categories ?? []).includes('none') && <fieldset>
+            <legend className="text-sm font-semibold text-slate-700">À combien estimez-vous l’ensemble de ces avoirs ? *</legend>
+            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Une fourchette suffit. Additionnez les comptes personnels et, le cas échéant, les comptes joints déclarés ici.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialTotalBands.map(([code, label]) => <button key={code} type="button" aria-pressed={form.total_band === code} onClick={() => patchCurrent({ total_band: code, completeness_confirmed: false })} className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.total_band === code ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{label}</button>)}</div>
+          </fieldset>}
+
+          {(form.categories ?? []).includes('none') && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">Aucun compte ni placement déclaré. Vous pouvez continuer si cette situation est exacte.</div>}
+
+          {(form.categories ?? []).length > 0 && <button type="button" aria-pressed={form.completeness_confirmed === true} onClick={() => patchCurrent({ completeness_confirmed: form.completeness_confirmed !== true })} className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left text-sm leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.completeness_confirmed === true ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700 hover:border-[#3B82F6]'}`}><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.completeness_confirmed === true ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 bg-white'}`}>{form.completeness_confirmed === true ? '✓' : ''}</span><span><strong>Je confirme que cette déclaration couvre l’ensemble de mes comptes et placements.</strong><br /><span className="text-xs text-slate-500">Les relevés permettront ensuite au cabinet de vérifier et compléter les montants.</span></span></button>}
         </div>}
 
         {current.code === 'credits' && <div><div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900">Crédits en cours</h3><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', montant_initial: '', date_emprunt: '', date_echeance: '', mensualite: '', duree_mois: '', taux: '', taux_assurance: '', capital_restant_du: '', banque: '', type_pret: '', commentaire: '' }] })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>{(form.items ?? []).length === 0 && <p className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Aucun crédit déclaré. Vous pouvez continuer si cette situation est exacte.</p>}{(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="mt-4 rounded-2xl border border-slate-200 p-5"><div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Type de crédit" required value={item.type_credit} onChange={(v) => updateList('items', index, { type_credit: v })} placeholder="Autre crédit" /><Field label="Banque" required value={item.banque} onChange={(v) => updateList('items', index, { banque: v })} /><MoneyField label="Montant initial (€)" required value={item.montant_initial} onChange={(v) => updateList('items', index, { montant_initial: v })} /><MoneyField label="Capital restant dû (€)" required value={item.capital_restant_du} onChange={(v) => updateList('items', index, { capital_restant_du: v })} /><MoneyField label="Mensualité (€)" required value={item.mensualite} onChange={(v) => updateList('items', index, { mensualite: v })} /><Field label="Durée (mois)" required type="number" value={item.duree_mois} onChange={(v) => updateList('items', index, { duree_mois: v })} /><Field label="Taux (%)" required type="number" value={item.taux} onChange={(v) => updateList('items', index, { taux: v })} /><Field label="Type de prêt" required value={item.type_pret} onChange={(v) => updateList('items', index, { type_pret: v })} placeholder="Autre type de prêt" /></div><button type="button" onClick={() => removeList('items', index)} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button></div>)}</div>}
