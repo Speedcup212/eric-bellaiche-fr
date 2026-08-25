@@ -150,9 +150,11 @@ assert.match(documentsPage, /Ajouter un autre/, 'Une catégorie déjà alimenté
 assert.doesNotMatch(documentsPage, /item\.receivedCount\}\/\{item\.expectedCount\}[^\n]+Ajouter/, 'Le minimum documentaire ne doit pas être présenté comme une limite maximale');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
 assert.match(documentsPage, /document-identity-panel/, 'Le formulaire d’identité doit disposer d’un panneau clair et lisible dédié');
+assert.match(documentsPage, /document-transmitted-list/, 'Les documents déjà transmis doivent disposer d’un panneau bleu dédié');
 assert.match(documentStyles, /\.document-identity-panel[\s\S]{0,180}background: #f2f7fd/, 'Le panneau d’identité doit conserver un fond clair explicite');
 assert.match(documentStyles, /\.document-identity-panel button\.bg-white[\s\S]{0,220}color: #33465f/, 'Les choix non sélectionnés doivent rester lisibles sur fond clair');
 assert.doesNotMatch(documentStyles, /\.documents-dark \.bg-white,/, 'Aucune règle globale ne doit recolorer tous les panneaux blancs de Documents');
+assert.match(documentStyles, /\.document-transmitted-list[\s\S]{0,180}background: #eaf3ff/, 'Le bloc des documents transmis ne doit plus utiliser de fond gris');
 assert.match(documentsPage, /requirements\.slice\(activeRequirementIndex, activeRequirementIndex \+ 1\)/, 'Une seule catégorie documentaire doit être affichée à la fois');
 assert.match(documentsPage, /sticky=\{false\}/, 'Le bandeau de progression Documents ne doit pas masquer le contenu au défilement');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
