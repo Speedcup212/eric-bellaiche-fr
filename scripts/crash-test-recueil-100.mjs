@@ -140,11 +140,13 @@ assert.match(migration, /sync_document_real_estate_context/, 'Le contexte docume
 assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
 assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
-assert.match(journeyBase, /Six réponses essentielles par bien/, 'La fiche immobilière doit annoncer son format court');
+assert.match(journeyBase, /Six informations par bien/, 'La fiche immobilière doit annoncer son format court');
 assert.match(journeyBase, /Ajouter des précisions[\s\S]{0,100}\(facultatif\)/, 'Les données immobilières secondaires doivent rester facultatives');
 assert.match(journeyBase, /collection_mode: 'real_estate_quick'/, 'La sauvegarde doit tracer le mode de recueil immobilier rapide');
 assert.match(journeyBase, /real-estate-section/, 'La partie immobilière doit disposer de son panneau clair dédié');
 assert.match(journeyBase, /real-estate-card-header/, 'Chaque bien doit avoir une hiérarchie visuelle distincte');
+assert.match(journeyBase, /CompactSelectField[\s\S]{0,1000}appearance-none/, 'Les choix immobiliers doivent utiliser des listes compactes');
+assert.match(journeyBase, /const complete = !\[item\.type_bien[\s\S]{0,500}<details/, 'Les biens complétés doivent pouvoir être repliés en résumé');
 assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit pas recouvrir la fiche immobilière pendant le défilement');
 assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
