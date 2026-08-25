@@ -9,7 +9,7 @@ const professionalStatuses = ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS
 const propertyTypes = ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial', 'Autre'];
 const propertyUsages = ['Résidence principale', 'Résidence secondaire', 'Locatif', 'Autre'];
 const propertyProjects = ['Conserver', 'Vendre', 'Mettre en location', 'À étudier'];
-const financialCategories = ['current_accounts', 'savings', 'life_insurance', 'retirement', 'securities', 'paper_real_estate', 'employee_savings', 'other'];
+const financialCategories = ['savings', 'life_insurance', 'retirement', 'securities', 'paper_real_estate', 'employee_savings', 'other'];
 const financialBands = ['under_10k', '10k_50k', '50k_100k', '100k_250k', '250k_500k', 'over_500k'];
 
 function profileAt(index) {
@@ -51,9 +51,10 @@ function profileAt(index) {
       }] : [],
     },
     financial: index % 10 === 0 ? {
-      categories: ['none'], total_band: '', other_details: '', completeness_confirmed: true,
+      current_accounts_amount: 0, categories: ['none'], total_band: '', other_details: '', completeness_confirmed: true,
     } : {
-      categories: [...new Set(['current_accounts', financialCategories[index % financialCategories.length]])],
+      current_accounts_amount: 1000 + index * 50,
+      categories: [financialCategories[index % financialCategories.length]],
       total_band: financialBands[index % financialBands.length],
       other_details: financialCategories[index % financialCategories.length] === 'other' ? 'Parts de société non cotée' : '',
       completeness_confirmed: true,
@@ -82,21 +83,20 @@ function validate(profile) {
   if (profile.documents.tax_status === 'no_personal_notice' && !profile.documents.tax_absence_reason) errors.push('tax_reason');
   if (profile.patrimony.has_real_estate && profile.documents.has_real_estate === false) errors.push('document_context');
   const categories = profile.financial.categories;
+  if (profile.financial.current_accounts_amount === '' || profile.financial.current_accounts_amount === null || profile.financial.current_accounts_amount === undefined || !Number.isFinite(Number(profile.financial.current_accounts_amount)) || Number(profile.financial.current_accounts_amount) < 0) errors.push('current_accounts_amount');
   if (!Array.isArray(categories) || categories.length === 0) errors.push('financial_categories');
   if (categories.includes('none') && categories.length > 1) errors.push('financial_none_exclusive');
   if (categories.includes('other') && !profile.financial.other_details) errors.push('financial_other_details');
   if (!categories.includes('none') && !financialBands.includes(profile.financial.total_band)) errors.push('financial_band');
   if (profile.financial.completeness_confirmed !== true) errors.push('financial_confirmation');
-  if (profile.documents.has_liquidities !== categories.includes('current_accounts')) errors.push('liquidities_context');
-  if (profile.documents.has_financial_assets !== categories.some((category) => !['none', 'current_accounts'].includes(category))) errors.push('financial_assets_context');
+  if (profile.documents.has_financial_assets !== categories.some((category) => category !== 'none')) errors.push('financial_assets_context');
   return errors;
 }
 
 const profiles = Array.from({ length: 100 }, (_, index) => profileAt(index));
 for (const profile of profiles) {
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
-  profile.documents.has_liquidities = profile.financial.categories.includes('current_accounts');
-  profile.documents.has_financial_assets = profile.financial.categories.some((category) => !['none', 'current_accounts'].includes(category));
+  profile.documents.has_financial_assets = profile.financial.categories.some((category) => category !== 'none');
   assert.deepEqual(validate(profile), [], `Dossier ${profile.id} invalide`);
 }
 
@@ -109,6 +109,7 @@ const invalidFixtures = [
   { name: 'projet immobilier absent', mutate: (p) => { p.patrimony.immobilier[0].projet_bien = ''; }, expected: 'property_project' },
   { name: 'contexte immobilier contradictoire', mutate: (p) => { p.patrimony.has_real_estate = true; p.documents.has_real_estate = false; }, expected: 'document_context' },
   { name: 'aucune catégorie financière', mutate: (p) => { p.financial.categories = []; }, expected: 'financial_categories' },
+  { name: 'montant comptes courants absent', mutate: (p) => { p.financial.current_accounts_amount = ''; }, expected: 'current_accounts_amount' },
   { name: 'aucun avec une autre catégorie', mutate: (p) => { p.financial.categories = ['none', 'savings']; }, expected: 'financial_none_exclusive' },
   { name: 'autre placement non précisé', mutate: (p) => { p.financial.categories = ['other']; p.financial.other_details = ''; }, expected: 'financial_other_details' },
   { name: 'encours financier absent', mutate: (p) => { p.financial.total_band = ''; }, expected: 'financial_band' },
@@ -119,13 +120,12 @@ const invalidFixtures = [
 for (const fixture of invalidFixtures) {
   const profile = structuredClone(profileAt(1));
   profile.documents.has_real_estate = profile.patrimony.has_real_estate;
-  profile.documents.has_liquidities = profile.financial.categories.includes('current_accounts');
-  profile.documents.has_financial_assets = profile.financial.categories.some((category) => !['none', 'current_accounts'].includes(category));
+  profile.documents.has_financial_assets = profile.financial.categories.some((category) => category !== 'none');
   fixture.mutate(profile);
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration] = await Promise.all([
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
   read('src/pages/portal/ClientDocumentsPage.tsx'),
   read('src/patrimony-dark.css'),
@@ -134,6 +134,7 @@ const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migratio
   read('supabase/migrations/20260825120000_atomic_family_setup.sql'),
   read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'),
   read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'),
+  read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/, 'Le setup famille doit utiliser le RPC atomique');
@@ -146,6 +147,8 @@ assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation 
 assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
 assert.match(documentsPage, /plusieurs fichiers dans chacune d’elles/, 'L’interface doit indiquer clairement que plusieurs fichiers sont acceptés par catégorie');
+assert.doesNotMatch(documentsPage, /\['comptes_liquidites', 'Comptes courants'\]/, 'Le relevé de compte courant ne doit plus être proposé comme justificatif');
+assert.doesNotMatch(documentsPage, /category: 'comptes_liquidites'/, 'Le relevé de compte courant ne doit plus être exigé');
 assert.match(documentsPage, /Ajouter un autre/, 'Une catégorie déjà alimentée doit permettre explicitement un nouveau dépôt');
 assert.doesNotMatch(documentsPage, /item\.receivedCount\}\/\{item\.expectedCount\}[^\n]+Ajouter/, 'Le minimum documentaire ne doit pas être présenté comme une limite maximale');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
@@ -171,10 +174,13 @@ assert.match(journeyBase, /loyer_annuel: item\.usage === 'Locatif' \? annualRent
 assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit pas recouvrir la fiche immobilière pendant le défilement');
 assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
-assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
+assert.match(journeyBase, /Les relevés de placements transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que seuls les justificatifs de placements apporteront le détail');
+assert.match(journeyBase, /Quel est le montant actuel disponible sur l’ensemble de vos comptes courants \?/, 'Le montant des comptes courants doit être demandé directement dans Financier');
+assert.match(journeyBase, /current_accounts_amount/, 'Le montant des comptes courants doit être sauvegardé dans la section Financier');
+assert.doesNotMatch(journeyBase, /\['current_accounts', 'Comptes courants'\]/, 'Les comptes courants ne doivent plus être confondus avec une catégorie de placement');
 assert.doesNotMatch(journeyBase, /financial-section|financial-choice--selected/, 'La présentation historique de l’onglet Financier doit rester inchangée');
-assert.match(journeyBase, /montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus/, 'La question d’encours doit préciser qu’elle porte sur toutes les catégories sélectionnées');
-assert.match(journeyBase, /Un seul total est demandé, toutes catégories confondues/, 'La question d’encours ne doit pas sembler liée à la dernière catégorie cochée');
+assert.match(journeyBase, /montant total approximatif de tous vos placements sélectionnés ci-dessus/, 'La question d’encours doit préciser qu’elle porte sur toutes les catégories de placements sélectionnées');
+assert.match(journeyBase, /Un seul total est demandé, toutes catégories de placements confondues/, 'La question d’encours ne doit pas sembler liée à la dernière catégorie cochée');
 assert.match(journeyBase, /Quels autres placements détenez-vous \?/, 'Les autres placements doivent être demandés sous forme de question');
 assert.match(journeyBase, /Cryptoactifs[\s\S]{0,500}Parts de société non cotée[\s\S]{0,500}Financement participatif/, 'Les autres placements doivent proposer des choix simples');
 assert.doesNotMatch(journeyBase, /label="Précisez les autres placements"/, 'Les autres placements ne doivent plus reposer sur un champ libre unique');
@@ -184,6 +190,9 @@ assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serve
 assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
 assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
 assert.match(financialCoreMigration, /'patrimony','financial','credits'/, 'La fonction centrale doit autoriser l’enregistrement de la section Financier');
+assert.match(currentAccountsMigration, /v_current_accounts_amount/, 'Le serveur doit valider le montant déclaré des comptes courants');
+assert.match(currentAccountsMigration, /'liquidities',false/, 'La transmission documentaire ne doit plus exiger de relevé de compte courant');
+assert.doesNotMatch(currentAccountsMigration, /Ajoutez un relevé du ou des comptes courants/, 'Le serveur ne doit plus bloquer la transmission faute de relevé de compte courant');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
 
 const counts = profiles.reduce((result, profile) => {
