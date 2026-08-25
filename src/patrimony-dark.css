@@ -236,14 +236,14 @@
 }
 
 .recueil-safe section .real-estate-card {
-  background: #ffffff !important;
+  background: transparent !important;
   border-color: #dfe6ef !important;
   color: #263a53 !important;
   box-shadow: none !important;
 }
 
 .recueil-safe section .real-estate-card-header {
-  background: #ffffff !important;
+  background: transparent !important;
   border-color: #e7edf5 !important;
 }
 
@@ -253,7 +253,7 @@
 }
 
 .recueil-safe section .real-estate-card[open] > .real-estate-card-header {
-  background: #fbfcfe !important;
+  background: transparent !important;
 }
 
 .recueil-safe section .real-estate-card h4 {
