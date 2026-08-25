@@ -19,7 +19,8 @@ function profileAt(index) {
   const usage = propertyUsages[index % propertyUsages.length];
   const type = propertyTypes[index % propertyTypes.length];
   const role = couple && index % 2 ? 'investisseur_2' : 'investisseur_1';
-  const owner = !couple ? 'Identifiant 1' : role === 'investisseur_2' ? 'Identifiant 2' : index % 4 ? 'Identifiant 1 et 2' : 'Identifiant 1';
+  const primaryOwnerCases = ['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'];
+  const owner = !couple ? 'Identifiant 1' : role === 'investisseur_2' ? 'Identifiant 2' : primaryOwnerCases[Math.floor(index / familySituations.length) % primaryOwnerCases.length];
   return {
     id: index + 1,
     scope: couple ? 'couple' : 'individual',
@@ -140,6 +141,7 @@ assert.match(migration, /sync_document_real_estate_context/, 'Le contexte docume
 assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
 assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
+assert.match(journeyBase, /progress\.role_dossier === 'investisseur_2'[\s\S]{0,120}\['Identifiant 2'\][\s\S]{0,160}\['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'\]/, 'L’Identifiant 1 doit pouvoir déclarer un bien appartenant à l’Identifiant 2');
 assert.doesNotMatch(journeyBase, /Six informations par bien/, 'La fiche immobilière ne doit pas répéter une consigne visuelle inutile');
 assert.match(journeyBase, /Ajouter des précisions[\s\S]{0,100}\(facultatif\)/, 'Les données immobilières secondaires doivent rester facultatives');
 assert.match(journeyBase, /collection_mode: 'real_estate_quick'/, 'La sauvegarde doit tracer le mode de recueil immobilier rapide');
