@@ -8,6 +8,7 @@ const familySituations = ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Veuve'
 const professionalStatuses = ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'];
 const propertyTypes = ['Appartement', 'Maison', 'Immeuble', 'Terrain', 'Local professionnel / commercial', 'Autre'];
 const propertyUsages = ['Résidence principale', 'Résidence secondaire', 'Locatif', 'Autre'];
+const propertyProjects = ['Conserver', 'Vendre', 'Mettre en location', 'À étudier'];
 const financialCategories = ['current_accounts', 'savings', 'life_insurance', 'retirement', 'securities', 'paper_real_estate', 'employee_savings', 'other'];
 const financialBands = ['under_10k', '10k_50k', '50k_100k', '100k_250k', '250k_500k', 'over_500k'];
 
@@ -42,6 +43,7 @@ function profileAt(index) {
         usage,
         usage_autre: usage === 'Autre' ? 'Usage mixte' : '',
         proprietaire: owner,
+        projet_bien: propertyProjects[index % propertyProjects.length],
         valeur_actuelle: 180000 + index * 1000,
         date_acquisition: String(1995 + (index % 30)),
         loyer_annuel: usage === 'Locatif' ? 9600 : '',
@@ -68,6 +70,7 @@ function validate(profile) {
   for (const amount of Object.values(profile.capacity)) if (!Number.isFinite(Number(amount)) || Number(amount) < 0) errors.push('money');
   if (profile.patrimony.has_real_estate && profile.patrimony.immobilier.length === 0) errors.push('real_estate_missing');
   for (const property of profile.patrimony.immobilier) {
+    if (!property.projet_bien) errors.push('property_project');
     if (Number(property.valeur_actuelle) <= 0) errors.push('property_value');
     const year = Number(property.date_acquisition);
     if (!/^\d{4}$/.test(property.date_acquisition) || year < 1800 || year > new Date().getFullYear()) errors.push('property_year');
@@ -102,6 +105,7 @@ const invalidFixtures = [
   { name: 'enfants décimaux', mutate: (p) => { p.family.nombre_enfants = '1.5'; }, expected: 'children' },
   { name: 'propriétaire couple sur dossier individuel', mutate: (p) => { p.scope = 'individual'; p.patrimony.has_real_estate = true; p.patrimony.immobilier = [{ ...profileAt(1).patrimony.immobilier[0], proprietaire: 'Identifiant 1 et 2' }]; }, expected: 'individual_owner' },
   { name: 'année future', mutate: (p) => { p.patrimony.has_real_estate = true; p.patrimony.immobilier = [{ ...profileAt(1).patrimony.immobilier[0], date_acquisition: '2999' }]; }, expected: 'property_year' },
+  { name: 'projet immobilier absent', mutate: (p) => { p.patrimony.immobilier[0].projet_bien = ''; }, expected: 'property_project' },
   { name: 'contexte immobilier contradictoire', mutate: (p) => { p.patrimony.has_real_estate = true; p.documents.has_real_estate = false; }, expected: 'document_context' },
   { name: 'aucune catégorie financière', mutate: (p) => { p.financial.categories = []; }, expected: 'financial_categories' },
   { name: 'aucun avec une autre catégorie', mutate: (p) => { p.financial.categories = ['none', 'savings']; }, expected: 'financial_none_exclusive' },
@@ -136,6 +140,9 @@ assert.match(migration, /sync_document_real_estate_context/, 'Le contexte docume
 assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
 assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
+assert.match(journeyBase, /Six réponses essentielles par bien/, 'La fiche immobilière doit annoncer son format court');
+assert.match(journeyBase, /Ajouter des précisions[\s\S]{0,100}\(facultatif\)/, 'Les données immobilières secondaires doivent rester facultatives');
+assert.match(journeyBase, /collection_mode: 'real_estate_quick'/, 'La sauvegarde doit tracer le mode de recueil immobilier rapide');
 assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'regulatory'/, 'Immobilier puis Financier doivent rester avant Réglementaire');
 assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
 assert.match(journeyBase, /Les relevés transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que les justificatifs apporteront le détail');
