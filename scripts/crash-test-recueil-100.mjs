@@ -125,9 +125,10 @@ for (const fixture of invalidFixtures) {
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, journeyBase, helpers, migration, financialMigration, financialCoreMigration] = await Promise.all([
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
   read('src/pages/portal/ClientDocumentsPage.tsx'),
+  read('src/patrimony-dark.css'),
   read('src/pages/portal/ClientRecueilJourneyBase.tsx'),
   read('src/portal/portalHelpers.ts'),
   read('supabase/migrations/20260825120000_atomic_family_setup.sql'),
@@ -146,6 +147,9 @@ assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificati
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
 assert.match(documentsPage, /document-identity-panel/, 'Le formulaire d’identité doit disposer d’un panneau clair et lisible dédié');
+assert.match(documentStyles, /\.document-identity-panel[\s\S]{0,180}background: #f2f7fd/, 'Le panneau d’identité doit conserver un fond clair explicite');
+assert.match(documentStyles, /\.document-identity-panel button\.bg-white[\s\S]{0,220}color: #33465f/, 'Les choix non sélectionnés doivent rester lisibles sur fond clair');
+assert.doesNotMatch(documentStyles, /\.documents-dark \.bg-white,/, 'Aucune règle globale ne doit recolorer tous les panneaux blancs de Documents');
 assert.match(documentsPage, /requirements\.slice\(activeRequirementIndex, activeRequirementIndex \+ 1\)/, 'Une seule catégorie documentaire doit être affichée à la fois');
 assert.match(documentsPage, /sticky=\{false\}/, 'Le bandeau de progression Documents ne doit pas masquer le contenu au défilement');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
