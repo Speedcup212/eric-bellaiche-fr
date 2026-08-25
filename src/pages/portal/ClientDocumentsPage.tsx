@@ -89,6 +89,7 @@ export default function ClientDocumentsPage() {
   const [finishBusy, setFinishBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [documentView, setDocumentView] = useState<'auto' | 'situation' | 'uploads'>('auto');
+  const [activeRequirementIndex, setActiveRequirementIndex] = useState(0);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const dossierId = searchParams.get('dossier');
@@ -218,6 +219,9 @@ export default function ClientDocumentsPage() {
       setMessage(`${categoryLabel(uploadCategory)} transmis avec succès.`);
       await loadDocuments(progress);
       setCategory('');
+      const receivedBeforeUpload = sources.filter((doc) => doc.categorie === uploadCategory).length;
+      const identityStillIncomplete = uploadCategory === 'identite' && receivedBeforeUpload + 1 < progress.dossier_members_total;
+      if (!identityStillIncomplete) setActiveRequirementIndex((current) => Math.min(current + 1, categories.length - 1));
     } catch (error) { setErrorMessage(messageFromError(error)); } finally { setBusy(false); }
   };
 
@@ -269,7 +273,7 @@ export default function ClientDocumentsPage() {
   const documentsAvailable = progress.next_step === 'DOCUMENTS' || progress.documents_status === 'completed' || progress.next_step === 'TERMINE';
   if (!documentsAvailable) {
     return <div>
-      <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} />
+      <JourneyProgress current="documents" esgEnabled={progress.esg_opt_in !== false} sticky={false} />
       <PageIntro eyebrow="Étape Documents" title="Documents du dossier" description="Vous pouvez consulter cette étape dès maintenant. Le dépôt des justificatifs s’ouvrira lorsque votre recueil, votre profil investisseur et, le cas échéant, vos préférences de durabilité seront terminés." icon={<UploadCloud className="h-5 w-5" />} />
       <WizardCard className="p-6 sm:p-8">
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
@@ -388,17 +392,28 @@ export default function ClientDocumentsPage() {
         </div>}
 
         {activeDocumentView === 'uploads' && <div className="document-requirements border-b border-slate-200 px-6 py-7 sm:px-9">
-          <div className="flex items-center justify-between gap-4"><div><h3 className="text-lg font-semibold text-slate-950">Pièces attendues</h3><p className="mt-1 text-sm text-slate-500">Cliquez sur « Importer » au niveau de la pièce concernée. La catégorie est sélectionnée automatiquement.</p></div>{missingRequired.length === 0 && allContextsComplete && <CheckCircle2 className="h-6 w-6 text-emerald-600" />}</div>
+          <div className="flex items-center justify-between gap-4"><div><h3 className="text-lg font-semibold text-slate-950">Pièces attendues</h3><p className="mt-1 text-sm text-slate-500">Choisissez une catégorie, puis transmettez le justificatif correspondant.</p></div>{missingRequired.length === 0 && allContextsComplete && <CheckCircle2 className="h-6 w-6 text-emerald-600" />}</div>
           {message && <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
           {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
-          <div className="mt-5 grid gap-3">
-            {requirements.map((item) => {
+          <div className="document-category-picker mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {requirements.map((item, index) => {
+              const received = item.receivedCount >= Math.max(item.expectedCount, 1);
+              const selected = activeRequirementIndex === index;
+              return <button key={item.category} type="button" onClick={() => { setActiveRequirementIndex(index); selectCategory(item.category); }} className={`flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${selected ? 'border-blue-500 bg-blue-600 text-white' : 'border-white/10 bg-white/5 text-slate-200 hover:border-blue-400/60 hover:bg-white/10'}`}>
+                <span>{item.label}</span>
+                {received ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : item.status === 'required' ? <span className="h-2 w-2 shrink-0 rounded-full bg-rose-400" /> : null}
+              </button>;
+            })}
+          </div>
+          <div className="mt-4">
+            {requirements.slice(activeRequirementIndex, activeRequirementIndex + 1).map((item) => {
               const satisfied = item.status !== 'required' || item.receivedCount >= item.expectedCount;
               const active = category === item.category;
               const itemDocs = sources.filter((doc) => doc.categorie === item.category);
               const selectedIdentity = identityTypes.find((choice) => choice.value === identityType);
               return <div key={item.category} className={`document-requirement-card overflow-hidden rounded-2xl border transition ${active ? 'border-blue-400 bg-blue-50/40 ring-2 ring-blue-100' : 'border-slate-200 bg-white'}`}>
                 <button type="button" disabled={transmitted} onClick={() => selectCategory(item.category)} className="w-full p-4 text-left disabled:cursor-default">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-blue-300">Justificatif {activeRequirementIndex + 1} sur {requirements.length}</p>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2"><span className="font-semibold text-slate-900">{item.label}</span>{satisfied && item.receivedCount > 0 && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}</div>
                     <div className="flex items-center gap-2">
