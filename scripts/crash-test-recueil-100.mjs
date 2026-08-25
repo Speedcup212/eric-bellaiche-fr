@@ -145,6 +145,7 @@ assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation 
 assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
 assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
 assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
+assert.match(documentsPage, /document-identity-panel/, 'Le formulaire d’identité doit disposer d’un panneau clair et lisible dédié');
 assert.match(documentsPage, /requirements\.slice\(activeRequirementIndex, activeRequirementIndex \+ 1\)/, 'Une seule catégorie documentaire doit être affichée à la fois');
 assert.match(documentsPage, /sticky=\{false\}/, 'Le bandeau de progression Documents ne doit pas masquer le contenu au défilement');
 assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
