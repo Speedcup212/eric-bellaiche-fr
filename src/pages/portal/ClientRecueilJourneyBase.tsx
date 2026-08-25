@@ -40,6 +40,17 @@ const financialTotalBands = [
   ['over_500k', 'Plus de 500 000 €'],
 ] as const;
 
+const financialOtherPlacementOptions = [
+  ['cryptoassets', 'Cryptoactifs'],
+  ['private_company', 'Parts de société non cotée'],
+  ['crowdfunding', 'Financement participatif'],
+  ['precious_metals', 'Métaux précieux'],
+  ['valuables', 'Objets de valeur / collections'],
+  ['other', 'Autre'],
+] as const;
+
+const financialOtherPlacementLabel = Object.fromEntries(financialOtherPlacementOptions) as Record<string, string>;
+
 const objectiveOptions = [
   ['optimisation_fiscale', 'Optimiser sa fiscalité'],
   ['achat_immobilier', 'Financer un achat immobilier'],
@@ -231,6 +242,17 @@ function ReadOnlyField({ label, value, help }: { label: string; value: string; h
   return <label className="text-sm font-semibold text-slate-700">{label}<input type="email" readOnly value={value} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none" />{help && <span className="mt-1.5 block text-xs font-normal leading-5 text-blue-100">{help}</span>}</label>;
 }
 function isBlank(value: unknown): boolean { return value === null || value === undefined || String(value).trim() === ''; }
+function selectedFinancialOtherTypes(payload: AnyPayload): string[] {
+  if (Array.isArray(payload.other_placement_types)) return payload.other_placement_types;
+  return isBlank(payload.other_details) ? [] : ['other'];
+}
+function financialOtherCustom(payload: AnyPayload): string {
+  if (!isBlank(payload.other_placement_custom)) return String(payload.other_placement_custom);
+  return Array.isArray(payload.other_placement_types) ? '' : String(payload.other_details ?? '');
+}
+function financialOtherSummary(types: string[], custom: string): string {
+  return types.map((type) => type === 'other' ? `Autre : ${custom.trim()}` : financialOtherPlacementLabel[type]).filter(Boolean).join(' ; ');
+}
 function isNonNegativeNumber(value: unknown): boolean {
   if (isBlank(value)) return false;
   const number = Number(String(value).replace(',', '.').trim());
@@ -416,7 +438,9 @@ export default function ClientRecueilJourneyPage() {
       const categories = Array.isArray(form.categories) ? form.categories : [];
       if (categories.length === 0) throw new Error('Sélectionnez au moins une catégorie, ou indiquez que vous ne détenez aucun compte ni placement.');
       if (categories.includes('none') && categories.length > 1) throw new Error('Le choix « Aucun compte ni placement » ne peut pas être associé à une autre catégorie.');
-      if (categories.includes('other') && isBlank(form.other_details)) throw new Error('Précisez la nature de vos autres placements.');
+      const otherPlacementTypes = selectedFinancialOtherTypes(form);
+      if (categories.includes('other') && otherPlacementTypes.length === 0) throw new Error('Sélectionnez au moins un autre placement.');
+      if (categories.includes('other') && otherPlacementTypes.includes('other') && isBlank(financialOtherCustom(form))) throw new Error('Précisez votre autre placement.');
       if (!categories.includes('none') && isBlank(form.total_band)) throw new Error('Indiquez l’encours financier total approximatif.');
       if (form.completeness_confirmed !== true) throw new Error('Confirmez que votre déclaration couvre l’ensemble de vos comptes et placements.');
     }
@@ -624,17 +648,30 @@ export default function ClientRecueilJourneyPage() {
               const selected = categories.includes(code);
               return <button key={code} type="button" aria-pressed={selected} onClick={() => {
                 if (code === 'none') {
-                  patchCurrent({ categories: selected ? [] : ['none'], total_band: '', other_details: '', completeness_confirmed: false });
+                  patchCurrent({ categories: selected ? [] : ['none'], total_band: '', other_placement_types: [], other_placement_custom: '', other_details: '', completeness_confirmed: false });
                   return;
                 }
                 const withoutNone = categories.filter((item) => item !== 'none');
                 const nextCategories = selected ? withoutNone.filter((item) => item !== code) : [...withoutNone, code];
-                patchCurrent({ categories: nextCategories, other_details: code === 'other' && selected ? '' : form.other_details, completeness_confirmed: false });
+                patchCurrent({ categories: nextCategories, other_placement_types: code === 'other' && selected ? [] : form.other_placement_types, other_placement_custom: code === 'other' && selected ? '' : form.other_placement_custom, other_details: code === 'other' && selected ? '' : form.other_details, completeness_confirmed: false });
               }} className={`min-h-14 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>;
             })}</div>
           </section>
 
-          {(form.categories ?? []).includes('other') && <Field label="Précisez les autres placements" required value={form.other_details} onChange={(v) => patchCurrent({ other_details: v, completeness_confirmed: false })} placeholder="Ex. parts de société, cryptoactifs, actifs détenus à l’étranger…" />}
+          {(form.categories ?? []).includes('other') && <fieldset className="border-t border-white/10 pt-5">
+            <legend className="text-sm font-semibold text-slate-700">Quels autres placements détenez-vous ? *</legend>
+            <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Plusieurs réponses sont possibles.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialOtherPlacementOptions.map(([code, label]) => {
+              const selectedTypes = selectedFinancialOtherTypes(form);
+              const selected = selectedTypes.includes(code);
+              return <button key={code} type="button" aria-pressed={selected} onClick={() => {
+                const nextTypes = selected ? selectedTypes.filter((item) => item !== code) : [...selectedTypes, code];
+                const nextCustom = code === 'other' && selected ? '' : financialOtherCustom(form);
+                patchCurrent({ other_placement_types: nextTypes, other_placement_custom: nextCustom, other_details: financialOtherSummary(nextTypes, nextCustom), completeness_confirmed: false });
+              }} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{selected ? '✓ ' : ''}{label}</button>;
+            })}</div>
+            {selectedFinancialOtherTypes(form).includes('other') && <div className="mt-4"><Field label="Quel autre placement détenez-vous ?" required value={financialOtherCustom(form)} onChange={(v) => { const types = selectedFinancialOtherTypes(form); patchCurrent({ other_placement_types: types, other_placement_custom: v, other_details: financialOtherSummary(types, v), completeness_confirmed: false }); }} placeholder="Précisez le placement" /></div>}
+          </fieldset>}
 
           {(form.categories ?? []).length > 0 && !(form.categories ?? []).includes('none') && <fieldset className="border-t border-white/10 pt-5">
             <legend className="text-sm font-semibold text-slate-700">Quel est le montant total approximatif de tous vos comptes et placements sélectionnés ci-dessus ? *</legend>
