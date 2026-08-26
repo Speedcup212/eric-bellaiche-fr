@@ -66,10 +66,13 @@ const creditReplacement = `        {current.code === 'credits' && <div className
 if (!creditPattern.test(text)) throw new Error('Credit render block not found');
 text = text.replace(creditPattern, creditReplacement);
 
-if (text.includes('Capital restant dû approximatif (€)') || text.includes('Fin approximative du crédit') || text.includes('Mensualité actuelle (€)')) {
-  throw new Error('Un ancien champ crédit est encore présent');
-}
+if (text.includes('Capital restant dû approximatif (€)') || text.includes('Fin approximative du crédit') || text.includes('Mensualité actuelle (€)')) throw new Error('Un ancien champ crédit est encore présent');
 if (!text.includes('options={creditLinkedAssetOptions}')) throw new Error('Le rattachement automatique aux biens immobiliers n’a pas été installé');
-
 fs.writeFileSync(path, text);
+
+const testPath = 'scripts/crash-test-recueil-100.mjs';
+let test = fs.readFileSync(testPath, 'utf8');
+test = test.replace("assert.match(journeyBase, /Bien financé \\/ crédit rattaché à/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');", "assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');\nassert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');");
+fs.writeFileSync(testPath, test);
+
 console.log('Credit recueil now auto-links to declared properties');
