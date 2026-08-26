@@ -1,6 +1,6 @@
-name: One-shot family children details
+name: One-shot compact family UX
 
-# Trigger: backfill child rows for existing dossiers and collect first name, last name and birth year
+# Trigger: compact the family tab into full-width blocks
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Patch children details
-        run: node scripts/patch-family-children-details.cjs
+      - name: Compact family UX
+        run: node scripts/patch-family-compact-ux.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Backfill child identity rows'
+          git commit -m 'Compact family tab into full-width blocks'
           git push origin main
