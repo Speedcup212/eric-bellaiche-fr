@@ -23,6 +23,8 @@ jobs:
         run: npm run test:portal-safety
       - name: Recueil crash test (100 dossiers)
         run: npm run test:recueil-100
+      - name: Métier consistency engine
+        run: npm run test:consistency
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
