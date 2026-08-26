@@ -521,15 +521,21 @@ export default function ClientRecueilJourneyPage() {
   if (progress.recueil_status === 'validated') return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil a été validé et figé pour assurer la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><p className="font-semibold text-emerald-800">Recueil validé</p><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
 
   const objectiveItems: AnyPayload[] = form.items ?? [];
+  const creditPropertyLabels = (forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number, properties: AnyPayload[]) => {
+    const usage = String(property.usage ?? '').trim();
+    const type = String(property.type_bien ?? '').trim();
+    const city = String(property.ville ?? '').trim();
+    const baseLabel = [usage, type, city].filter(Boolean).join(' — ') || `Bien immobilier ${index + 1}`;
+    const duplicateCount = properties.filter((other: AnyPayload) => {
+      const otherLabel = [String(other.usage ?? '').trim(), String(other.type_bien ?? '').trim(), String(other.ville ?? '').trim()].filter(Boolean).join(' — ');
+      return otherLabel === baseLabel;
+    }).length;
+    if (duplicateCount <= 1) return baseLabel;
+    const shortAddress = String(property.adresse_courte ?? property.adresse ?? property.numero_voie ?? '').trim();
+    return shortAddress ? `${baseLabel} — ${shortAddress}` : `${baseLabel} — n°${index + 1}`;
+  });
   const creditLinkedAssetOptions = [
-    ...(forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number) => {
-      const customName = String(property.intitule ?? '').trim();
-      const usage = String(property.usage ?? '').trim();
-      const type = String(property.type_bien ?? '').trim();
-      const city = String(property.ville ?? '').trim();
-      const description = [usage, type, city].filter(Boolean).join(' — ');
-      return customName || (description ? `Bien ${index + 1} — ${description}` : `Bien immobilier ${index + 1}`);
-    }),
+    ...creditPropertyLabels,
     'Crédit à la consommation / prêt personnel',
     'Crédit renouvelable / réserve d’argent',
     'Véhicule',
@@ -727,7 +733,7 @@ export default function ClientRecueilJourneyPage() {
             </div>
           </div>
           {form.has_credits === true && <div>
-            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Les biens saisis dans Immobilier sont repris automatiquement ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
+            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Les biens immobiliers sont repris automatiquement sous la forme Usage — Type de bien — Ville ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
             {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
               <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
               <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-3">

@@ -130,6 +130,7 @@ assert.match(journeyBase, /Crédit à la consommation/, 'L’onglet Crédits doi
 assert.match(journeyBase, /Taux du crédit \(%\)/, 'Le recueil rapide doit demander le taux du crédit');
 assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');
 assert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');
+assert.match(journeyBase, /Usage — Type de bien — Ville/, 'Les biens doivent être libellés de manière patrimoniale et homogène');
 assert.match(journeyBase, /Crédit renouvelable \/ réserve d’argent/, 'Les crédits renouvelables et réserves doivent pouvoir être rattachés sans bien immobilier');
 assert.doesNotMatch(journeyBase, /Capital restant dû approximatif/, 'Le CRD doit venir du tableau d’amortissement');
 assert.doesNotMatch(journeyBase, /Mensualité actuelle/, 'La mensualité doit venir du tableau d’amortissement');
