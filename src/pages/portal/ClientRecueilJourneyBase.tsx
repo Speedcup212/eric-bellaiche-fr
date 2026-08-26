@@ -591,51 +591,51 @@ export default function ClientRecueilJourneyPage() {
         {current.code === 'identity' && <><div className="recueil-question-grid recueil-question-grid--3 grid gap-x-5 gap-y-7 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-8"><Field label="Civilité" required value={form.civilite} onChange={(v) => patchCurrent({ civilite: v })} /><Field label="Prénom" required value={form.prenom} onChange={(v) => patchCurrent({ prenom: v })} /><Field label="Nom" required value={form.nom} onChange={(v) => patchCurrent({ nom: v })} /><Field label="Nom de naissance" required={identityNeedsBirthName} value={form.nom_naissance} onChange={(v) => patchCurrent({ nom_naissance: v })} placeholder="Nom figurant sur votre acte de naissance" /><Field label="Date de naissance" required type="date" value={form.date_naissance} onChange={(v) => patchCurrent({ date_naissance: v })} /><Field label="Lieu de naissance" required value={form.lieu_naissance} onChange={(v) => patchCurrent({ lieu_naissance: v })} /><Field label="Pays de naissance" required value={form.pays_naissance} onChange={(v) => patchCurrent({ pays_naissance: v })} /><Field label="Nationalité" required value={form.nationalite} onChange={(v) => patchCurrent({ nationalite: v })} /><Field label="Mobile" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder="06 12 34 56 78 ou +33 6 12 34 56 78" />{accountEmail && <ReadOnlyField label="E-mail *" value={accountEmail} help="Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie." />}</div><div className="border-t border-slate-100 pt-7"><h3 className="font-semibold text-slate-900">Adresse fiscale</h3><div className="mt-4 recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="N° et voie" required value={form.address?.numero_voie} onChange={(v) => patchCurrent({ address: { ...form.address, numero_voie: v } })} /><Field label="Complément" value={form.address?.complement} onChange={(v) => patchCurrent({ address: { ...form.address, complement: v } })} /><Field label="Code postal" required value={form.address?.code_postal} onChange={(v) => patchCurrent({ address: { ...form.address, code_postal: v } })} /><Field label="Ville" required value={form.address?.ville} onChange={(v) => patchCurrent({ address: { ...form.address, ville: v } })} /><Field label="Pays" required value={form.address?.pays} onChange={(v) => patchCurrent({ address: { ...form.address, pays: v } })} /><Field label="Type de logement" required value={form.address?.type_logement} onChange={(v) => patchCurrent({ address: { ...form.address, type_logement: v } })} /></div></div></>}
 
         {current.code === 'family' && <div className="space-y-5">
-          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] xl:items-start">
-              <div>
-                <p className="text-sm font-semibold text-[#F1F5F9]">Situation familiale *</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {['Célibataire', 'Marié', 'Pacsé', 'Concubinage', 'Divorcé', 'Séparé', 'Veuf / Veuve', 'Autre'].map((option) => {
-                    const selected = String(form.situation ?? '') === option;
-                    return <button key={option} type="button" onClick={() => {
-                      const normalized = option.toLowerCase();
-                      const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
-                      patchCurrent({ situation: option, regime_convention: needsConvention ? form.regime_convention : '' });
-                    }} className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${selected ? 'border-[#3B82F6] bg-[#3B82F6] text-white' : 'border-[#E2E8F0] bg-white text-slate-800 hover:border-[#3B82F6]'}`}>{option}</button>;
-                  })}
-                </div>
-              </div>
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-base font-semibold text-[#F1F5F9]">Situation familiale</h3>
+              <p className="mt-1 text-xs leading-5 text-[#94A3B8]">Indiquez votre situation actuelle. Les questions complémentaires apparaissent uniquement si elles sont utiles.</p>
+            </div>
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(17rem,0.85fr)]">
+              <Field label="Situation familiale" required value={form.situation} onChange={(v) => {
+                const normalized = String(v).toLowerCase();
+                const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
+                patchCurrent({ situation: v, regime_convention: needsConvention ? form.regime_convention : '' });
+              }} placeholder="Autre situation" />
               {familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}
             </div>
           </section>
 
-          {familyNeedsConvention && <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
-            <div className={`grid gap-4 ${familyNeedsMatrimonialAdvantage ? 'xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]' : ''}`}>
+          {familyNeedsConvention && <section className="border-t border-white/10 pt-5">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.85fr)]">
               <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />
               {familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}
             </div>
           </section>}
 
-          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
-            <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
-              <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
-              {Number(form.nombre_enfants) > 0 ? <div>
-                <p className="text-sm font-semibold text-[#F1F5F9]">Enfants</p>
-                <div className="mt-2 space-y-2">
-                  {(Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, index: number) => <div key={index} className="grid gap-2 rounded-xl border border-white/10 bg-[#0F1F36] p-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)_10rem] sm:items-end">
-                    <div className="pb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#93C5FD]">Enfant {index + 1}</div>
-                    <Field label="Prénom" required value={child.prenom} onChange={(v) => updateChild(index, { prenom: v })} />
-                    <Field label="Nom" required value={child.nom} onChange={(v) => updateChild(index, { nom: v })} />
-                    <Field label="Année de naissance" required type="number" value={child.annee_naissance} onChange={(v) => updateChild(index, { annee_naissance: v })} placeholder="Ex. 2014" />
-                  </div>)}
-                </div>
-              </div> : <div className="flex min-h-[3.25rem] items-center rounded-xl border border-dashed border-white/10 px-4 text-sm text-[#94A3B8]">Aucun enfant déclaré.</div>}
+          <section className="border-t border-white/10 pt-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-[#F1F5F9]">Enfants</h3>
+                <p className="mt-1 text-xs leading-5 text-[#94A3B8]">Renseignez l'identité et l'année de naissance de chaque enfant.</p>
+              </div>
+              <div className="w-full sm:w-44">
+                <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
+              </div>
             </div>
+            {Number(form.nombre_enfants) > 0 && <div className="mt-4 space-y-2">
+              {(Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, index: number) => <div key={index} className="grid items-end gap-3 border-t border-white/10 pt-3 first:border-t-0 first:pt-0 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)_10rem]">
+                <div className="pb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#93C5FD]">Enfant {index + 1}</div>
+                <Field label="Prénom" required value={child.prenom} onChange={(v) => updateChild(index, { prenom: v })} />
+                <Field label="Nom" required value={child.nom} onChange={(v) => updateChild(index, { nom: v })} />
+                <Field label="Année de naissance" required type="number" value={child.annee_naissance} onChange={(v) => updateChild(index, { annee_naissance: v })} placeholder="Ex. 2014" />
+              </div>)}
+            </div>}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
-            <div className="grid gap-4 lg:grid-cols-3">
+          <section className="border-t border-white/10 pt-5">
+            <h3 className="text-base font-semibold text-[#F1F5F9]">Intervenants et évolution familiale</h3>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" />
               <Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" />
               <Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" />
