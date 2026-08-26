@@ -24,6 +24,7 @@ jobs:
       - name: Verify
         run: |
           npm ci
+          npm run test:recueil-100
           npm run typecheck:portal
           npm run build
       - name: Commit
@@ -34,6 +35,6 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx scripts/crash-test-recueil-100.mjs
           git commit -m 'Auto-link credits to declared properties'
           git push origin main
