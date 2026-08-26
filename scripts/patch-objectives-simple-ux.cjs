@@ -25,7 +25,7 @@ const replacement = `        {current.code === 'objectives' && <div className="s
                   {selected && <span className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xs font-bold text-[#2563EB]" aria-label={\`Priorité \${selectedIndex + 1}\`}>{selectedIndex + 1}</span>}
                 </button>;
               })}</div>
-            </div>}
+            </div>)}</div>
           </section>
 
           {objectiveItems.length > 0 && <section aria-labelledby="selected-objectives-title" className="border-t border-white/10 pt-7">
