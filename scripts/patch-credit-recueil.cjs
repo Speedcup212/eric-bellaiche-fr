@@ -34,14 +34,8 @@ text = text.replace(
   'Une ligne par crédit. Les biens immobiliers sont repris automatiquement sous la forme Usage — Type de bien — Ville ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.'
 );
 
-text = text.replaceAll(
-  "mt-1 block text-xs ${form.has_credits === true ? 'text-blue-100' : 'text-slate-500'}",
-  "mt-1 block text-[13px] font-medium leading-5 ${form.has_credits === true ? 'text-blue-50' : 'text-slate-600'}"
-);
-text = text.replaceAll(
-  "mt-1 block text-xs ${form.has_credits === false ? 'text-blue-100' : 'text-slate-500'}",
-  "mt-1 block text-[13px] font-medium leading-5 ${form.has_credits === false ? 'text-blue-50' : 'text-slate-600'}"
-);
+text = text.replaceAll("'text-slate-600'", "'text-black'");
+text = text.replaceAll("'text-slate-500'", "'text-black'");
 
 if (!text.includes("[usage, type, city].filter(Boolean).join(' — ')")) throw new Error('La terminologie normalisée des biens n’a pas été installée');
 if (text.includes('return customName ||')) throw new Error('L’ancien libellé libre des biens est encore utilisé');
@@ -56,9 +50,7 @@ if (!test.includes('Usage — Type de bien — Ville')) {
     "assert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');\nassert.match(journeyBase, /Usage — Type de bien — Ville/, 'Les biens doivent être libellés de manière patrimoniale et homogène');"
   );
 }
-if (!test.includes('text-\\[13px\\] font-medium leading-5')) {
-  test += "\nassert.match(journeyBase, /text-\\[13px\\] font-medium leading-5/, 'Les sous-textes Oui/Non doivent rester lisibles');\n";
-}
+if (!test.includes('text-\\[13px\\] font-medium leading-5')) test += "\nassert.match(journeyBase, /text-\\[13px\\] font-medium leading-5/, 'Les sous-textes Oui/Non doivent rester lisibles');\n";
 fs.writeFileSync(testPath, test);
 
-console.log('Credit property labels normalized and yes-no subtext contrast improved');
+console.log('Credit property labels normalized and unselected yes-no subtexts set to black');
