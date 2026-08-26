@@ -455,7 +455,7 @@ export default function ClientRecueilJourneyPage() {
       if (typeof form.has_credits !== 'boolean') throw new Error('Indiquez si vous avez un ou plusieurs crédits en cours.');
       if (form.has_credits === true && (form.items ?? []).length === 0) throw new Error('Ajoutez au moins un crédit.');
       for (const item of form.items ?? []) {
-        if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le bien financé / crédit rattaché à pour chaque crédit.');
+        if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le rattachement de chaque crédit.');
         if (!isNonNegativeNumber(item.taux_credit)) throw new Error('Le taux du crédit doit être un nombre positif ou nul.');
       }
     }
@@ -521,6 +521,23 @@ export default function ClientRecueilJourneyPage() {
   if (progress.recueil_status === 'validated') return <div><JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} /><PageIntro eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil a été validé et figé pour assurer la traçabilité du dossier." icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><p className="font-semibold text-emerald-800">Recueil validé</p><button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Continuer vers le profil investisseur</button></WizardCard></div>;
 
   const objectiveItems: AnyPayload[] = form.items ?? [];
+  const creditLinkedAssetOptions = [
+    ...(forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number) => {
+      const customName = String(property.intitule ?? '').trim();
+      const usage = String(property.usage ?? '').trim();
+      const type = String(property.type_bien ?? '').trim();
+      const city = String(property.ville ?? '').trim();
+      const description = [usage, type, city].filter(Boolean).join(' — ');
+      return customName || (description ? `Bien ${index + 1} — ${description}` : `Bien immobilier ${index + 1}`);
+    }),
+    'Crédit à la consommation / prêt personnel',
+    'Crédit renouvelable / réserve d’argent',
+    'Véhicule',
+    'Travaux',
+    'Études / formation',
+    'Crédit professionnel / activité professionnelle',
+    'Autre / non rattaché à un bien immobilier',
+  ];
   const toggleObjective = (code: string, label: string) => {
     const exists = objectiveItems.some((item) => item.code_objectif === code);
     const nextItems = exists
@@ -701,7 +718,7 @@ export default function ClientRecueilJourneyPage() {
         </div>}
 
         {current.code === 'credits' && <div className="credit-section space-y-6">
-          <GuidanceNote><p>Déclaration simplifiée</p><p>Indiquez simplement si vous avez des crédits, leur type, leur taux et à quoi ils sont rattachés. Le tableau d’amortissement permettra ensuite au cabinet de reprendre le capital restant dû, la mensualité, la durée et les autres caractéristiques.</p></GuidanceNote>
+          <GuidanceNote><p>Déclaration simplifiée</p><p>Indiquez simplement si vous avez des crédits, leur type, leur taux et à quoi ils sont rattachés. Les biens immobiliers déjà déclarés sont proposés automatiquement. Pour un crédit consommation ou une réserve, sélectionnez directement l’usage correspondant. Le tableau d’amortissement permettra ensuite au cabinet de reprendre les autres caractéristiques.</p></GuidanceNote>
           <div>
             <p className="text-sm font-semibold text-[#F1F5F9]">Avez-vous un ou plusieurs crédits en cours ? *</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -710,13 +727,13 @@ export default function ClientRecueilJourneyPage() {
             </div>
           </div>
           {form.has_credits === true && <div>
-            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Le rattachement permet d’identifier sans ambiguïté le prêt concerné lorsque plusieurs biens ou plusieurs crédits existent.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
+            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Les biens saisis dans Immobilier sont repris automatiquement ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
             {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
               <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
               <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-3">
-                <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit automobile', 'Crédit étudiant', 'Crédit travaux', 'Crédit professionnel', 'Autre crédit']} />
+                <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit renouvelable / réserve', 'Crédit automobile', 'Crédit étudiant', 'Crédit travaux', 'Crédit professionnel', 'Autre crédit']} />
                 <Field label="Taux du crédit (%)" required type="number" value={item.taux_credit} onChange={(value) => updateList('items', index, { taux_credit: value })} placeholder="Ex. 3,45" />
-                <Field label="Bien financé / crédit rattaché à" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} placeholder="Ex. résidence principale Grenoble, appartement Lyon, véhicule, crédit consommation…" />
+                <CompactSelectField label="À quoi ce crédit est-il rattaché ?" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} options={creditLinkedAssetOptions} />
               </div>
             </div>)}
           </div>}
