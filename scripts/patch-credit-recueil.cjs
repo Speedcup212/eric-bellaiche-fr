@@ -3,17 +3,22 @@ const fs = require('fs');
 const path = 'src/pages/portal/ClientRecueilJourneyBase.tsx';
 let text = fs.readFileSync(path, 'utf8');
 
-const optionsAnchor = "  const objectiveItems: AnyPayload[] = form.items ?? [];\n";
-const optionsBlock = `  const objectiveItems: AnyPayload[] = form.items ?? [];
+const optionsPattern = /  const creditLinkedAssetOptions = \[[\s\S]*?\n  \];/;
+const optionsReplacement = `  const creditPropertyLabels = (forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number, properties: AnyPayload[]) => {
+    const usage = String(property.usage ?? '').trim();
+    const type = String(property.type_bien ?? '').trim();
+    const city = String(property.ville ?? '').trim();
+    const baseLabel = [usage, type, city].filter(Boolean).join(' — ') || \`Bien immobilier \${index + 1}\`;
+    const duplicateCount = properties.filter((other: AnyPayload) => {
+      const otherLabel = [String(other.usage ?? '').trim(), String(other.type_bien ?? '').trim(), String(other.ville ?? '').trim()].filter(Boolean).join(' — ');
+      return otherLabel === baseLabel;
+    }).length;
+    if (duplicateCount <= 1) return baseLabel;
+    const shortAddress = String(property.adresse_courte ?? property.adresse ?? property.numero_voie ?? '').trim();
+    return shortAddress ? \`\${baseLabel} — \${shortAddress}\` : \`\${baseLabel} — n°\${index + 1}\`;
+  });
   const creditLinkedAssetOptions = [
-    ...(forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number) => {
-      const customName = String(property.intitule ?? '').trim();
-      const usage = String(property.usage ?? '').trim();
-      const type = String(property.type_bien ?? '').trim();
-      const city = String(property.ville ?? '').trim();
-      const description = [usage, type, city].filter(Boolean).join(' — ');
-      return customName || (description ? \`Bien \${index + 1} — \${description}\` : \`Bien immobilier \${index + 1}\`);
-    }),
+    ...creditPropertyLabels,
     'Crédit à la consommation / prêt personnel',
     'Crédit renouvelable / réserve d’argent',
     'Véhicule',
@@ -21,62 +26,27 @@ const optionsBlock = `  const objectiveItems: AnyPayload[] = form.items ?? [];
     'Études / formation',
     'Crédit professionnel / activité professionnelle',
     'Autre / non rattaché à un bien immobilier',
-  ];
-`;
-if (!text.includes('const creditLinkedAssetOptions = [')) {
-  if (!text.includes(optionsAnchor)) throw new Error('Objective items anchor not found');
-  text = text.replace(optionsAnchor, optionsBlock);
-}
+  ];`;
+if (!optionsPattern.test(text)) throw new Error('Credit linked asset options block not found');
+text = text.replace(optionsPattern, optionsReplacement);
 
-const validationPattern = /    if \(current\.code === 'credits'\) \{\n      if \(typeof form\.has_credits !== 'boolean'\) throw new Error\('Indiquez si vous avez un ou plusieurs crédits en cours\.'\);[\s\S]*?\n    \}\n  \};/;
-const validationReplacement = `    if (current.code === 'credits') {
-      if (typeof form.has_credits !== 'boolean') throw new Error('Indiquez si vous avez un ou plusieurs crédits en cours.');
-      if (form.has_credits === true && (form.items ?? []).length === 0) throw new Error('Ajoutez au moins un crédit.');
-      for (const item of form.items ?? []) {
-        if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le rattachement de chaque crédit.');
-        if (!isNonNegativeNumber(item.taux_credit)) throw new Error('Le taux du crédit doit être un nombre positif ou nul.');
-      }
-    }
-  };`;
-if (!validationPattern.test(text)) throw new Error('Credit validation block not found');
-text = text.replace(validationPattern, validationReplacement);
+text = text.replace(
+  'Une ligne par crédit. Les biens saisis dans Immobilier sont repris automatiquement ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.',
+  'Une ligne par crédit. Les biens immobiliers sont repris automatiquement sous la forme Usage — Type de bien — Ville ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.'
+);
 
-const creditPattern = /        \{current\.code === 'credits' && <div className="credit-section space-y-6">[\s\S]*?\n        <\/div>\}\n\n        \{errorMessage/;
-const creditReplacement = `        {current.code === 'credits' && <div className="credit-section space-y-6">
-          <GuidanceNote><p>Déclaration simplifiée</p><p>Indiquez simplement si vous avez des crédits, leur type, leur taux et à quoi ils sont rattachés. Les biens immobiliers déjà déclarés sont proposés automatiquement. Pour un crédit consommation ou une réserve, sélectionnez directement l’usage correspondant. Le tableau d’amortissement permettra ensuite au cabinet de reprendre les autres caractéristiques.</p></GuidanceNote>
-          <div>
-            <p className="text-sm font-semibold text-[#F1F5F9]">Avez-vous un ou plusieurs crédits en cours ? *</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <button type="button" aria-pressed={form.has_credits === true} onClick={() => patchCurrent({ has_credits: true, items: (form.items ?? []).length > 0 ? form.items : [{ type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className={\`rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 \${form.has_credits === true ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-md shadow-blue-950/25' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}\`}><span className="block text-base font-semibold">Oui</span><span className={\`mt-1 block text-xs \${form.has_credits === true ? 'text-blue-100' : 'text-slate-500'}\`}>J’ai un ou plusieurs crédits</span></button>
-              <button type="button" aria-pressed={form.has_credits === false} onClick={() => patchCurrent({ has_credits: false, items: [] })} className={\`rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 \${form.has_credits === false ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-md shadow-blue-950/25' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}\`}><span className="block text-base font-semibold">Non</span><span className={\`mt-1 block text-xs \${form.has_credits === false ? 'text-blue-100' : 'text-slate-500'}\`}>Aucun crédit en cours</span></button>
-            </div>
-          </div>
-          {form.has_credits === true && <div>
-            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Les biens saisis dans Immobilier sont repris automatiquement ; les crédits consommation, réserves, auto, travaux, étudiants ou professionnels disposent aussi d’un rattachement dédié.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
-            {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
-              <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
-              <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-3">
-                <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit renouvelable / réserve', 'Crédit automobile', 'Crédit étudiant', 'Crédit travaux', 'Crédit professionnel', 'Autre crédit']} />
-                <Field label="Taux du crédit (%)" required type="number" value={item.taux_credit} onChange={(value) => updateList('items', index, { taux_credit: value })} placeholder="Ex. 3,45" />
-                <CompactSelectField label="À quoi ce crédit est-il rattaché ?" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} options={creditLinkedAssetOptions} />
-              </div>
-            </div>)}
-          </div>}
-        </div>}
-
-        {errorMessage`;
-if (!creditPattern.test(text)) throw new Error('Credit render block not found');
-text = text.replace(creditPattern, creditReplacement);
-
-if (text.includes('Capital restant dû approximatif (€)') || text.includes('Fin approximative du crédit') || text.includes('Mensualité actuelle (€)')) throw new Error('Un ancien champ crédit est encore présent');
-if (!text.includes('options={creditLinkedAssetOptions}')) throw new Error('Le rattachement automatique aux biens immobiliers n’a pas été installé');
-if (!text.includes('Crédit renouvelable / réserve d’argent')) throw new Error('Le rattachement des crédits renouvelables / réserves est absent');
+if (!text.includes("[usage, type, city].filter(Boolean).join(' — ')")) throw new Error('La terminologie normalisée des biens n’a pas été installée');
+if (text.includes('return customName ||')) throw new Error('L’ancien libellé libre des biens est encore utilisé');
 fs.writeFileSync(path, text);
 
 const testPath = 'scripts/crash-test-recueil-100.mjs';
 let test = fs.readFileSync(testPath, 'utf8');
-test = test.replace("assert.match(journeyBase, /Bien financé \\/ crédit rattaché à/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');", "assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');");
-if (!test.includes("/creditLinkedAssetOptions/")) test = test.replace("assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');", "assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');\nassert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');\nassert.match(journeyBase, /Crédit renouvelable \\/ réserve d’argent/, 'Les crédits renouvelables et réserves doivent pouvoir être rattachés sans bien immobilier');");
+if (!test.includes('Usage — Type de bien — Ville')) {
+  test = test.replace(
+    "assert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');",
+    "assert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');\nassert.match(journeyBase, /Usage — Type de bien — Ville/, 'Les biens doivent être libellés de manière patrimoniale et homogène');"
+  );
+}
 fs.writeFileSync(testPath, test);
 
-console.log('Credit recueil now auto-links declared properties and handles consumer/reserve loans');
+console.log('Credit linked property labels normalized');
