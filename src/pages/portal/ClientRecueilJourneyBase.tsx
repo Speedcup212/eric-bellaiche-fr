@@ -167,29 +167,20 @@ function MoneyField(props: Omit<React.ComponentProps<typeof Field>, 'type'>) { r
 
 function CompactHorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const options = [
-    { value: '0', label: 'Court terme — moins de 3 ans' },
+    { value: '0', label: 'Cette année — moins de 1 an' },
+    { value: '1', label: 'Court terme — 1 à 3 ans' },
     { value: '3', label: 'Moyen terme — 3 à 5 ans' },
     { value: '5', label: 'Long terme — 5 à 10 ans' },
     { value: '10', label: 'Très long terme — plus de 10 ans' },
   ];
   const normalizedValue = String(value ?? '');
-  const isPreset = options.some((option) => option.value === normalizedValue);
-  const [customMode, setCustomMode] = useState(normalizedValue !== '' && !isPreset);
 
-  useEffect(() => {
-    if (isPreset) setCustomMode(false);
-  }, [isPreset]);
-
-  return <div>
-    <label className="text-sm font-semibold text-slate-700">Horizon du projet *
-      <select value={customMode ? 'custom' : normalizedValue} onChange={(event) => { const nextValue = event.target.value; if (nextValue === 'custom') { setCustomMode(true); onChange(''); } else { setCustomMode(false); onChange(nextValue); } }} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30">
-        <option value="">Choisir un horizon</option>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        <option value="custom">Autre durée précise</option>
-      </select>
-    </label>
-    {customMode && <label className="mt-3 block text-xs font-semibold text-slate-600">Durée précise, en années<input type="number" min="0" value={isPreset ? '' : normalizedValue} onChange={(event) => onChange(event.target.value)} placeholder="Ex. 7" className="mt-1.5 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" /></label>}
-  </div>;
+  return <label className="text-sm font-semibold text-slate-700">Horizon du projet *
+    <select value={normalizedValue} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30">
+      <option value="">Choisir un horizon</option>
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  </label>;
 }
 
 function MonthYearField({ label = 'Date d’entrée dans l’entreprise', value, onChange, required = false, minYear = 1940 }: { label?: string; value: string; onChange: (value: string) => void; required?: boolean; minYear?: number }) {
