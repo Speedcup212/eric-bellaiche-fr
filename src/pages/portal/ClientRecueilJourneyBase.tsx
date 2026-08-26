@@ -590,26 +590,58 @@ export default function ClientRecueilJourneyPage() {
         </div>
         {current.code === 'identity' && <><div className="recueil-question-grid recueil-question-grid--3 grid gap-x-5 gap-y-7 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-8"><Field label="Civilité" required value={form.civilite} onChange={(v) => patchCurrent({ civilite: v })} /><Field label="Prénom" required value={form.prenom} onChange={(v) => patchCurrent({ prenom: v })} /><Field label="Nom" required value={form.nom} onChange={(v) => patchCurrent({ nom: v })} /><Field label="Nom de naissance" required={identityNeedsBirthName} value={form.nom_naissance} onChange={(v) => patchCurrent({ nom_naissance: v })} placeholder="Nom figurant sur votre acte de naissance" /><Field label="Date de naissance" required type="date" value={form.date_naissance} onChange={(v) => patchCurrent({ date_naissance: v })} /><Field label="Lieu de naissance" required value={form.lieu_naissance} onChange={(v) => patchCurrent({ lieu_naissance: v })} /><Field label="Pays de naissance" required value={form.pays_naissance} onChange={(v) => patchCurrent({ pays_naissance: v })} /><Field label="Nationalité" required value={form.nationalite} onChange={(v) => patchCurrent({ nationalite: v })} /><Field label="Mobile" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder="06 12 34 56 78 ou +33 6 12 34 56 78" />{accountEmail && <ReadOnlyField label="E-mail *" value={accountEmail} help="Adresse liée à votre accès sécurisé : elle est reprise automatiquement afin d’éviter une erreur de saisie." />}</div><div className="border-t border-slate-100 pt-7"><h3 className="font-semibold text-slate-900">Adresse fiscale</h3><div className="mt-4 recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="N° et voie" required value={form.address?.numero_voie} onChange={(v) => patchCurrent({ address: { ...form.address, numero_voie: v } })} /><Field label="Complément" value={form.address?.complement} onChange={(v) => patchCurrent({ address: { ...form.address, complement: v } })} /><Field label="Code postal" required value={form.address?.code_postal} onChange={(v) => patchCurrent({ address: { ...form.address, code_postal: v } })} /><Field label="Ville" required value={form.address?.ville} onChange={(v) => patchCurrent({ address: { ...form.address, ville: v } })} /><Field label="Pays" required value={form.address?.pays} onChange={(v) => patchCurrent({ address: { ...form.address, pays: v } })} /><Field label="Type de logement" required value={form.address?.type_logement} onChange={(v) => patchCurrent({ address: { ...form.address, type_logement: v } })} /></div></div></>}
 
-        {current.code === 'family' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Situation familiale" required value={form.situation} onChange={(v) => {
-          const normalized = String(v).toLowerCase();
-          const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
-          patchCurrent({ situation: v, regime_convention: needsConvention ? form.regime_convention : '' });
-        }} placeholder="Autre situation" />{familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}{familyNeedsConvention && <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />}{familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}<div className="sm:col-span-2">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
-          </div>
-          {Number(form.nombre_enfants) > 0 && <div className="mt-5 space-y-3">
-            <p className="text-sm font-semibold text-[#F1F5F9]">Enfants</p>
-            {(Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, index: number) => <div key={index} className="rounded-xl border border-white/10 bg-[#132644] p-4">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#93C5FD]">Enfant {index + 1}</p>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Prénom" required value={child.prenom} onChange={(v) => updateChild(index, { prenom: v })} />
-                <Field label="Nom" required value={child.nom} onChange={(v) => updateChild(index, { nom: v })} />
-                <Field label="Année de naissance" required type="number" value={child.annee_naissance} onChange={(v) => updateChild(index, { annee_naissance: v })} placeholder="Ex. 2014" />
+        {current.code === 'family' && <div className="space-y-5">
+          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] xl:items-start">
+              <div>
+                <p className="text-sm font-semibold text-[#F1F5F9]">Situation familiale *</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {['Célibataire', 'Marié', 'Pacsé', 'Concubinage', 'Divorcé', 'Séparé', 'Veuf / Veuve', 'Autre'].map((option) => {
+                    const selected = String(form.situation ?? '') === option;
+                    return <button key={option} type="button" onClick={() => {
+                      const normalized = option.toLowerCase();
+                      const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
+                      patchCurrent({ situation: option, regime_convention: needsConvention ? form.regime_convention : '' });
+                    }} className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${selected ? 'border-[#3B82F6] bg-[#3B82F6] text-white' : 'border-[#E2E8F0] bg-white text-slate-800 hover:border-[#3B82F6]'}`}>{option}</button>;
+                  })}
+                </div>
               </div>
-            </div>)}
-          </div>}
-        </div><Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" /><Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" /><Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" /></div>}
+              {familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}
+            </div>
+          </section>
+
+          {familyNeedsConvention && <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
+            <div className={`grid gap-4 ${familyNeedsMatrimonialAdvantage ? 'xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]' : ''}`}>
+              <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />
+              {familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}
+            </div>
+          </section>}
+
+          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
+            <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+              <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
+              {Number(form.nombre_enfants) > 0 ? <div>
+                <p className="text-sm font-semibold text-[#F1F5F9]">Enfants</p>
+                <div className="mt-2 space-y-2">
+                  {(Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, index: number) => <div key={index} className="grid gap-2 rounded-xl border border-white/10 bg-[#0F1F36] p-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)_10rem] sm:items-end">
+                    <div className="pb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#93C5FD]">Enfant {index + 1}</div>
+                    <Field label="Prénom" required value={child.prenom} onChange={(v) => updateChild(index, { prenom: v })} />
+                    <Field label="Nom" required value={child.nom} onChange={(v) => updateChild(index, { nom: v })} />
+                    <Field label="Année de naissance" required type="number" value={child.annee_naissance} onChange={(v) => updateChild(index, { annee_naissance: v })} placeholder="Ex. 2014" />
+                  </div>)}
+                </div>
+              </div> : <div className="flex min-h-[3.25rem] items-center rounded-xl border border-dashed border-white/10 px-4 text-sm text-[#94A3B8]">Aucun enfant déclaré.</div>}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-[#132644] p-4 sm:p-5">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" />
+              <Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" />
+              <Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" />
+            </div>
+          </section>
+        </div>}
 
         {current.code === 'professional' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
