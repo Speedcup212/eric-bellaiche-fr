@@ -358,7 +358,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         : 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.'
       : 'Cette étape a été validée.';
     const completionCta = qpiNextIsEsg ? 'Continuer vers la durabilité' : 'Continuer vers les documents';
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{completionCta}</button></WizardCard></div>;
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} hideSubstepText={mode === 'QPI'} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{completionCta}</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';
@@ -395,7 +395,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const objectiveNoteVisible = currentQuestion?.code === 'Q1' && (noteOpen || Boolean(answers[currentQuestion.id]?.answer_text));
 
   return <div>
-    <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
+    <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} hideSubstepText={mode === 'QPI'} />
     {mode === 'ESG' && <PageIntro compact eyebrow="Étape 3" title={introTitle} description={introDescription} icon={<Leaf className="h-5 w-5" />} />}
     {mode === 'ESG' && currentIndex === 0 && <section className="rounded-[22px] border border-[#dbe4ef] bg-white p-5 shadow-sm sm:p-6">
       <div className="max-w-3xl">

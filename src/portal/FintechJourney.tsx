@@ -34,7 +34,7 @@ function publishJourneyContext(detail: JourneyContextDetail) {
   window.dispatchEvent(new CustomEvent<JourneyContextDetail>(journeyContextEvent, { detail }));
 }
 
-export function JourneyProgress({ current, esgEnabled = true, substep, sticky = true }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep; sticky?: boolean }) {
+export function JourneyProgress({ current, esgEnabled = true, substep, sticky = true, hideSubstepText = false }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep; sticky?: boolean; hideSubstepText?: boolean }) {
   const [detectedSubstep, setDetectedSubstep] = useState<JourneySubstep | null>(null);
   const visible = esgEnabled ? stages : stages.filter((stage) => stage.key !== 'esg');
   const currentIndex = Math.max(0, visible.findIndex((stage) => stage.key === current));
@@ -62,7 +62,7 @@ export function JourneyProgress({ current, esgEnabled = true, substep, sticky = 
       <div className="flex items-start justify-between gap-4 px-1 pb-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6f8198]">Étape {currentIndex + 1} sur {visible.length} · {activeStage?.label}</p>
-          {effectiveSubstep ? (
+          {hideSubstepText ? null : effectiveSubstep ? (
             <p className="mt-1 truncate text-sm font-semibold text-[#0b1f3a]">Partie {effectiveSubstep.current} sur {effectiveSubstep.total}{effectiveSubstep.label ? ` · ${effectiveSubstep.label}` : ''}</p>
           ) : (
             <p className="mt-1 text-sm font-semibold text-[#0b1f3a]">Votre parcours patrimonial sécurisé</p>
