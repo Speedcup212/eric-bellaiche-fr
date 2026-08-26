@@ -12,6 +12,7 @@
     "typecheck:portal": "tsc --noEmit -p tsconfig.portal.json",
     "test:portal-safety": "node scripts/check-portal-runtime-safety.mjs",
     "test:recueil-100": "node scripts/crash-test-recueil-100.mjs",
+    "test:consistency": "node scripts/test-consistency-engine.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs"
   },
   "dependencies": {
