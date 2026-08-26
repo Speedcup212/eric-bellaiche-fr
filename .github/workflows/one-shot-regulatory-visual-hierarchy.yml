@@ -1,6 +1,6 @@
-name: One-shot simplify objectives UX
+name: One-shot compact objectives UX
 
-# Trigger: simplify objective selection, priority and horizon
+# Trigger: compact objective selection to reduce vertical scrolling
 on:
   push:
     paths:
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Simplify objectives UX
+      - name: Compact objectives UX
         run: node scripts/patch-objectives-simple-ux.cjs
       - name: Verify
         run: |
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Simplify objectives selection and priorities'
+          git commit -m 'Compact objectives page'
           git push origin main
