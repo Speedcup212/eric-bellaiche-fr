@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, CheckCircle2, Leaf, Pencil } from 'lucide-react';
+import { CheckCircle2, Leaf, Pencil } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChoiceButton, JourneyProgress, PageIntro, QuestionHeader, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
 import { supabase } from '../../lib/supabase';
@@ -396,7 +396,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   return <div>
     <JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />
-    <PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={introTitle} description={introDescription} icon={mode === 'QPI' ? <BrainCircuit className="h-5 w-5" /> : <Leaf className="h-5 w-5" />} />
+    {mode === 'ESG' && <PageIntro compact eyebrow="Étape 3" title={introTitle} description={introDescription} icon={<Leaf className="h-5 w-5" />} />}
     {mode === 'ESG' && currentIndex === 0 && <section className="rounded-[22px] border border-[#dbe4ef] bg-white p-5 shadow-sm sm:p-6">
       <div className="max-w-3xl">
         <h2 className="text-lg font-bold text-[#0b1f3a]">Que signifie « durabilité » pour vos placements ?</h2>
