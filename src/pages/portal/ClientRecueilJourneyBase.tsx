@@ -627,12 +627,10 @@ export default function ClientRecueilJourneyPage() {
           </section>}
 
           <section className="border-t border-white/10 pt-5">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-[#F1F5F9]">Enfants</h3>
-                <p className="mt-1 text-xs leading-5 text-[#94A3B8]">Renseignez l'identité et l'année de naissance de chaque enfant.</p>
-              </div>
-              <div className="w-full sm:w-44">
+            <div>
+              <h3 className="text-base font-semibold text-[#F1F5F9]">Enfants</h3>
+              <p className="mt-1 text-xs leading-5 text-[#94A3B8]">Renseignez l'identité et l'année de naissance de chaque enfant.</p>
+              <div className="mt-3 w-full sm:w-44">
                 <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
               </div>
             </div>
