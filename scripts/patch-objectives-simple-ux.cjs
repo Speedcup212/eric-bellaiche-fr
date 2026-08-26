@@ -58,9 +58,11 @@ const replacement = `        {current.code === 'objectives' && <div className="s
 
 text = text.slice(0, a) + replacement + text.slice(b);
 text = text.replace(/description: 'Sélectionnez vos objectifs[^']*'/, "description: 'Sélectionnez vos objectifs par ordre de priorité puis indiquez leur horizon.'");
+text = text.replace(/const objectiveGroups: Array<\{ title: string; description: string; codes: ObjectiveCode\[\] \}> = \[[\s\S]*?\n\];\n\n/, '');
 
 if (text.includes('Objectifs retenus')) throw new Error('Old objectives panel still present');
 if (text.includes('Ajouter une précision — facultatif')) throw new Error('Old optional precision control still present');
+if (text.includes('const objectiveGroups:')) throw new Error('Unused objectiveGroups declaration still present');
 if (!text.includes('lg:grid-cols-4') || !text.includes('Vos priorités')) throw new Error('Compact objective UX missing');
 fs.writeFileSync(path, text);
 console.log('Compact objective UX installed');
