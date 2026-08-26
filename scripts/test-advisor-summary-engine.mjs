@@ -13,14 +13,17 @@ const compile = spawnSync(process.execPath, [
   'src/portal/dataStatusEngine.ts',
   'src/portal/consistencyEngine.ts',
   '--target', 'ES2020',
-  '--module', 'ES2020',
+  '--module', 'commonjs',
   '--moduleResolution', 'node',
   '--skipLibCheck',
   '--outDir', temp,
 ], { cwd: process.cwd(), stdio: 'inherit' });
 if (compile.status !== 0) process.exit(compile.status ?? 1);
 
-const { summarizeAdvisorDossier } = await import(pathToFileURL(join(temp, 'advisorSummaryEngine.js')).href);
+const loaded = await import(pathToFileURL(join(temp, 'advisorSummaryEngine.js')).href);
+const summarizeAdvisorDossier = loaded.summarizeAdvisorDossier ?? loaded.default?.summarizeAdvisorDossier;
+assert.equal(typeof summarizeAdvisorDossier, 'function', 'Le moteur de synthèse conseiller doit être importable.');
+
 const completeSections = ['identity', 'family', 'professional', 'objectives', 'capacity', 'patrimony', 'financial', 'credits', 'regulatory'].map((section_code) => ({ section_code, completed_at: '2026-08-26T12:00:00Z' }));
 
 const ready = summarizeAdvisorDossier({
@@ -59,5 +62,5 @@ assert.equal(blocked.sections.missing.length, 2);
 assert.equal(blocked.documents.missing, 1);
 assert.equal(blocked.consistency.blocking, 1);
 
-console.log('Advisor summary engine: 14 contrôles validés.');
+console.log('Advisor summary engine: 15 contrôles validés.');
 await rm(temp, { recursive: true, force: true });
