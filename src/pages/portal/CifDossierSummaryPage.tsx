@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, CircleAlert, FileCheck2, ShieldCheck, UserRound } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FileCheck2, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { evaluateConsistency, type ConsistencyIssue, type ConsistencySnapshot } from '../../portal/consistencyEngine';
@@ -16,7 +16,7 @@ const sectionLabel: Record<string, string> = {
 
 function readinessLabel(value: 'blocked' | 'review' | 'ready') {
   if (value === 'ready') return { label: 'Prêt pour analyse', className: 'bg-emerald-100 text-emerald-800', icon: <CheckCircle2 className="h-4 w-4" /> };
-  if (value === 'review') return { label: 'Contrôles CIF requis', className: 'bg-amber-100 text-amber-800', icon: <CircleAlert className="h-4 w-4" /> };
+  if (value === 'review') return { label: 'Contrôles CIF requis', className: 'bg-amber-100 text-amber-800', icon: <AlertCircle className="h-4 w-4" /> };
   return { label: 'Dossier bloqué', className: 'bg-red-100 text-red-800', icon: <AlertTriangle className="h-4 w-4" /> };
 }
 
