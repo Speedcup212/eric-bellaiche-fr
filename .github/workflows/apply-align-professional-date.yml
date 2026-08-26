@@ -1,0 +1,28 @@
+name: Apply professional date alignment
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-align-professional-date.yml'
+      - 'scripts/patch-align-professional-date.cjs'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-align-professional-date.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/patch-align-professional-date.cjs .github/workflows/apply-align-professional-date.yml
+          git add -A
+          git commit -m "Align professional entry date with left column" || exit 0
+          git push
