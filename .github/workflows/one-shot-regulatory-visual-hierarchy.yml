@@ -1,6 +1,6 @@
 name: One-shot simplify credit recueil
 
-# Trigger: improve Yes/No subtext contrast on credit step
+# Trigger: use black subtext on unselected Yes/No credit choices
 on:
   push:
     paths:
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx scripts/crash-test-recueil-100.mjs
-          git commit -m 'Improve credit Yes-No subtext contrast'
+          git commit -m 'Use black credit Yes-No subtext'
           git push origin main
