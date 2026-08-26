@@ -1,9 +1,8 @@
 const fs = require('fs');
 const p = 'src/pages/portal/ClientRecueilJourneyBase.tsx';
 let s = fs.readFileSync(p, 'utf8');
-const old = `{current.code === 'credits' || current.code === 'capacity' ? null : current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}`;
-const next = `{current.code === 'credits' || current.code === 'capacity' || current.code === 'identity' ? null : current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}`;
-if (!s.includes(old)) throw new Error('Traceability condition target not found');
-s = s.replace(old, next);
+const target = `{current.code === 'credits' || current.code === 'capacity' ? null : current.code === 'patrimony' ? <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title="Enregistrement et traçabilité"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className="mt-1.5 text-[#aebfd4]">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}`;
+if (!s.includes(target)) throw new Error('Global traceability block target not found');
+s = s.replace(target, '');
 fs.writeFileSync(p, s);
-console.log('Identity traceability block hidden');
+console.log('Global traceability block removed from recueil');
