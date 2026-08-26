@@ -13,7 +13,11 @@ type ExpState = { connaissance: '' | 'true' | 'false'; sources: string[]; precis
 export interface QpiResultRow { profil_indicatif: string | null; profil_operationnel_final: string | null; ecart_declared_objective: boolean | null; synthese_dimensions: Record<string, unknown>; }
 
 const experienceFamilies = [
-  ['liquidites', 'Livrets, dépôts et fonds euros'], ['obligations', 'Obligations'], ['actions', 'Actions, OPC et ETF'], ['diversifies', 'Fonds diversifiés / multi-actifs'], ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'], ['av_per', 'Assurance-vie, capitalisation et PER'], ['structures', 'Produits structurés'], ['non_cote', 'Non coté, private equity, FIP, FCPI, FCPR'],
+  ['liquidites', 'Produits sécurisés, livrets et fonds euros'],
+  ['obligations', 'Obligations et fonds obligataires'],
+  ['actions', 'Actions, OPC, ETF et fonds diversifiés'],
+  ['immobilier_papier', 'SCPI, OPCI et fonds immobiliers'],
+  ['structures', 'Produits complexes, structurés et non cotés'],
 ] as const;
 const experienceLevels = [['jamais', 'Aucune opération'], ['deja_detenu', '1 opération'], ['plusieurs_operations', '2 à 5 opérations'], ['pratique_reguliere', 'Plus de 5 opérations']] as const;
 const knowledgeSources = [['formation', 'Formation financière ou patrimoniale'], ['profession', 'Expérience professionnelle liée à la finance'], ['lecture', 'Lecture / autoformation régulière'], ['autre', 'Autre source de connaissance']] as const;
@@ -61,7 +65,7 @@ function questionExplanation(mode: Mode, question: QuestionRow): string {
   if (question.code === 'Q9') return 'Pensez aux conséquences concrètes sur votre budget, votre niveau de vie et vos projets.';
   if (question.code === 'Q10') return 'Pensez uniquement à la perte que vous pourriez absorber sans réduire votre niveau de vie, renoncer à un projet ou manquer à vos engagements.';
   if (question.ordre <= 12) return 'Répondez selon votre situation réelle. Cette réponse contribue à l’analyse de votre expérience et de votre capacité financière.';
-  if (question.ordre <= 20) return 'Cette question porte sur vos connaissances financières. Répondez sans assistance afin que le cabinet puisse apprécier correctement votre niveau de compréhension.';
+  if (question.code && ['Q13','Q14','Q15','Q16','Q17'].includes(question.code)) return 'Cette question vérifie un principe financier essentiel. Répondez sans assistance ; « Je ne sais pas » est une réponse parfaitement acceptable.';
   return 'Choisissez la réaction qui vous correspond le mieux. Ces questions évaluent votre tolérance comportementale aux fluctuations et au risque de perte.';
 }
 
@@ -86,7 +90,7 @@ export function QpiResultSummary({ result }: { result: QpiResultRow | null }) {
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tolérance déclarée</p><p className="mt-2 font-semibold text-slate-900">{result?.profil_indicatif ?? '—'}</p></div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Capacité de perte</p><p className="mt-2 font-semibold text-slate-900">{capacityPct === null ? '—' : `${capacityPct} % maximum`}</p></div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Connaissances</p><p className="mt-2 font-semibold text-slate-900">{knowledgeScore === null ? '—' : `${knowledgeScore} / 8`}</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Connaissances</p><p className="mt-2 font-semibold text-slate-900">{knowledgeScore === null ? '—' : `${knowledgeScore} / 5`}</p></div>
     </div>
     {result?.ecart_declared_objective && <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>Mesure de prudence appliquée :</strong> votre tolérance au risque est supérieure à votre capacité de perte. Le profil retenu a donc été automatiquement limité au niveau le plus prudent.</p>}
   </div>;
