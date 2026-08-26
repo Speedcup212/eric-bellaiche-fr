@@ -1,6 +1,6 @@
-name: One-shot global person banner
+name: One-shot family conditional regime
 
-# Trigger: retry global Identifiant 1 / 2 banner with legacy migration fix
+# Trigger: hide regime / convention unless married or PACS
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Add global person banner
-        run: node scripts/patch-identity-person-banner.cjs
+      - name: Patch family conditional regime
+        run: node scripts/patch-family-conditional-regime.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Show person banner on every recueil section'
+          git commit -m 'Hide regime convention when not applicable'
           git push origin main
