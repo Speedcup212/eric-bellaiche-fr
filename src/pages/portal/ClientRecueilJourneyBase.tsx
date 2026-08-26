@@ -93,7 +93,7 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
 
 const initial: Record<SectionCode, AnyPayload> = {
   identity: { civilite: '', prenom: '', nom: '', nom_naissance: '', date_naissance: '', lieu_naissance: '', pays_naissance: 'France', nationalite: 'Française', mesure_protection: false, type_protection: '', date_protection: '', mobile: '', telephone_bureau: '', telephone_domicile: '', numero_fiscal: '', address: { numero_voie: '', complement: '', code_postal: '', ville: '', pays: 'France', type_logement: '' } },
-  family: { situation: '', date_evenement: '', regime_convention: '', avantage_matrimonial: '', evolution_prevue: '', notaire_nom_ville: '', expert_comptable_nom_ville: '', nombre_enfants: '', commentaires: '' },
+  family: { situation: '', date_evenement: '', regime_convention: '', avantage_matrimonial: '', evolution_prevue: '', notaire_nom_ville: '', expert_comptable_nom_ville: '', nombre_enfants: '', enfants: [], commentaires: '' },
   professional: { profession_actuelle: '', societe: '', secteur_activite: '', statut: '', categorie_socioprofessionnelle: '', anciennete_annees: '', date_entree: '', origine_revenus_sans_activite: '', changement_professionnel_prevu: '', changement_professionnel_details: '', precisions: '' },
   objectives: { items: [] },
   capacity: { estimation_revenus_travail_annuels: '', estimation_revenus_fonciers_annuels: '', epargne_precaution_cible: '', capacite_epargne_mensuelle: '', apport_immobilier_possible: '' },
@@ -374,6 +374,14 @@ export default function ClientRecueilJourneyPage() {
       if (isBlank(form.situation) || isBlank(form.nombre_enfants)) throw new Error('Renseignez votre situation familiale et le nombre d’enfants.');
       if (!familySituationOptions.includes(String(form.situation))) throw new Error(progress?.is_couple ? 'Pour ce dossier couple, choisissez Marié, Pacsé ou Concubinage.' : 'Pour ce dossier individuel, choisissez Célibataire, Divorcé, Séparé ou Veuf / Veuve.');
       if (!Number.isInteger(Number(form.nombre_enfants)) || Number(form.nombre_enfants) < 0) throw new Error('Le nombre d’enfants doit être un nombre entier positif ou nul.');
+      const childCount = Number(form.nombre_enfants);
+      const children: AnyPayload[] = Array.isArray(form.enfants) ? form.enfants : [];
+      if (children.length !== childCount) throw new Error('Renseignez les informations de chaque enfant.');
+      for (const child of children) {
+        if ([child.prenom, child.nom, child.annee_naissance].some(isBlank)) throw new Error('Indiquez le prénom, le nom et l’année de naissance de chaque enfant.');
+        const birthYear = Number(child.annee_naissance);
+        if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > new Date().getFullYear()) throw new Error(`L’année de naissance de chaque enfant doit être comprise entre 1900 et ${new Date().getFullYear()}.`);
+      }
       if (familyNeedsEventDate && isBlank(form.date_evenement)) throw new Error(`Indiquez la ${familyEventLabel.toLowerCase()} (mois / année).`);
       if (familyNeedsConvention && isBlank(form.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez le régime / la convention.');
     }
@@ -550,6 +558,13 @@ export default function ClientRecueilJourneyPage() {
   };
   const updateList = (key: string, index: number, values: AnyPayload) => patchCurrent({ [key]: (form[key] ?? []).map((item: AnyPayload, i: number) => i === index ? { ...item, ...values } : item) });
   const removeList = (key: string, index: number) => patchCurrent({ [key]: (form[key] ?? []).filter((_: unknown, i: number) => i !== index) });
+  const resizeChildren = (rawCount: string) => {
+    const parsed = Math.max(0, Math.min(20, Number.parseInt(rawCount || '0', 10) || 0));
+    const currentChildren: AnyPayload[] = Array.isArray(forms.family.enfants) ? forms.family.enfants : [];
+    const nextChildren = Array.from({ length: parsed }, (_, index) => currentChildren[index] ?? { prenom: '', nom: '', annee_naissance: '' });
+    patchCurrent({ nombre_enfants: rawCount, enfants: nextChildren });
+  };
+  const updateChild = (index: number, values: AnyPayload) => patchCurrent({ enfants: (Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, i: number) => i === index ? { ...child, ...values } : child) });
 
   return <div>
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} substep={{ current: step + 1, total: sections.length, label: current.title }} sticky={false} />
@@ -570,7 +585,22 @@ export default function ClientRecueilJourneyPage() {
           const normalized = String(v).toLowerCase();
           const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
           patchCurrent({ situation: v, regime_convention: needsConvention ? form.regime_convention : '' });
-        }} placeholder="Autre situation" />{familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}{familyNeedsConvention && <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />}{familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}<Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={(v) => patchCurrent({ nombre_enfants: v })} /><Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" /><Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" /><Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" /></div>}
+        }} placeholder="Autre situation" />{familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}{familyNeedsConvention && <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />}{familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}<div className="sm:col-span-2">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Nombre d’enfants" required type="number" value={form.nombre_enfants} onChange={resizeChildren} />
+          </div>
+          {Number(form.nombre_enfants) > 0 && <div className="mt-5 space-y-3">
+            <p className="text-sm font-semibold text-[#F1F5F9]">Enfants</p>
+            {(Array.isArray(form.enfants) ? form.enfants : []).map((child: AnyPayload, index: number) => <div key={index} className="rounded-xl border border-white/10 bg-[#132644] p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#93C5FD]">Enfant {index + 1}</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="Prénom" required value={child.prenom} onChange={(v) => updateChild(index, { prenom: v })} />
+                <Field label="Nom" required value={child.nom} onChange={(v) => updateChild(index, { nom: v })} />
+                <Field label="Année de naissance" required type="number" value={child.annee_naissance} onChange={(v) => updateChild(index, { annee_naissance: v })} placeholder="Ex. 2014" />
+              </div>
+            </div>)}
+          </div>}
+        </div><Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" /><Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" /><Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" /></div>}
 
         {current.code === 'professional' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
