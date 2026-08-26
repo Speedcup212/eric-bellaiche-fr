@@ -27,6 +27,8 @@ jobs:
         run: npm run test:consistency
       - name: Data status engine
         run: npm run test:data-status
+      - name: Advisor summary engine
+        run: npm run test:advisor-summary
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
