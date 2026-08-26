@@ -1,6 +1,6 @@
 name: One-shot family conditional fields
 
-# Trigger: show family fields only when legally relevant
+# Trigger: clarify optional notary, accountant and family evolution fields
 on:
   push:
     paths:
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Condition family fields by marital status'
+          git commit -m 'Clarify optional family fields'
           git push origin main
