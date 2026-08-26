@@ -1,0 +1,28 @@
+name: Apply remove CSP patch
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-remove-csp.yml'
+      - 'scripts/patch-remove-csp.cjs'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-remove-csp.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/patch-remove-csp.cjs .github/workflows/apply-remove-csp.yml
+          git add -A
+          git commit -m "Remove catégorie socioprofessionnelle from recueil" || exit 0
+          git push
