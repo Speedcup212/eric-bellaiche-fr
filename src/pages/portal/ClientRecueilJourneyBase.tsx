@@ -791,7 +791,6 @@ export default function ClientRecueilJourneyPage() {
         </div>}
 
         {current.code === 'financial' && <div className="space-y-7">
-          <GuidanceNote><p>Une déclaration simple, sans détail bancaire</p><p>Nous cherchons uniquement à savoir si une part importante de vos liquidités reste volontairement sur vos comptes courants. Aucun relevé, nom de banque ou numéro de compte n’est demandé.</p></GuidanceNote>
           <section>
             <BoolChoice label="Conservez-vous volontairement une part importante de vos liquidités sur vos comptes courants ?" value={form.current_accounts_intentional} onChange={(v) => patchCurrent({ current_accounts_intentional: v, current_accounts_amount: v ? form.current_accounts_amount : '', completeness_confirmed: false })} />
             {form.current_accounts_intentional === true && <div className="mt-5">
