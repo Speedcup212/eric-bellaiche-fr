@@ -594,8 +594,7 @@ export default function ClientRecueilJourneyPage() {
   };
 
   return <div>
-    <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} substep={{ current: step + 1, total: sections.length, label: current.title }} sticky={false} />
-    <PageIntro variant="recueil" eyebrow={`Étape 1 · Partie ${step + 1}/${sections.length}`} title={current.title} description={current.description} />
+    <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} sticky={false} />
     <WizardCard>
       <div className="border-b border-white/10 px-4 py-4 sm:px-5"><div className="flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{sections.map((section, index) => { const familyLocked = section.code === 'family' && progress.role_dossier === 'investisseur_2'; return <button key={section.code} type="button" disabled={familyLocked} title={familyLocked ? 'Informations communes gérées par l’Identifiant 1' : undefined} onClick={() => setStep(index)} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1.5 text-[10px] font-semibold leading-none transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 lg:px-2.5 lg:text-[11px] ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {section.label}</button>; })}</div></div>
       <div className="space-y-10 px-6 py-9 sm:px-9 sm:py-12">
