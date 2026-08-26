@@ -1,6 +1,6 @@
-name: One-shot flat premium family UX
+name: One-shot matrimonial advantage prefill
 
-# Trigger: flatten and compact the family tab
+# Trigger: prefill matrimonial advantage for married clients
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Flatten family UX
-        run: node scripts/patch-family-flat-premium-ux.cjs
+      - name: Prefill matrimonial advantage
+        run: node scripts/patch-family-matrimonial-advantage-prefill.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Flatten and compact family tab'
+          git commit -m 'Prefill matrimonial advantage'
           git push origin main
