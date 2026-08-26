@@ -13,6 +13,7 @@ const routes = [
   '/espace-client/documents?dossier=smoke-test',
   '/espace-client/synthese?dossier=smoke-test',
   '/cabinet',
+  '/cabinet/synthese?dossier=smoke-test',
 ];
 
 const host = '127.0.0.1';
