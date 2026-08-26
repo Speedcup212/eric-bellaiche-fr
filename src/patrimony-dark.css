@@ -84,10 +84,11 @@
 }
 
 .recueil-regulatory > * {
-  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  border: 1px solid rgba(59, 130, 246, 0.62) !important;
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(59, 130, 246, 0.075);
   padding: 1.25rem !important;
+  box-shadow: inset 3px 0 0 rgba(96, 165, 250, 0.95), 0 0 0 1px rgba(59, 130, 246, 0.08);
 }
 
 .recueil-regulatory fieldset legend,
@@ -123,7 +124,7 @@
 
 .recueil-regulatory > div:first-child {
   background: linear-gradient(90deg, #172b49, #12223a) !important;
-  border-color: rgba(96, 165, 250, 0.3) !important;
+  border-color: rgba(96, 165, 250, 0.62) !important;
 }
 
 @media (max-width: 640px) {
