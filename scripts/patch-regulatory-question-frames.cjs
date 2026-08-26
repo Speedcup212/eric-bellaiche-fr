@@ -1,0 +1,10 @@
+const fs = require('fs');
+const p = 'src/patrimony-dark.css';
+let s = fs.readFileSync(p, 'utf8');
+const oldBlock = `.recueil-regulatory > * {\n  border: 1px solid rgba(148, 163, 184, 0.18) !important;\n  border-radius: 1rem;\n  background: rgba(255, 255, 255, 0.035);\n  padding: 1.25rem !important;\n}`;
+const newBlock = `.recueil-regulatory > * {\n  border: 1px solid rgba(59, 130, 246, 0.62) !important;\n  border-radius: 1rem;\n  background: rgba(59, 130, 246, 0.075);\n  padding: 1.25rem !important;\n  box-shadow: inset 3px 0 0 rgba(96, 165, 250, 0.95), 0 0 0 1px rgba(59, 130, 246, 0.08);\n}`;
+if (!s.includes(oldBlock)) throw new Error('Regulatory question frame block not found');
+s = s.replace(oldBlock, newBlock);
+s = s.replace(`.recueil-regulatory > div:first-child {\n  background: linear-gradient(90deg, #172b49, #12223a) !important;\n  border-color: rgba(96, 165, 250, 0.3) !important;\n}`, `.recueil-regulatory > div:first-child {\n  background: linear-gradient(90deg, #172b49, #12223a) !important;\n  border-color: rgba(96, 165, 250, 0.62) !important;\n}`);
+fs.writeFileSync(p, s);
+console.log('Regulatory question frames strengthened');
