@@ -150,19 +150,6 @@ function GuidanceNote({ children }: { children: React.ReactNode }) {
   </div>;
 }
 
-function RecueilInfoNote({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="relative overflow-hidden rounded-2xl border border-sky-300/20 bg-[#17263f] px-5 py-4 text-sm leading-6 text-[#cfdef0] shadow-sm shadow-black/10">
-    <span className="absolute inset-y-0 left-0 w-1 bg-[#60A5FA]" aria-hidden="true" />
-    <div className="flex items-start gap-3.5">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-400/15 text-[#8ec5ff]"><CheckCircle2 className="h-4.5 w-4.5" /></span>
-      <div className="min-w-0">
-        <p className="font-semibold text-white">{title}</p>
-        <div className="mt-1 text-[#cfdef0]">{children}</div>
-      </div>
-    </div>
-  </div>;
-}
-
 function MoneyField(props: Omit<React.ComponentProps<typeof Field>, 'type'>) { return <Field {...props} type="number" />; }
 
 function CompactHorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -738,8 +725,8 @@ export default function ClientRecueilJourneyPage() {
           {form.sanctions_declarees === true && <Field label="Mesure ou autorité concernée" required value={form.commentaire_lcbft} onChange={(v) => patchCurrent({ commentaire_lcbft: v })} placeholder="Ex. nature de la mesure, autorité, date…" />}
           <BoolChoice label="Êtes-vous, ou l’un de vos proches, une personne politiquement exposée (PPE) ?" value={form.ppe_declaree} onChange={(v) => patchCurrent({ ppe_declaree: v, ppe_personne_exposee: v ? form.ppe_personne_exposee : '', ppe_motif: v ? form.ppe_motif : '', ppe_pays_exercice: v ? form.ppe_pays_exercice : '', ppe_anciennete: v ? form.ppe_anciennete : '' })} yesLabel="Oui, moi ou un proche" help="Une PPE exerce, ou a cessé d’exercer depuis moins d’un an, une fonction publique importante : chef d’État, ministre, parlementaire, haut magistrat, officier général, dirigeant d’entreprise publique, responsable d’un parti politique ou d’une organisation internationale. Sont aussi concernés le conjoint ou partenaire, les enfants et leurs conjoints, les parents et certaines personnes étroitement associées." />
           {form.ppe_declaree === true && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Personne concernée" required value={form.ppe_personne_exposee} onChange={(v) => patchCurrent({ ppe_personne_exposee: v })} placeholder="Vous-même ou nom du proche" /><Field label="Fonction exercée" required value={form.ppe_motif} onChange={(v) => patchCurrent({ ppe_motif: v })} placeholder="Ex. député, ambassadeur, dirigeant public…" /><Field label="Pays d’exercice" required value={form.ppe_pays_exercice} onChange={(v) => patchCurrent({ ppe_pays_exercice: v })} /><Field label="Période de la fonction" required value={form.ppe_anciennete} onChange={(v) => patchCurrent({ ppe_anciennete: v })} placeholder="Ex. depuis 2022 ou fin en mars 2026" /></div>}
-          <BoolChoice label="Souhaitez-vous que vos placements prennent en compte des critères environnementaux, sociaux ou de gouvernance (ESG) ?" value={form.esg_opt_in} onChange={(v) => patchCurrent({ esg_opt_in: v })} yesLabel="Oui, je souhaite les préciser" help={<><strong>La durabilité désigne les critères ESG :</strong> <strong>environnement</strong> (climat, pollution, biodiversité), <strong>social</strong> (droits humains, travail, santé) et <strong>gouvernance</strong> (éthique, corruption, dirigeants). Aucune connaissance technique n’est nécessaire.</>} />
-          <RecueilInfoNote title="Si vous choisissez « Oui »">Un questionnaire simple sur vos préférences de durabilité sera proposé après le profil investisseur. Il précisera vos priorités et vos éventuelles exclusions, sans modifier votre profil de risque.</RecueilInfoNote>
+          <BoolChoice label="Souhaitez-vous que vos placements prennent en compte des critères environnementaux, sociaux ou de gouvernance (ESG) ?" value={form.esg_opt_in} onChange={(v) => patchCurrent({ esg_opt_in: v })} yesLabel="Oui, je souhaite remplir le questionnaire ESG" help={<><strong>Les critères ESG correspondent à :</strong> <strong>environnement</strong> (climat, pollution, biodiversité), <strong>social</strong> (droits humains, travail, santé) et <strong>gouvernance</strong> (éthique, corruption, dirigeants). Aucune connaissance technique n’est nécessaire.</>} />
+          
         </div>}
 
         {current.code === 'patrimony' && <div className="real-estate-section space-y-6">
