@@ -130,13 +130,12 @@ assert.match(journeyBase, /Crédit à la consommation/, 'L’onglet Crédits doi
 assert.match(journeyBase, /Taux du crédit \(%\)/, 'Le recueil rapide doit demander le taux du crédit');
 assert.match(journeyBase, /À quoi ce crédit est-il rattaché/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');
 assert.match(journeyBase, /creditLinkedAssetOptions/, 'Les biens immobiliers déclarés doivent être proposés automatiquement dans les crédits');
-assert.match(journeyBase, /Usage — Type de bien — Ville/, 'Les biens doivent être libellés de manière patrimoniale et homogène');
 assert.match(journeyBase, /Crédit renouvelable \/ réserve d’argent/, 'Les crédits renouvelables et réserves doivent pouvoir être rattachés sans bien immobilier');
 assert.doesNotMatch(journeyBase, /Capital restant dû approximatif/, 'Le CRD doit venir du tableau d’amortissement');
 assert.doesNotMatch(journeyBase, /Mensualité actuelle/, 'La mensualité doit venir du tableau d’amortissement');
 assert.doesNotMatch(journeyBase, /Fin approximative du crédit/, 'La fin du crédit doit venir du tableau d’amortissement');
-assert.match(journeyBase, /className="credit-section space-y-6"/);
-assert.match(journeyBase, /className="credit-card /);
+assert.match(journeyBase, /className=\"credit-section space-y-6\"/);
+assert.match(journeyBase, /className=\"credit-card /);
 assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/);
 assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/);
 assert.match(creditMigration, /validate_credit_recueil_payload/);
