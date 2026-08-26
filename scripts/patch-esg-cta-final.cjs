@@ -15,5 +15,12 @@ const oldNote = '<RecueilInfoNote title="Si vous choisissez « Oui »">Un questi
 if (!s.includes(oldNote)) throw new Error('ESG info note not found');
 s = s.replace(oldNote, '');
 
+const fnStart = s.indexOf('function RecueilInfoNote(');
+if (fnStart !== -1) {
+  const nextFn = s.indexOf('\nfunction ', fnStart + 1);
+  if (nextFn === -1) throw new Error('Could not locate end of RecueilInfoNote');
+  s = s.slice(0, fnStart) + s.slice(nextFn + 1);
+}
+
 fs.writeFileSync(p, s);
-console.log('ESG CTA updated and info note removed');
+console.log('ESG CTA updated, note removed, unused component removed');
