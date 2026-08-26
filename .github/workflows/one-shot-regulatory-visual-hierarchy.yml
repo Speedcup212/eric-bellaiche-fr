@@ -1,6 +1,6 @@
 name: One-shot global person banner
 
-# Trigger: display Identifiant 1 / 2 on every recueil section
+# Trigger: retry global Identifiant 1 / 2 banner with legacy migration fix
 on:
   push:
     paths:
