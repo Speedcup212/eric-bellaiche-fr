@@ -25,6 +25,8 @@ jobs:
         run: npm run test:recueil-100
       - name: Métier consistency engine
         run: npm run test:consistency
+      - name: Data status engine
+        run: npm run test:data-status
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
