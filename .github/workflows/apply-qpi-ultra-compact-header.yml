@@ -1,0 +1,27 @@
+name: Apply QPI ultra compact header
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-qpi-ultra-compact-header.yml'
+      - 'scripts/patch-qpi-ultra-compact-header.cjs'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-qpi-ultra-compact-header.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/QuestionnairePageBase.tsx
+          git commit -m "Remove redundant QPI intro block" || exit 0
+          git push
