@@ -1,0 +1,20 @@
+const fs=require('fs');
+const p='src/portal/FintechJourney.tsx';
+let s=fs.readFileSync(p,'utf8');
+const sigOld=`export function JourneyProgress({ current, esgEnabled = true, substep, sticky = true }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep; sticky?: boolean }) {`;
+const sigNew=`export function JourneyProgress({ current, esgEnabled = true, substep, sticky = true, hideSubstepText = false }: { current: JourneyStage; esgEnabled?: boolean; substep?: JourneySubstep; sticky?: boolean; hideSubstepText?: boolean }) {`;
+if(!s.includes(sigOld)) throw new Error('JourneyProgress signature not found');
+s=s.replace(sigOld,sigNew);
+const blockOld=`          {effectiveSubstep ? (\n            <p className=\"mt-1 truncate text-sm font-semibold text-[#0b1f3a]\">Partie {effectiveSubstep.current} sur {effectiveSubstep.total}{effectiveSubstep.label ? \` · \${effectiveSubstep.label}\` : ''}</p>\n          ) : (\n            <p className=\"mt-1 text-sm font-semibold text-[#0b1f3a]\">Votre parcours patrimonial sécurisé</p>\n          )}`;
+const blockNew=`          {hideSubstepText ? null : effectiveSubstep ? (\n            <p className=\"mt-1 truncate text-sm font-semibold text-[#0b1f3a]\">Partie {effectiveSubstep.current} sur {effectiveSubstep.total}{effectiveSubstep.label ? \` · \${effectiveSubstep.label}\` : ''}</p>\n          ) : (\n            <p className=\"mt-1 text-sm font-semibold text-[#0b1f3a]\">Votre parcours patrimonial sécurisé</p>\n          )}`;
+if(!s.includes(blockOld)) throw new Error('JourneyProgress substep block not found');
+s=s.replace(blockOld,blockNew);
+fs.writeFileSync(p,s);
+
+const q='src/pages/portal/QuestionnairePageBase.tsx';
+let t=fs.readFileSync(q,'utf8');
+const target=`<JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} />`;
+const replacement=`<JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} hideSubstepText={mode === 'QPI'} />`;
+if(!t.includes(target)) throw new Error('Questionnaire JourneyProgress target not found');
+t=t.replaceAll(target,replacement);
+fs.writeFileSync(q,t);
