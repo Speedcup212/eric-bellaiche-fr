@@ -3,12 +3,16 @@ import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FileCheck2, Shield
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { evaluateConsistency, type ConsistencyIssue, type ConsistencySnapshot } from '../../portal/consistencyEngine';
-import { summarizeAdvisorDossier } from '../../portal/advisorSummaryEngine';
+import { summarizeAdvisorDossier, type ChecklistItemInput, type SectionInput } from '../../portal/advisorSummaryEngine';
+import type { DataStatusInput } from '../../portal/dataStatusEngine';
 import { messageFromError } from '../../portal/portalHelpers';
 
-type AnyRow = Record<string, any>;
 type DossierRow = { id: string; reference: string | null; libelle: string | null; recueil_status: string; statut: string };
 type InvestorRow = { investisseur_id: string; role_dossier: string; recueil_status: string; qpi_status: string; esg_status: string; documents_status: string; investisseurs: { prenom: string; nom: string; email: string | null } | null };
+type SectionRow = SectionInput & { investisseur_id: string; section_code: string; payload: Record<string, unknown> | null };
+type ContextRow = Record<string, unknown> & { investisseur_id: string };
+type ProvenanceRow = DataStatusInput & { investisseur_id?: string | null; entity_table?: string | null; field_name?: string | null };
+type ChecklistRow = ChecklistItemInput & { document_code?: string | null; libelle?: string | null; source_document_id?: string | null };
 
 const sectionLabel: Record<string, string> = {
   identity: 'Identité', family: 'Famille', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus', patrimony: 'Immobilier', financial: 'Financier', credits: 'Crédits', regulatory: 'Réglementaire',
@@ -25,10 +29,10 @@ export default function CifDossierSummaryPage() {
   const dossierId = searchParams.get('dossier');
   const [dossier, setDossier] = useState<DossierRow | null>(null);
   const [investors, setInvestors] = useState<InvestorRow[]>([]);
-  const [sections, setSections] = useState<AnyRow[]>([]);
-  const [contexts, setContexts] = useState<AnyRow[]>([]);
-  const [provenance, setProvenance] = useState<AnyRow[]>([]);
-  const [checklist, setChecklist] = useState<AnyRow[]>([]);
+  const [sections, setSections] = useState<SectionRow[]>([]);
+  const [contexts, setContexts] = useState<ContextRow[]>([]);
+  const [provenance, setProvenance] = useState<ProvenanceRow[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -53,10 +57,10 @@ export default function CifDossierSummaryPage() {
       if (!active) return;
       setDossier(dossierResult.data as DossierRow);
       setInvestors((investorsResult.data ?? []) as unknown as InvestorRow[]);
-      setSections((sectionsResult.data ?? []) as AnyRow[]);
-      setContexts((contextsResult.data ?? []) as AnyRow[]);
-      setProvenance((provenanceResult.data ?? []) as AnyRow[]);
-      setChecklist((checklistResult.data ?? []) as AnyRow[]);
+      setSections((sectionsResult.data ?? []) as unknown as SectionRow[]);
+      setContexts((contextsResult.data ?? []) as unknown as ContextRow[]);
+      setProvenance((provenanceResult.data ?? []) as unknown as ProvenanceRow[]);
+      setChecklist((checklistResult.data ?? []) as unknown as ChecklistRow[]);
     };
     void load().catch((error) => { if (active) setErrorMessage(messageFromError(error)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
