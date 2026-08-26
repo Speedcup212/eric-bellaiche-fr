@@ -1,6 +1,6 @@
-name: One-shot compact objectives UX
+name: One-shot identity person banner
 
-# Trigger: add five simple objective horizon bands
+# Trigger: make Identifiant 1 / 2 explicit in the identity tab
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Compact objectives UX
-        run: node scripts/patch-objectives-simple-ux.cjs
+      - name: Add identity person banner
+        run: node scripts/patch-identity-person-banner.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Simplify objective horizons'
+          git commit -m 'Show Identifiant 1 or 2 in identity tab'
           git push origin main
