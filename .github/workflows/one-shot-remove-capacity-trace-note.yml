@@ -1,0 +1,42 @@
+name: One-shot remove capacity trace note
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-remove-capacity-trace-note.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Patch recueil capacity trace note
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/portal/RecueilPage.tsx')
+          s = p.read_text()
+          old = "{current.code === 'credits' ? null : current.code === 'patrimony' ? <div className=\"rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]\">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title=\"Enregistrement et traçabilité\"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className=\"mt-1.5 text-[#aebfd4]\">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}"
+          new = "{current.code === 'credits' || current.code === 'capacity' ? null : current.code === 'patrimony' ? <div className=\"rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-5 text-[#CBD5E1]\">Vos informations sont enregistrées de manière sécurisée.</div> : <RecueilInfoNote title=\"Enregistrement et traçabilité\"><p>Les champs marqués * sont obligatoires. Les justificatifs transmis en fin de parcours permettront au cabinet de vérifier et compléter les informations détaillées.</p><p className=\"mt-1.5 text-[#aebfd4]\">Chaque partie est enregistrée et horodatée. Après validation finale, vos réponses sont figées afin de préserver la piste d’audit.</p></RecueilInfoNote>}"
+          if old not in s:
+              raise SystemExit('target snippet not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Validate
+        run: |
+          npm ci
+          npm run typecheck:portal
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name "Speedcup212"
+          git config user.email "eric.bellaiche@gmail.com"
+          git add src/pages/portal/RecueilPage.tsx
+          git commit -m "Remove trace note from revenue tab"
+          git push origin main
