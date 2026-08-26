@@ -311,6 +311,15 @@ export default function ClientRecueilJourneyPage() {
   const patch = (code: SectionCode, values: AnyPayload) => setForms((state) => ({ ...state, [code]: { ...state[code], ...values } }));
   const patchCurrent = (values: AnyPayload) => { setErrorMessage(''); patch(current.code, values); };
 
+  // data-family-children-sync: backfill rows when an existing dossier already has nombre_enfants but no enfants array.
+  useEffect(() => {
+    const count = Math.max(0, Math.min(20, Number.parseInt(String(forms.family.nombre_enfants ?? '0'), 10) || 0));
+    const children: AnyPayload[] = Array.isArray(forms.family.enfants) ? forms.family.enfants : [];
+    if (children.length === count) return;
+    const nextChildren = Array.from({ length: count }, (_, index) => children[index] ?? { prenom: '', nom: '', annee_naissance: '' });
+    patch('family', { enfants: nextChildren });
+  }, [forms.family.nombre_enfants, forms.family.enfants]);
+
   useEffect(() => {
     if (!familyNeedsConvention && !isBlank(forms.family.regime_convention)) patch('family', { regime_convention: '' });
     if (!familyNeedsMatrimonialAdvantage && !isBlank(forms.family.avantage_matrimonial)) patch('family', { avantage_matrimonial: '' });
