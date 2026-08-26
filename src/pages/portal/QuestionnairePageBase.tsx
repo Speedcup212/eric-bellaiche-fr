@@ -172,6 +172,24 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const visibleQuestions = useMemo(() => questions.filter((q) => visible(q, optionCodeByQuestion)), [questions, optionCodeByQuestion]);
   const extraQpiSteps = mode === 'QPI' ? 5 : 0;
   const totalSteps = visibleQuestions.length + extraQpiSteps;
+  const qpiSections = [
+    { key: 'horizon', label: 'Horizon & liquidité' },
+    { key: 'capacity', label: 'Capacité de perte' },
+    { key: 'knowledge', label: 'Connaissances' },
+    { key: 'tolerance', label: 'Tolérance au risque' },
+    { key: 'experience', label: 'Expérience' },
+  ] as const;
+  const currentQpiSectionKey = useMemo(() => {
+    if (mode !== 'QPI') return null;
+    if (currentIndex >= visibleQuestions.length) return 'experience';
+    const code = visibleQuestions[currentIndex]?.code ?? '';
+    if (['Q3', 'Q4'].includes(code)) return 'horizon';
+    if (['Q9', 'Q10'].includes(code)) return 'capacity';
+    if (['Q13', 'Q14', 'Q15', 'Q16', 'Q17'].includes(code)) return 'knowledge';
+    if (['Q21', 'Q22', 'Q23', 'Q24', 'Q25'].includes(code)) return 'tolerance';
+    return 'horizon';
+  }, [mode, currentIndex, visibleQuestions]);
+  const currentQpiSectionIndex = qpiSections.findIndex((section) => section.key === currentQpiSectionKey);
   useEffect(() => { if (totalSteps > 0 && currentIndex > totalSteps - 1) setCurrentIndex(totalSteps - 1); }, [currentIndex, totalSteps]);
 
   const upsertQuestionAnswer = async (question: QuestionRow, patch: Partial<AnswerRow>) => {
@@ -392,6 +410,21 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       <p className="mt-4 text-sm leading-6 text-[#33465f]">Il n’y a pas de bonne ou de mauvaise réponse : indiquez simplement les critères que vous souhaitez voir pris en compte dans les solutions proposées.</p>
     </section>}
     <WizardCard>
+      {mode === 'QPI' && <div className="border-b border-slate-100 bg-white px-6 pt-5 sm:px-9">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Profil investisseur</p>
+          <p className="text-xs font-semibold text-slate-700">Partie {Math.max(currentQpiSectionIndex + 1, 1)} sur 5 — {qpiSections[Math.max(currentQpiSectionIndex, 0)]?.label}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 pb-5 sm:grid-cols-5">
+          {qpiSections.map((section, index) => {
+            const active = section.key === currentQpiSectionKey;
+            const completed = currentQpiSectionIndex > index;
+            return <div key={section.key} className={`rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition ${active ? 'border-[#3B82F6] bg-blue-50 text-blue-700 shadow-sm' : completed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              <span className="mr-1">{completed ? '✓' : index + 1}.</span>{section.label}
+            </div>;
+          })}
+        </div>
+      </div>}
       <QuestionHeader current={currentIndex + 1} total={totalSteps} label={cardLabel} title={cardTitle} description={cardDescription} />
       <div className="px-6 py-7 sm:px-9 sm:py-9">
         {currentQuestion?.type_reponse === 'single' && <div className="grid gap-3">{displayedOptions(currentQuestion).map((option) => <ChoiceButton key={option.id} selected={answers[currentQuestion.id]?.option_id === option.id} onClick={() => void selectSingleAnswer(currentQuestion, option).catch((error) => setErrorMessage(messageFromError(error)))}>{option.libelle}</ChoiceButton>)}</div>}
