@@ -487,3 +487,19 @@
 .documents-dark .documents-card > div:last-child > div[class*='border-t'][class*='bg-'] button:last-child {
   background: #3b82f6 !important;
 }
+
+
+/* Regulatory question cards — reinforced separators */
+.recueil-regulatory > fieldset,
+.recueil-regulatory > label,
+.recueil-regulatory > div.text-sm.font-semibold {
+  border-color: rgba(59, 130, 246, 0.78) !important;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.09), rgba(255, 255, 255, 0.025)) !important;
+  box-shadow: inset 3px 0 0 #3b82f6, 0 10px 24px -20px rgba(37, 99, 235, 0.85) !important;
+}
+
+.recueil-regulatory > fieldset:hover,
+.recueil-regulatory > label:hover,
+.recueil-regulatory > div.text-sm.font-semibold:hover {
+  border-color: #60a5fa !important;
+}
