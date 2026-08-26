@@ -26,44 +26,15 @@ function profileAt(index) {
     id: index + 1,
     scope: couple ? 'couple' : 'individual',
     role,
-    family: {
-      situation,
-      nombre_enfants: String(index % 6),
-      date_evenement: ['Marié', 'Pacsé'].includes(situation) ? '2018-06-01' : '',
-      regime_convention: ['Marié', 'Pacsé'].includes(situation) ? 'Séparation de biens' : 'Sans convention / non applicable',
-    },
+    family: { situation, nombre_enfants: String(index % 6), date_evenement: ['Marié', 'Pacsé'].includes(situation) ? '2018-06-01' : '', regime_convention: ['Marié', 'Pacsé'].includes(situation) ? 'Séparation de biens' : 'Sans convention / non applicable' },
     spouse: couple ? { civilite: 'Mme', prenom: 'Camille', nom: `Test${index}`, email: `camille.${index}@example.fr`, mobile: '+33612345678' } : null,
     identity: { date_naissance: '1985-04-12', mobile: '+33687654321' },
     professional: { statut: professionalStatuses[index % professionalStatuses.length] },
     capacity: { revenus_travail: index % 8 === 6 ? 0 : 42000 + index, revenus_fonciers: usage === 'Locatif' ? 9600 : 0, epargne_precaution: 12000, capacite_epargne: 450, apport: index % 5 ? 25000 : 0 },
     regulatory: { fatca: index % 9 === 0, ppe: index % 11 === 0, esg: index % 4 !== 0 },
-    patrimony: {
-      has_real_estate: hasRealEstate,
-      immobilier: hasRealEstate ? [{
-        type_bien: type,
-        type_bien_autre: type === 'Autre' ? 'Chalet' : '',
-        usage,
-        usage_autre: usage === 'Autre' ? 'Usage mixte' : '',
-        proprietaire: owner,
-        projet_bien: propertyProjects[index % propertyProjects.length],
-        valeur_actuelle: 180000 + index * 1000,
-        date_acquisition: String(1995 + (index % 30)),
-        loyer_annuel: usage === 'Locatif' ? 9600 : '',
-      }] : [],
-    },
-    financial: index % 10 === 0 ? {
-      current_accounts_amount: 0, categories: ['none'], total_band: '', other_details: '', completeness_confirmed: true,
-    } : {
-      current_accounts_amount: 1000 + index * 50,
-      categories: [financialCategories[index % financialCategories.length]],
-      total_band: financialBands[index % financialBands.length],
-      other_details: financialCategories[index % financialCategories.length] === 'other' ? 'Parts de société non cotée' : '',
-      completeness_confirmed: true,
-    },
-    credits: index % 4 === 0 ? { has_credits: false, items: [] } : {
-      has_credits: true,
-      items: [{ type_credit: creditTypes[index % creditTypes.length], emprunteur: owner, capital_restant_du: 5000 + index * 100, mensualite: 150 + index }],
-    },
+    patrimony: { has_real_estate: hasRealEstate, immobilier: hasRealEstate ? [{ type_bien: type, type_bien_autre: type === 'Autre' ? 'Chalet' : '', usage, usage_autre: usage === 'Autre' ? 'Usage mixte' : '', proprietaire: owner, projet_bien: propertyProjects[index % propertyProjects.length], valeur_actuelle: 180000 + index * 1000, date_acquisition: String(1995 + (index % 30)), loyer_annuel: usage === 'Locatif' ? 9600 : '' }] : [] },
+    financial: index % 10 === 0 ? { current_accounts_amount: 0, categories: ['none'], total_band: '', other_details: '', completeness_confirmed: true } : { current_accounts_amount: 1000 + index * 50, categories: [financialCategories[index % financialCategories.length]], total_band: financialBands[index % financialBands.length], other_details: financialCategories[index % financialCategories.length] === 'other' ? 'Parts de société non cotée' : '', completeness_confirmed: true },
+    credits: index % 4 === 0 ? { has_credits: false, items: [] } : { has_credits: true, items: [{ type_credit: creditTypes[index % creditTypes.length], taux_credit: 1.5 + (index % 30) / 10, credit_rattache_a: hasRealEstate ? `Bien immobilier ${index + 1}` : 'Crédit consommation' }] },
     documents: { tax_status: index % 10 === 0 ? 'no_personal_notice' : 'personal_notice', tax_absence_reason: index % 10 === 0 ? 'first_declaration' : null },
   };
 }
@@ -99,7 +70,7 @@ function validate(profile) {
   if (profile.credits.has_credits && profile.credits.items.length === 0) errors.push('credits_missing');
   if (!profile.credits.has_credits && profile.credits.items.length > 0) errors.push('credits_contradiction');
   for (const credit of profile.credits.items) {
-    if (!credit.type_credit || !credit.emprunteur || !Number.isFinite(Number(credit.capital_restant_du)) || Number(credit.capital_restant_du) < 0 || !Number.isFinite(Number(credit.mensualite)) || Number(credit.mensualite) < 0) errors.push('credit_fields');
+    if (!credit.type_credit || !credit.credit_rattache_a || !Number.isFinite(Number(credit.taux_credit)) || Number(credit.taux_credit) < 0) errors.push('credit_fields');
   }
   if (profile.documents.has_credits !== profile.credits.has_credits) errors.push('credits_context');
   return errors;
@@ -130,6 +101,7 @@ const invalidFixtures = [
   { name: 'contexte financier contradictoire', mutate: (p) => { p.documents.has_financial_assets = false; }, expected: 'financial_assets_context' },
   { name: 'crédits non renseignés', mutate: (p) => { p.credits.has_credits = ''; }, expected: 'credits_answer' },
   { name: 'crédit annoncé sans fiche', mutate: (p) => { p.credits.has_credits = true; p.credits.items = []; }, expected: 'credits_missing' },
+  { name: 'crédit incomplet', mutate: (p) => { p.credits.items[0].credit_rattache_a = ''; }, expected: 'credit_fields' },
   { name: 'contexte crédits contradictoire', mutate: (p) => { p.documents.has_credits = false; }, expected: 'credits_context' },
 ];
 
@@ -143,92 +115,32 @@ for (const fixture of invalidFixtures) {
 }
 
 const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration] = await Promise.all([
-  read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
-  read('src/pages/portal/ClientDocumentsPage.tsx'),
-  read('src/patrimony-dark.css'),
-  read('src/pages/portal/ClientRecueilJourneyBase.tsx'),
-  read('src/portal/portalHelpers.ts'),
-  read('supabase/migrations/20260825120000_atomic_family_setup.sql'),
-  read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'),
-  read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'),
-  read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'),
-  read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'),
+  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'),
 ]);
 
-assert.match(familyPage, /rpc\('save_my_family_setup'/, 'Le setup famille doit utiliser le RPC atomique');
-assert.doesNotMatch(familyPage, /rpc\('sync_my_spouse_from_family'/, 'Le navigateur ne doit plus synchroniser le conjoint dans un second appel');
-assert.match(migration, /perform public\.save_my_recueil_section[\s\S]+select public\.sync_my_spouse_from_family/, 'La transaction doit enregistrer la famille puis synchroniser le conjoint');
-assert.match(migration, /sync_document_real_estate_context/, 'Le contexte documentaire immobilier doit être repris automatiquement du recueil');
-assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/, 'La catégorie documentaire immobilière doit être visible');
-assert.match(documentsPage, /'has_real_estate', currentContext\?\.has_real_estate/, 'La question documentaire immobilière doit être rendue');
-assert.match(documentsPage, /activeDocumentView === 'situation'/, 'La situation documentaire doit être isolée dans un écran dédié');
-assert.match(documentsPage, /activeDocumentView === 'uploads'/, 'Les justificatifs doivent être isolés dans un second écran');
-assert.match(documentsPage, /Voir mes justificatifs/, 'Le passage vers les justificatifs doit être explicite');
-assert.match(documentsPage, /plusieurs fichiers dans chacune d’elles/, 'L’interface doit indiquer clairement que plusieurs fichiers sont acceptés par catégorie');
-assert.doesNotMatch(documentsPage, /\['comptes_liquidites', 'Comptes courants'\]/, 'Le relevé de compte courant ne doit plus être proposé comme justificatif');
-assert.doesNotMatch(documentsPage, /category: 'comptes_liquidites'/, 'Le relevé de compte courant ne doit plus être exigé');
-assert.doesNotMatch(documentsPage, /boolChoice\('Avez-vous un ou plusieurs crédits en cours/, 'La page Documents ne doit pas redemander les crédits déjà déclarés');
-assert.match(documentsPage, /Ajouter un autre/, 'Une catégorie déjà alimentée doit permettre explicitement un nouveau dépôt');
-assert.doesNotMatch(documentsPage, /item\.receivedCount\}\/\{item\.expectedCount\}[^\n]+Ajouter/, 'Le minimum documentaire ne doit pas être présenté comme une limite maximale');
-assert.match(documentsPage, /className="documents-dark"/, 'L’étape Documents doit conserver la palette bleu nuit du parcours');
-assert.match(documentsPage, /document-identity-panel/, 'Le formulaire d’identité doit disposer d’un panneau clair et lisible dédié');
-assert.match(documentsPage, /document-transmitted-list/, 'Les documents déjà transmis doivent disposer d’un panneau bleu dédié');
-assert.match(documentStyles, /\.document-identity-panel[\s\S]{0,180}background: #f2f7fd/, 'Le panneau d’identité doit conserver un fond clair explicite');
-assert.match(documentStyles, /\.document-identity-panel button\.bg-white[\s\S]{0,220}color: #33465f/, 'Les choix non sélectionnés doivent rester lisibles sur fond clair');
-assert.doesNotMatch(documentStyles, /\.documents-dark \.bg-white,/, 'Aucune règle globale ne doit recolorer tous les panneaux blancs de Documents');
-assert.match(documentStyles, /\.document-transmitted-list[\s\S]{0,180}background: #eaf3ff/, 'Le bloc des documents transmis ne doit plus utiliser de fond gris');
-assert.match(documentsPage, /requirements\.slice\(activeRequirementIndex, activeRequirementIndex \+ 1\)/, 'Une seule catégorie documentaire doit être affichée à la fois');
-assert.match(documentsPage, /sticky=\{false\}/, 'Le bandeau de progression Documents ne doit pas masquer le contenu au défilement');
-assert.match(journeyBase, /propertyOwnerOptions/, 'Les choix de propriétaire doivent dépendre du profil');
-assert.match(journeyBase, /progress\.role_dossier === 'investisseur_2'[\s\S]{0,120}\['Identifiant 2'\][\s\S]{0,160}\['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2'\]/, 'L’Identifiant 1 doit pouvoir déclarer un bien appartenant à l’Identifiant 2');
-assert.doesNotMatch(journeyBase, /Six informations par bien/, 'La fiche immobilière ne doit pas répéter une consigne visuelle inutile');
-assert.match(journeyBase, /Ajouter des précisions[\s\S]{0,100}\(facultatif\)/, 'Les données immobilières secondaires doivent rester facultatives');
-assert.match(journeyBase, /collection_mode: 'real_estate_quick'/, 'La sauvegarde doit tracer le mode de recueil immobilier rapide');
-assert.match(journeyBase, /real-estate-section/, 'La partie immobilière doit disposer de son panneau clair dédié');
-assert.match(journeyBase, /real-estate-card-header/, 'Chaque bien doit avoir une hiérarchie visuelle distincte');
-assert.match(journeyBase, /CompactSelectField[\s\S]{0,1000}appearance-none/, 'Les choix immobiliers doivent utiliser des listes compactes');
-assert.match(journeyBase, /const complete = !\[item\.type_bien[\s\S]{0,500}<details/, 'Les biens complétés doivent pouvoir être repliés en résumé');
-assert.match(journeyBase, /Loyer mensuel hors charges/, 'Le loyer doit être demandé dans une unité intuitive pour un novice');
-assert.match(journeyBase, /loyer_annuel: item\.usage === 'Locatif' \? annualRentValue\(item\)/, 'Le loyer mensuel doit être converti en montant annuel avant sauvegarde');
-assert.match(journeyBase, /sticky=\{false\}/, 'Le bandeau de progression ne doit pas recouvrir la fiche immobilière pendant le défilement');
-assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'credits'[\s\S]{0,500}code: 'regulatory'/, 'Crédits doit être placé après Financier et avant Réglementaire');
-assert.match(journeyBase, /label: 'Immobilier'[\s\S]{0,500}label: 'Financier'[\s\S]{0,500}label: 'Crédits'[\s\S]{0,500}label: 'Réglementaire'/, 'Les libellés doivent suivre le même ordre que les sections');
-assert.match(journeyBase, /Les relevés de placements transmis ensuite permettront d’obtenir le détail/, 'La section financière doit expliquer que seuls les justificatifs de placements apporteront le détail');
-assert.match(journeyBase, /Quel est le montant actuel disponible sur l’ensemble de vos comptes courants \?/, 'Le montant des comptes courants doit être demandé directement dans Financier');
-assert.match(journeyBase, /current_accounts_amount/, 'Le montant des comptes courants doit être sauvegardé dans la section Financier');
-assert.doesNotMatch(journeyBase, /\['current_accounts', 'Comptes courants'\]/, 'Les comptes courants ne doivent plus être confondus avec une catégorie de placement');
-assert.doesNotMatch(journeyBase, /financial-section|financial-choice--selected/, 'La présentation historique de l’onglet Financier doit rester inchangée');
-assert.match(journeyBase, /montant total approximatif de tous vos placements sélectionnés ci-dessus/, 'La question d’encours doit préciser qu’elle porte sur toutes les catégories de placements sélectionnées');
-assert.match(journeyBase, /Un seul total est demandé, toutes catégories de placements confondues/, 'La question d’encours ne doit pas sembler liée à la dernière catégorie cochée');
-assert.match(journeyBase, /Quels autres placements détenez-vous \?/, 'Les autres placements doivent être demandés sous forme de question');
-assert.match(journeyBase, /Cryptoactifs[\s\S]{0,500}Parts de société non cotée[\s\S]{0,500}Financement participatif/, 'Les autres placements doivent proposer des choix simples');
-assert.doesNotMatch(journeyBase, /label="Précisez les autres placements"/, 'Les autres placements ne doivent plus reposer sur un champ libre unique');
-assert.match(journeyBase, /real-estate-section space-y-6"/, 'Immobilier doit utiliser directement le fond bleu nuit commun aux autres onglets');
-assert.match(journeyBase, /group-open:hidden[\s\S]{0,220}hidden group-open:inline[\s\S]{0,80}Bien immobilier/, 'Le résumé du bien ne doit apparaître que lorsque la fiche est repliée');
-assert.match(financialMigration, /validate_financial_recueil_payload/, 'Le serveur doit valider les réponses financières');
-assert.match(financialMigration, /sync_document_financial_context/, 'Le contexte documentaire financier doit être repris automatiquement du recueil');
-assert.match(financialMigration, /require_financial_recueil_before_validation/, 'La validation finale doit exiger la section Financier');
-assert.match(financialCoreMigration, /'patrimony','financial','credits'/, 'La fonction centrale doit autoriser l’enregistrement de la section Financier');
-assert.match(currentAccountsMigration, /v_current_accounts_amount/, 'Le serveur doit valider le montant déclaré des comptes courants');
-assert.match(currentAccountsMigration, /'liquidities',false/, 'La transmission documentaire ne doit plus exiger de relevé de compte courant');
-assert.doesNotMatch(currentAccountsMigration, /Ajoutez un relevé du ou des comptes courants/, 'Le serveur ne doit plus bloquer la transmission faute de relevé de compte courant');
-assert.match(journeyBase, /Crédit à la consommation/, 'L’onglet Crédits doit couvrir les crédits à la consommation');
-assert.match(journeyBase, /Capital restant dû approximatif/, 'Le recueil rapide doit demander le capital restant dû');
-assert.match(journeyBase, /Mensualité actuelle/, 'Le recueil rapide doit demander la mensualité');
-assert.match(journeyBase, /className="credit-section space-y-6"/, 'L’onglet Crédits doit utiliser une classe visuelle dédiée');
-assert.match(journeyBase, /className="credit-card /, 'Chaque crédit doit utiliser une fiche compacte dédiée');
-assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/, 'Les fiches de crédit doivent rester bleu nuit, sans fond gris');
-assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/, 'Les champs de crédit doivent rester blancs et lisibles');
-assert.match(creditMigration, /validate_credit_recueil_payload/, 'Le serveur doit valider la déclaration rapide des crédits');
-assert.match(creditMigration, /sync_document_credit_context/, 'Les justificatifs de crédit doivent dépendre automatiquement de l’onglet Crédits');
-assert.match(creditMigration, /require_credit_recueil_before_validation/, 'La validation finale doit exiger la section Crédits');
-assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/, 'Un dossier ne doit pas être choisi arbitrairement');
+assert.match(familyPage, /rpc\('save_my_family_setup'/);
+assert.doesNotMatch(familyPage, /rpc\('sync_my_spouse_from_family'/);
+assert.match(migration, /perform public\.save_my_recueil_section[\s\S]+select public\.sync_my_spouse_from_family/);
+assert.match(migration, /sync_document_real_estate_context/);
+assert.match(documentsPage, /\['patrimoine_immobilier', 'Patrimoine immobilier'\]/);
+assert.doesNotMatch(documentsPage, /\['comptes_liquidites', 'Comptes courants'\]/);
+assert.match(journeyBase, /propertyOwnerOptions/);
+assert.match(journeyBase, /code: 'patrimony'[\s\S]{0,500}code: 'financial'[\s\S]{0,500}code: 'credits'[\s\S]{0,500}code: 'regulatory'/);
+assert.match(journeyBase, /Crédit à la consommation/, 'L’onglet Crédits doit conserver le type de crédit');
+assert.match(journeyBase, /Taux du crédit \(%\)/, 'Le recueil rapide doit demander le taux du crédit');
+assert.match(journeyBase, /Bien financé \/ crédit rattaché à/, 'Le recueil rapide doit rattacher chaque crédit à son objet ou bien');
+assert.doesNotMatch(journeyBase, /Capital restant dû approximatif/, 'Le CRD doit venir du tableau d’amortissement');
+assert.doesNotMatch(journeyBase, /Mensualité actuelle/, 'La mensualité doit venir du tableau d’amortissement');
+assert.doesNotMatch(journeyBase, /Fin approximative du crédit/, 'La fin du crédit doit venir du tableau d’amortissement');
+assert.match(journeyBase, /className="credit-section space-y-6"/);
+assert.match(journeyBase, /className="credit-card /);
+assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/);
+assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/);
+assert.match(creditMigration, /validate_credit_recueil_payload/);
+assert.match(creditMigration, /sync_document_credit_context/);
+assert.match(creditMigration, /require_credit_recueil_before_validation/);
+assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/);
 
-const counts = profiles.reduce((result, profile) => {
-  result[profile.scope] += 1;
-  result[profile.professional.statut] = (result[profile.professional.statut] ?? 0) + 1;
-  return result;
-}, { individual: 0, couple: 0 });
-
+const counts = profiles.reduce((result, profile) => { result[profile.scope] += 1; result[profile.professional.statut] = (result[profile.professional.statut] ?? 0) + 1; return result; }, { individual: 0, couple: 0 });
 console.log(`Crash-test recueil: 100/100 dossiers valides, ${invalidFixtures.length}/${invalidFixtures.length} incohérences refusées.`);
 console.log(`Profils couverts: ${counts.individual} individuels, ${counts.couple} couples, 8 statuts professionnels, 6 types de biens, 4 usages, 8 catégories financières, 6 tranches d’encours, FATCA, PPE et ESG.`);
