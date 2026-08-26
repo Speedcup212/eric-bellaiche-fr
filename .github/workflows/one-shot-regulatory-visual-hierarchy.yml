@@ -1,6 +1,6 @@
 name: One-shot compact objectives UX
 
-# Trigger: compact objective selection to reduce vertical scrolling
+# Trigger: retry compact objective selection after typecheck fix
 on:
   push:
     paths:
