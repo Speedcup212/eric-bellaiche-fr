@@ -1,0 +1,27 @@
+name: Apply compact recueil header
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-compact-recueil-header.yml'
+      - 'scripts/patch-compact-recueil-header.cjs'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-compact-recueil-header.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Compact recueil header" || exit 0
+          git push
