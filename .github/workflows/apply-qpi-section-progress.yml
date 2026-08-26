@@ -1,0 +1,27 @@
+name: Apply QPI section progress indicator
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-qpi-section-progress.yml'
+      - 'scripts/patch-qpi-section-progress.cjs'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-qpi-section-progress.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit QPI section progress
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/QuestionnairePageBase.tsx
+          git commit -m "Show QPI section progress" || exit 0
+          git push
