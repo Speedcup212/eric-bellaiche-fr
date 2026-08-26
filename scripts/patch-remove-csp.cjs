@@ -1,0 +1,1 @@
+const fs=require('fs');const p='src/pages/portal/ClientRecueilJourneyBase.tsx';let s=fs.readFileSync(p,'utf8');s=s.replace(/\n  'Catégorie socioprofessionnelle': \{ options: \[[^\n]+\n/,'\n');s=s.replace(", categorie_socioprofessionnelle: ''",'');s=s.replace(/\s*<Field label="Catégorie socioprofessionnelle"[^;]+;\s*/g,'\n');fs.writeFileSync(p,s);
