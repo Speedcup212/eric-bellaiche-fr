@@ -23,8 +23,24 @@ if (!text.includes('familyNeedsMatrimonialAdvantage && !isBlank(forms.family.ava
   text = text.replace(patchCurrentMarker, patchCurrentMarker + effect);
 }
 
+text = text.replace(
+  '<Field label="Notaire + ville" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} />',
+  '<Field label="Notaire (nom et ville) — facultatif" value={form.notaire_nom_ville} onChange={(v) => patchCurrent({ notaire_nom_ville: v })} placeholder="Ex. Maître Dupont — Grenoble" />'
+);
+text = text.replace(
+  '<Field label="Expert-comptable + ville" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} />',
+  '<Field label="Expert-comptable (nom et ville) — facultatif" value={form.expert_comptable_nom_ville} onChange={(v) => patchCurrent({ expert_comptable_nom_ville: v })} placeholder="Ex. Cabinet Martin — Chambéry" />'
+);
+text = text.replace(
+  '<Field label="Évolution prévue" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} />',
+  '<Field label="Évolution familiale prévue — facultatif" value={form.evolution_prevue} onChange={(v) => patchCurrent({ evolution_prevue: v })} placeholder="Ex. mariage, PACS, naissance, séparation…" />'
+);
+
 if (!text.includes("familyNeedsMatrimonialAdvantage = familySituation.includes('mari')")) throw new Error('Marriage-only condition missing');
 if (!text.includes('{familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial"')) throw new Error('Conditional matrimonial field missing');
+if (!text.includes('Notaire (nom et ville) — facultatif')) throw new Error('Notaire label missing');
+if (!text.includes('Expert-comptable (nom et ville) — facultatif')) throw new Error('Expert-comptable label missing');
+if (!text.includes('Évolution familiale prévue — facultatif')) throw new Error('Family evolution label missing');
 
 fs.writeFileSync(path, text);
-console.log('Family fields now follow marital status');
+console.log('Family fields now follow marital status and use clearer optional labels');
