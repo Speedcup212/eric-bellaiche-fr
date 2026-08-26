@@ -1,6 +1,6 @@
-name: One-shot simplify credit recueil
+name: One-shot harmonize recueil tabs
 
-# Trigger: use black subtext on unselected Yes/No credit choices
+# Trigger: keep the nine recueil section tabs aligned on one row
 on:
   push:
     paths:
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Patch credit UX
+      - name: Patch recueil tabs
         run: node scripts/patch-credit-recueil.cjs
       - name: Verify
         run: |
@@ -35,6 +35,6 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/pages/portal/ClientRecueilJourneyBase.tsx scripts/crash-test-recueil-100.mjs
-          git commit -m 'Use black credit Yes-No subtext'
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m 'Harmonize recueil section tabs'
           git push origin main
