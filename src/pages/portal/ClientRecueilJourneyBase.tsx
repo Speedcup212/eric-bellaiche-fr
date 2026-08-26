@@ -12,7 +12,7 @@ const sections: Array<{ code: SectionCode; label: string; title: string; descrip
   { code: 'identity', label: 'Identité', title: 'Identité et coordonnées', description: 'Vérifiez vos informations personnelles, votre adresse fiscale et vos coordonnées.' },
   { code: 'family', label: 'Famille', title: 'Situation familiale', description: 'Renseignez votre situation de famille et les éléments utiles à l’organisation patrimoniale.' },
   { code: 'professional', label: 'Profession', title: 'Situation professionnelle', description: 'Votre activité et votre statut permettent d’apprécier la stabilité et l’origine de vos revenus.' },
-  { code: 'objectives', label: 'Objectifs', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs. Leur ordre de sélection définit leur priorité ; indiquez ensuite leur horizon.' },
+  { code: 'objectives', label: 'Objectifs', title: 'Mes objectifs', description: 'Sélectionnez vos objectifs par ordre de priorité puis indiquez leur horizon.' },
   { code: 'capacity', label: 'Revenus', title: 'Revenus et capacité financière', description: 'Précisez votre capacité d’épargne, votre épargne de précaution et les revenus estimés.' },
   { code: 'patrimony', label: 'Immobilier', title: 'Immobilier', description: 'Déclarez chaque bien en quelques réponses essentielles. Les situations particulières peuvent être précisées uniquement si nécessaire.' },
   { code: 'financial', label: 'Financier', title: 'Patrimoine financier', description: 'Indiquez le montant disponible sur vos comptes courants, puis les grandes catégories de placements détenues. Les relevés de placements transmis ensuite permettront d’obtenir le détail.' },
@@ -70,14 +70,6 @@ const objectiveOptions = [
 ] as const;
 
 type ObjectiveCode = (typeof objectiveOptions)[number][0];
-
-const objectiveGroups: Array<{ title: string; description: string; codes: ObjectiveCode[] }> = [
-  { title: 'Fiscalité & performance', description: 'Optimiser vos placements et votre fiscalité.', codes: ['optimisation_fiscale', 'optimisation_rendement', 'liquidites_court_terme'] },
-  { title: 'Projets & constitution de patrimoine', description: 'Financer vos projets et construire votre patrimoine.', codes: ['achat_immobilier', 'constitution_patrimoine', 'epargne_precaution', 'aide_enfants'] },
-  { title: 'Retraite & revenus complémentaires', description: 'Préparer vos revenus futurs et votre niveau de vie.', codes: ['retraite', 'revenus_complementaires'] },
-  { title: 'Protection & transmission', description: 'Protéger vos proches et organiser la transmission.', codes: ['protection_conjoint', 'protection_proches', 'transmission', 'transmission_entreprise', 'accidents_vie'] },
-  { title: 'Autre besoin', description: 'Ajoutez un objectif qui ne figure pas dans les catégories précédentes.', codes: ['autre'] },
-];
 
 const objectiveLabelByCode = Object.fromEntries(objectiveOptions) as Record<ObjectiveCode, string>;
 
@@ -574,45 +566,47 @@ export default function ClientRecueilJourneyPage() {
 
         {current.code === 'professional' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="Profession actuelle" required value={form.profession_actuelle} onChange={(v) => patchCurrent({ profession_actuelle: v })} /><Field label="Entreprise" required={professionalNeedsEmployer} value={form.societe} onChange={(v) => patchCurrent({ societe: v })} /><Field label="Secteur d’activité" required value={form.secteur_activite} onChange={(v) => patchCurrent({ secteur_activite: v })} /><Field label="Statut" required value={form.statut} onChange={(v) => patchCurrent({ statut: v })} placeholder="Autre statut" /><Field label="Catégorie socioprofessionnelle" value={form.categorie_socioprofessionnelle} onChange={(v) => patchCurrent({ categorie_socioprofessionnelle: v })} /><MonthYearField required={professionalNeedsEmployer} value={String(form.date_entree ?? '')} onChange={(v) => patchCurrent({ date_entree: v })} />{professionalNeedsIncomeOrigin && <Field label="Origine des revenus si sans activité" required value={form.origine_revenus_sans_activite} onChange={(v) => patchCurrent({ origine_revenus_sans_activite: v })} />}{professionalNeedsChangeQuestion && <BoolChoice label="Un changement professionnel est-il prévu dans les prochains mois ?" value={form.changement_professionnel_prevu} onChange={(v) => patchCurrent({ changement_professionnel_prevu: v, changement_professionnel_details: v ? form.changement_professionnel_details : '' })} />}{professionalNeedsChangeQuestion && form.changement_professionnel_prevu === true && <Field label="Quel changement professionnel est prévu ?" required value={form.changement_professionnel_details} onChange={(v) => patchCurrent({ changement_professionnel_details: v })} placeholder="Ex. changement d’entreprise, création d’activité, retraite, évolution de rémunération…" />}</div>}
 
-        {current.code === 'objectives' && <div className="space-y-9">
+        {current.code === 'objectives' && <div className="space-y-6">
           <section aria-labelledby="available-objectives-title">
-            <div>
-              <h3 id="available-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Quels sont vos objectifs ?</h3>
-              <p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Sélectionnez les objectifs qui comptent pour vous. L’ordre de sélection définit automatiquement leur priorité ; vous pourrez le modifier ensuite.</p>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 id="available-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Quels sont vos objectifs ?</h3>
+                <p className="mt-1 text-sm leading-5 text-[#CBD5E1]">Cliquez dans l’ordre de vos priorités. Vous pourrez modifier cet ordre ensuite.</p>
+              </div>
+              {objectiveItems.length > 0 && <span className="rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-semibold text-white">{objectiveItems.length} sélectionné{objectiveItems.length > 1 ? 's' : ''}</span>}
             </div>
-            <div className="mt-6 space-y-6">{objectiveGroups.map((group) => <div key={group.title} className="border-b border-slate-400/40 pb-6 last:border-b-0 last:pb-0">
-              <div><h4 className="text-sm font-semibold text-[#F1F5F9]">{group.title}</h4><p className="mt-0.5 text-xs leading-5 text-[#94A3B8]">{group.description}</p></div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{group.codes.map((code) => {
-                const label = objectiveLabelByCode[code];
-                const selectedIndex = objectiveItems.findIndex((item) => item.code_objectif === code);
-                const selected = selectedIndex >= 0;
-                return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`relative min-h-14 rounded-xl border p-4 pr-12 text-left text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'scale-[0.98] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>
-                  {label}
-                  {selected && <span className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xs font-bold text-[#2563EB]" aria-label={`Priorité ${selectedIndex + 1}`}>{selectedIndex + 1}</span>}
-                </button>;
-              })}</div>
-            </div>)}</div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{objectiveOptions.map(([code, label]) => {
+              const selectedIndex = objectiveItems.findIndex((item) => item.code_objectif === code);
+              const selected = selectedIndex >= 0;
+              return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`relative min-h-12 rounded-xl border px-3 py-2.5 pr-10 text-left text-[13px] font-semibold leading-4 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-800 hover:border-[#3B82F6] hover:shadow-sm'}`}>
+                {label}
+                {selected && <span className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#2563EB]" aria-label={`Priorité ${selectedIndex + 1}`}>{selectedIndex + 1}</span>}
+              </button>;
+            })}</div>
           </section>
 
-          {objectiveItems.length > 0 && <section aria-labelledby="selected-objectives-title" className="border-t border-white/10 pt-7">
-            <div><h3 id="selected-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Vos priorités</h3><p className="mt-1 text-sm leading-6 text-[#CBD5E1]">Indiquez l’horizon de chaque objectif. Utilisez les flèches uniquement si vous souhaitez modifier l’ordre.</p></div>
-            <div className="mt-5 space-y-3">{objectiveItems.map((item, index) => {
+          {objectiveItems.length > 0 && <section aria-labelledby="selected-objectives-title" className="border-t border-white/10 pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h3 id="selected-objectives-title" className="text-base font-semibold text-[#F1F5F9]">Vos priorités</h3><p className="mt-0.5 text-xs leading-5 text-[#94A3B8]">Choisissez l’horizon. Les flèches servent uniquement à changer l’ordre.</p></div>
+            </div>
+            <div className="mt-3 space-y-2">{objectiveItems.map((item, index) => {
               const code = item.code_objectif as ObjectiveCode;
               const label = item.label || objectiveLabelByCode[code] || item.code_objectif;
-              return <div key={item.code_objectif} className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
-                <div className="grid items-center gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)_auto]">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0B1F3A] text-xs font-bold text-white">{index + 1}</span>
-                    <p className="text-sm font-semibold leading-5 text-slate-900">{label}</p>
+              return <div key={item.code_objectif} className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-3 shadow-sm">
+                <div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.45fr)_auto]">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0B1F3A] text-[11px] font-bold text-white">{index + 1}</span>
+                    <p className="text-[13px] font-semibold leading-4 text-slate-900">{label}</p>
                   </div>
                   <CompactHorizonField value={item.horizon_annees} onChange={(v) => updateObjective(item.code_objectif, { horizon_annees: v })} />
-                  <div className="flex items-center justify-end gap-1.5">
-                    <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label}`} title="Monter" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#F59E0B] bg-[#F59E0B] font-bold text-white transition hover:bg-[#D97706] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300">↑</button>
-                    <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label}`} title="Descendre" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#F59E0B] bg-[#F59E0B] font-bold text-white transition hover:bg-[#D97706] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300">↓</button>
-                    <button type="button" onClick={() => toggleObjective(code, label)} aria-label={`Retirer ${label}`} title="Retirer" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-lg font-semibold text-slate-600 transition hover:border-red-300 hover:text-red-600">×</button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" disabled={index === 0} onClick={() => moveObjective(index, -1)} aria-label={`Monter ${label}`} title="Monter" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#F59E0B] bg-[#F59E0B] text-sm font-bold text-white transition hover:bg-[#D97706] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300">↑</button>
+                    <button type="button" disabled={index === objectiveItems.length - 1} onClick={() => moveObjective(index, 1)} aria-label={`Descendre ${label}`} title="Descendre" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#F59E0B] bg-[#F59E0B] text-sm font-bold text-white transition hover:bg-[#D97706] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300">↓</button>
+                    <button type="button" onClick={() => toggleObjective(code, label)} aria-label={`Retirer ${label}`} title="Retirer" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-base font-semibold text-slate-600 transition hover:border-red-300 hover:text-red-600">×</button>
                   </div>
                 </div>
-                {item.code_objectif === 'autre' && <div className="mt-4 border-t border-slate-200 pt-4"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
+                {item.code_objectif === 'autre' && <div className="mt-3 border-t border-slate-200 pt-3"><Field label="Précisez l’objectif" required value={item.libelle_autre} onChange={(v) => updateObjective(item.code_objectif, { libelle_autre: v })} /></div>}
               </div>;
             })}</div>
           </section>}
