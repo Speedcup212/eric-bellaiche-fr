@@ -1,6 +1,6 @@
 name: One-shot compact objectives UX
 
-# Trigger: retry compact objective selection after typecheck fix
+# Trigger: add five simple objective horizon bands
 on:
   push:
     paths:
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Compact objectives page'
+          git commit -m 'Simplify objective horizons'
           git push origin main
