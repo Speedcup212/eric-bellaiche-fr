@@ -1,0 +1,11 @@
+const fs = require('fs');
+const p = 'src/pages/portal/ClientRecueilJourneyBase.tsx';
+let s = fs.readFileSync(p, 'utf8');
+const oldClass = 'className="flex items-center justify-between gap-4 rounded-2xl border border-blue-400/30 bg-[#132644] px-5 py-4 shadow-sm"';
+const newClass = 'className="flex items-center justify-between gap-4 rounded-2xl border border-[#3B82F6] bg-[#163B73] px-5 py-4 shadow-sm shadow-blue-950/20"';
+if (!s.includes(oldClass)) throw new Error('Person banner container class not found');
+s = s.replace(oldClass, newClass);
+s = s.replace('className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300"', 'className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#BFDBFE]"');
+s = s.replace('className="mt-1 truncate text-sm font-semibold text-white"', 'className="mt-1 truncate text-sm font-semibold text-white"');
+s = s.replace('className="flex h-8 min-w-8 items-center justify-center rounded-full bg-[#3B82F6] px-2 text-xs font-bold text-white"', 'className="flex h-8 min-w-8 items-center justify-center rounded-full bg-[#60A5FA] px-2 text-xs font-bold text-white shadow-sm"');
+fs.writeFileSync(p, s);
