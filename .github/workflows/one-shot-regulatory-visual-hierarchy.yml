@@ -1,6 +1,6 @@
-name: One-shot family conditional fields
+name: One-shot family children details
 
-# Trigger: clarify optional notary, accountant and family evolution fields
+# Trigger: collect first name, last name and birth year for each child
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Patch family conditional fields
-        run: node scripts/patch-family-conditional-fields.cjs
+      - name: Patch children details
+        run: node scripts/patch-family-children-details.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Clarify optional family fields'
+          git commit -m 'Collect child identity details'
           git push origin main
