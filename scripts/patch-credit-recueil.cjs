@@ -3,12 +3,35 @@ const fs = require('fs');
 const path = 'src/pages/portal/ClientRecueilJourneyBase.tsx';
 let text = fs.readFileSync(path, 'utf8');
 
+const optionsAnchor = "  const objectiveItems: AnyPayload[] = form.items ?? [];\n";
+const optionsBlock = `  const objectiveItems: AnyPayload[] = form.items ?? [];
+  const creditLinkedAssetOptions = [
+    ...(forms.patrimony?.immobilier ?? []).map((property: AnyPayload, index: number) => {
+      const customName = String(property.intitule ?? '').trim();
+      const usage = String(property.usage ?? '').trim();
+      const type = String(property.type_bien ?? '').trim();
+      const city = String(property.ville ?? '').trim();
+      const description = [usage, type, city].filter(Boolean).join(' — ');
+      return customName || description || \`Bien immobilier \${index + 1}\`;
+    }),
+    'Véhicule',
+    'Travaux',
+    'Crédit à la consommation / prêt personnel',
+    'Crédit professionnel',
+    'Autre / non rattaché à un bien immobilier',
+  ];
+`;
+if (!text.includes('const creditLinkedAssetOptions = [')) {
+  if (!text.includes(optionsAnchor)) throw new Error('Objective items anchor not found');
+  text = text.replace(optionsAnchor, optionsBlock);
+}
+
 const validationPattern = /    if \(current\.code === 'credits'\) \{\n      if \(typeof form\.has_credits !== 'boolean'\) throw new Error\('Indiquez si vous avez un ou plusieurs crédits en cours\.'\);[\s\S]*?\n    \}\n  \};/;
 const validationReplacement = `    if (current.code === 'credits') {
       if (typeof form.has_credits !== 'boolean') throw new Error('Indiquez si vous avez un ou plusieurs crédits en cours.');
       if (form.has_credits === true && (form.items ?? []).length === 0) throw new Error('Ajoutez au moins un crédit.');
       for (const item of form.items ?? []) {
-        if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le bien financé / crédit rattaché à pour chaque crédit.');
+        if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le rattachement de chaque crédit.');
         if (!isNonNegativeNumber(item.taux_credit)) throw new Error('Le taux du crédit doit être un nombre positif ou nul.');
       }
     }
@@ -18,7 +41,7 @@ text = text.replace(validationPattern, validationReplacement);
 
 const creditPattern = /        \{current\.code === 'credits' && <div className="credit-section space-y-6">[\s\S]*?\n        <\/div>\}\n\n        \{errorMessage/;
 const creditReplacement = `        {current.code === 'credits' && <div className="credit-section space-y-6">
-          <GuidanceNote><p>Déclaration simplifiée</p><p>Indiquez simplement si vous avez des crédits, leur type, leur taux et à quoi ils sont rattachés. Le tableau d’amortissement permettra ensuite au cabinet de reprendre le capital restant dû, la mensualité, la durée et les autres caractéristiques.</p></GuidanceNote>
+          <GuidanceNote><p>Déclaration simplifiée</p><p>Indiquez simplement si vous avez des crédits, leur type, leur taux et à quoi ils sont rattachés. Les biens immobiliers déjà déclarés sont proposés automatiquement. Le tableau d’amortissement permettra ensuite au cabinet de reprendre le capital restant dû, la mensualité, la durée et les autres caractéristiques.</p></GuidanceNote>
           <div>
             <p className="text-sm font-semibold text-[#F1F5F9]">Avez-vous un ou plusieurs crédits en cours ? *</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -27,13 +50,13 @@ const creditReplacement = `        {current.code === 'credits' && <div className
             </div>
           </div>
           {form.has_credits === true && <div>
-            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Le rattachement permet d’identifier sans ambiguïté le prêt concerné lorsque plusieurs biens ou plusieurs crédits existent.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
+            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3><p className="mt-1 text-xs text-[#94A3B8]">Une ligne par crédit. Sélectionnez directement le bien déjà déclaré lorsqu’il s’agit d’un financement immobilier.</p></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
             {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
               <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
               <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-3">
                 <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit automobile', 'Crédit étudiant', 'Crédit travaux', 'Crédit professionnel', 'Autre crédit']} />
                 <Field label="Taux du crédit (%)" required type="number" value={item.taux_credit} onChange={(value) => updateList('items', index, { taux_credit: value })} placeholder="Ex. 3,45" />
-                <Field label="Bien financé / crédit rattaché à" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} placeholder="Ex. résidence principale Grenoble, appartement Lyon, véhicule, crédit consommation…" />
+                <CompactSelectField label="À quoi ce crédit est-il rattaché ?" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} options={creditLinkedAssetOptions} />
               </div>
             </div>)}
           </div>}
@@ -46,6 +69,7 @@ text = text.replace(creditPattern, creditReplacement);
 if (text.includes('Capital restant dû approximatif (€)') || text.includes('Fin approximative du crédit') || text.includes('Mensualité actuelle (€)')) {
   throw new Error('Un ancien champ crédit est encore présent');
 }
+if (!text.includes('options={creditLinkedAssetOptions}')) throw new Error('Le rattachement automatique aux biens immobiliers n’a pas été installé');
 
 fs.writeFileSync(path, text);
-console.log('Credit recueil reduced to type + rate + linked asset');
+console.log('Credit recueil now auto-links to declared properties');
