@@ -359,7 +359,7 @@ export default function ClientRecueilJourneyPage() {
       setForms(nextForms);
       setDoneSections(completed);
       if (row.esg_opt_in !== null && !(sectionData ?? []).some((x) => x.section_code === 'regulatory')) patch('regulatory', { esg_opt_in: row.esg_opt_in });
-      const firstIncomplete = sections.findIndex((s) => !completed.has(s.code));
+      const firstIncomplete = sections.findIndex((s) => !(row.role_dossier === 'investisseur_2' && s.code === 'family') && !completed.has(s.code));
       if (firstIncomplete >= 0) setStep(firstIncomplete);
     }).catch((error) => setErrorMessage(messageFromError(error)));
   }, [dossierId]);
@@ -495,7 +495,7 @@ export default function ClientRecueilJourneyPage() {
     setErrorMessage('');
     try {
       await saveCurrent();
-      const nextIncomplete = sections.findIndex((section, index) => index !== step && !doneSections.has(section.code));
+      const nextIncomplete = sections.findIndex((section, index) => index !== step && !(progress.role_dossier === 'investisseur_2' && section.code === 'family') && !doneSections.has(section.code));
       if (nextIncomplete >= 0) { setStep(nextIncomplete); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
