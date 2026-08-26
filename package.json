@@ -14,6 +14,7 @@
     "test:recueil-100": "node scripts/crash-test-recueil-100.mjs",
     "test:consistency": "node scripts/test-consistency-engine.mjs",
     "test:data-status": "node scripts/test-data-status-engine.mjs",
+    "test:advisor-summary": "node scripts/test-advisor-summary-engine.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs"
   },
   "dependencies": {
