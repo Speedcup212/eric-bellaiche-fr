@@ -78,6 +78,7 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Type de logement': { options: ['Propriétaire', 'Locataire', 'Logé à titre gratuit'], allowCustom: true },
   'Situation familiale': { options: ['Célibataire', 'Marié', 'Pacsé', 'Concubinage', 'Divorcé', 'Séparé', 'Veuf / Veuve'], allowCustom: true },
   'Régime / convention': { options: ['Communauté réduite aux acquêts', 'Communauté universelle', 'Séparation de biens', 'Participation aux acquêts', 'PACS - séparation des patrimoines', 'PACS - indivision', 'Sans convention / non applicable'], allowCustom: true },
+  'Avantage matrimonial': { options: ['Je ne sais pas / à vérifier', 'Aucun aménagement particulier', 'Clause de préciput', 'Attribution intégrale de la communauté'], allowCustom: true },
   'Statut': { options: ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'], allowCustom: true },
   'Catégorie socioprofessionnelle': { options: ['Cadre', 'Profession intermédiaire', 'Employé', 'Ouvrier', 'Artisan / commerçant / chef d’entreprise', 'Profession libérale', 'Agriculteur', 'Retraité', 'Sans activité'], allowCustom: true },
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
@@ -311,6 +312,12 @@ export default function ClientRecueilJourneyPage() {
   const patch = (code: SectionCode, values: AnyPayload) => setForms((state) => ({ ...state, [code]: { ...state[code], ...values } }));
   const patchCurrent = (values: AnyPayload) => { setErrorMessage(''); patch(current.code, values); };
 
+  useEffect(() => {
+    if (familyNeedsMatrimonialAdvantage && isBlank(forms.family.avantage_matrimonial)) {
+      patch('family', { avantage_matrimonial: 'Je ne sais pas / à vérifier' });
+    }
+  }, [forms.family.avantage_matrimonial, familyNeedsMatrimonialAdvantage]);
+
   // data-family-children-sync: backfill rows when an existing dossier already has nombre_enfants but no enfants array.
   useEffect(() => {
     const count = Math.max(0, Math.min(20, Number.parseInt(String(forms.family.nombre_enfants ?? '0'), 10) || 0));
@@ -393,6 +400,7 @@ export default function ClientRecueilJourneyPage() {
       }
       if (familyNeedsEventDate && isBlank(form.date_evenement)) throw new Error(`Indiquez la ${familyEventLabel.toLowerCase()} (mois / année).`);
       if (familyNeedsConvention && isBlank(form.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez le régime / la convention.');
+      if (familyNeedsMatrimonialAdvantage && isBlank(form.avantage_matrimonial)) throw new Error('Indiquez l’avantage matrimonial ou choisissez « Je ne sais pas / à vérifier ».');
     }
     if (current.code === 'professional') {
       if ([form.profession_actuelle, form.secteur_activite, form.statut].some(isBlank)) throw new Error('Renseignez votre profession, votre secteur d’activité et votre statut.');
@@ -600,7 +608,12 @@ export default function ClientRecueilJourneyPage() {
               <Field label="Situation familiale" required value={form.situation} onChange={(v) => {
                 const normalized = String(v).toLowerCase();
                 const needsConvention = normalized.includes('mari') || normalized.includes('pacs');
-                patchCurrent({ situation: v, regime_convention: needsConvention ? form.regime_convention : '' });
+                const needsMatrimonialAdvantage = normalized.includes('mari');
+                patchCurrent({
+                  situation: v,
+                  regime_convention: needsConvention ? form.regime_convention : '',
+                  avantage_matrimonial: needsMatrimonialAdvantage ? (isBlank(form.avantage_matrimonial) ? 'Je ne sais pas / à vérifier' : form.avantage_matrimonial) : '',
+                });
               }} placeholder="Autre situation" />
               {familyNeedsEventDate && <MonthYearField label={familyEventLabel} required minYear={1900} value={String(form.date_evenement ?? '')} onChange={(v) => patchCurrent({ date_evenement: v })} />}
             </div>
@@ -609,7 +622,7 @@ export default function ClientRecueilJourneyPage() {
           {familyNeedsConvention && <section className="border-t border-white/10 pt-5">
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.85fr)]">
               <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />
-              {familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} />}
+              {familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" required value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} placeholder="Autre avantage / précisez" />}
             </div>
           </section>}
 
