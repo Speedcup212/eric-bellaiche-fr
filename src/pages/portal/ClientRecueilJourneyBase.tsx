@@ -78,7 +78,7 @@ const choiceFields: Record<string, { options: string[]; allowCustom?: boolean }>
   'Type de logement': { options: ['Propriétaire', 'Locataire', 'Logé à titre gratuit'], allowCustom: true },
   'Situation familiale': { options: ['Célibataire', 'Marié', 'Pacsé', 'Concubinage', 'Divorcé', 'Séparé', 'Veuf / Veuve'], allowCustom: true },
   'Régime / convention': { options: ['Communauté réduite aux acquêts', 'Communauté universelle', 'Séparation de biens', 'Participation aux acquêts', 'PACS - séparation des patrimoines', 'PACS - indivision', 'Sans convention / non applicable'], allowCustom: true },
-  'Avantage matrimonial': { options: ['Je ne sais pas / à vérifier', 'Aucun aménagement particulier', 'Clause de préciput', 'Attribution intégrale de la communauté'], allowCustom: true },
+  'Avantage ou clause matrimoniale particulière': { options: ['Je ne sais pas / à vérifier', 'Aucun avantage matrimonial particulier', 'Clause de préciput', 'Attribution intégrale de la communauté'], allowCustom: true },
   'Statut': { options: ['CDI', 'CDD', 'Fonctionnaire', 'Indépendant / TNS', 'Chef d’entreprise', 'Retraité', 'Sans activité', 'Étudiant'], allowCustom: true },
   'Catégorie socioprofessionnelle': { options: ['Cadre', 'Profession intermédiaire', 'Employé', 'Ouvrier', 'Artisan / commerçant / chef d’entreprise', 'Profession libérale', 'Agriculteur', 'Retraité', 'Sans activité'], allowCustom: true },
   'Titulaire / nature du compte': { options: ['Personnel', 'Compte joint / commun'], allowCustom: true },
@@ -124,7 +124,7 @@ function Field({ label, value, onChange, type = 'text', required = false, placeh
       <p>{label}{required && ' *'}</p>
       <div className={`mt-2 gap-2 ${isCivility ? 'grid grid-cols-2' : isPropertyOwner ? 'grid grid-cols-3' : 'flex flex-wrap'}`}>
         {optionList.map((option) => <button key={option} type="button" onClick={() => { setCustomMode(false); onChange(option); }} className={`${isCivility || isPropertyOwner ? 'w-full min-w-0' : 'min-w-[8.5rem]'} ${isPropertyOwner ? 'px-2 text-xs sm:px-3 sm:text-sm' : 'px-3.5 text-sm'} rounded-xl border py-2.5 font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${normalizedValue === option ? 'scale-[0.97] border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-700 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}>{option}</button>)}
-        {choice.allowCustom && <button type="button" onClick={() => { setCustomMode(true); if (!isCustomValue) onChange(''); }} className={`min-w-[8.5rem] rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${customMode ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-[#E2E8F0] bg-white text-slate-700'}`}>Autre</button>}
+        {choice.allowCustom && <button type="button" onClick={() => { setCustomMode(true); if (!isCustomValue) onChange(''); }} className={`min-w-[8.5rem] rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${customMode ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-[#E2E8F0] bg-white text-slate-700'}`}>{label === 'Avantage ou clause matrimoniale particulière' ? 'Autre — à préciser' : 'Autre'}</button>}
       </div>
       {choice.allowCustom && customMode && <input autoFocus type={type} value={isCustomValue ? normalizedValue : ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || 'Autre / précisez'} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 font-normal outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" />}
       {help && <span className="mt-2 block text-xs font-normal leading-5 text-[#94A3B8]">{help}</span>}
@@ -397,7 +397,7 @@ export default function ClientRecueilJourneyPage() {
       }
       if (familyNeedsEventDate && isBlank(form.date_evenement)) throw new Error(`Indiquez la ${familyEventLabel.toLowerCase()} (mois / année).`);
       if (familyNeedsConvention && isBlank(form.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez le régime / la convention.');
-      if (familyNeedsMatrimonialAdvantage && isBlank(form.avantage_matrimonial)) throw new Error('Indiquez l’avantage matrimonial ou choisissez « Je ne sais pas / à vérifier ».');
+      if (familyNeedsMatrimonialAdvantage && isBlank(form.avantage_matrimonial)) throw new Error('Indiquez l’avantage ou la clause matrimoniale particulière, ou choisissez « Je ne sais pas / à vérifier ».');
     }
     if (current.code === 'professional') {
       if ([form.profession_actuelle, form.secteur_activite, form.statut].some(isBlank)) throw new Error('Renseignez votre profession, votre secteur d’activité et votre statut.');
@@ -632,7 +632,7 @@ export default function ClientRecueilJourneyPage() {
           {familyNeedsConvention && <section className="border-t border-white/10 pt-5">
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.85fr)]">
               <Field label="Régime / convention" required value={form.regime_convention} onChange={(v) => patchCurrent({ regime_convention: v })} placeholder="Autre régime / convention" />
-              {familyNeedsMatrimonialAdvantage && <Field label="Avantage matrimonial" required value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} placeholder="Autre avantage / précisez" />}
+              {familyNeedsMatrimonialAdvantage && <Field label="Avantage ou clause matrimoniale particulière" required value={form.avantage_matrimonial} onChange={(v) => patchCurrent({ avantage_matrimonial: v })} placeholder="Précisez la clause ou l’avantage matrimonial" />}
             </div>
           </section>}
 
