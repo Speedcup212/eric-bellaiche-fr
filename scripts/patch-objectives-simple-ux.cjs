@@ -2,6 +2,29 @@ const fs = require('fs');
 const path = 'src/pages/portal/ClientRecueilJourneyBase.tsx';
 let text = fs.readFileSync(path, 'utf8');
 
+const horizonPattern = /function CompactHorizonField\(\{ value, onChange \}: \{ value: string; onChange: \(value: string\) => void \}\) \{[\s\S]*?\n\}\n\nfunction MonthYearField/;
+const horizonReplacement = `function CompactHorizonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const options = [
+    { value: '0', label: 'Cette année — moins de 1 an' },
+    { value: '1', label: 'Court terme — 1 à 3 ans' },
+    { value: '3', label: 'Moyen terme — 3 à 5 ans' },
+    { value: '5', label: 'Long terme — 5 à 10 ans' },
+    { value: '10', label: 'Très long terme — plus de 10 ans' },
+  ];
+  const normalizedValue = String(value ?? '');
+
+  return <label className="text-sm font-semibold text-slate-700">Horizon du projet *
+    <select value={normalizedValue} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none transition focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30">
+      <option value="">Choisir un horizon</option>
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  </label>;
+}
+
+function MonthYearField`;
+if (!horizonPattern.test(text)) throw new Error('CompactHorizonField not found');
+text = text.replace(horizonPattern, horizonReplacement);
+
 const startMarker = "        {current.code === 'objectives'";
 const endMarker = "        {current.code === 'capacity'";
 const a = text.indexOf(startMarker);
@@ -63,6 +86,8 @@ text = text.replace(/const objectiveGroups: Array<\{ title: string; description:
 if (text.includes('Objectifs retenus')) throw new Error('Old objectives panel still present');
 if (text.includes('Ajouter une précision — facultatif')) throw new Error('Old optional precision control still present');
 if (text.includes('const objectiveGroups:')) throw new Error('Unused objectiveGroups declaration still present');
+if (text.includes('Autre durée précise')) throw new Error('Custom horizon option still present');
+if (!text.includes('Cette année — moins de 1 an') || !text.includes('Court terme — 1 à 3 ans')) throw new Error('New horizon bands missing');
 if (!text.includes('lg:grid-cols-4') || !text.includes('Vos priorités')) throw new Error('Compact objective UX missing');
 fs.writeFileSync(path, text);
-console.log('Compact objective UX installed');
+console.log('Compact objective UX and simplified horizon bands installed');
