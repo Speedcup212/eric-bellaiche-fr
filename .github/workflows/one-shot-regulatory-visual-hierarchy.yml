@@ -1,6 +1,6 @@
-name: One-shot family conditional regime
+name: One-shot family conditional fields
 
-# Trigger: hide regime / convention unless married or PACS
+# Trigger: show family fields only when legally relevant
 on:
   push:
     paths:
@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Patch family conditional regime
-        run: node scripts/patch-family-conditional-regime.cjs
+      - name: Patch family conditional fields
+        run: node scripts/patch-family-conditional-fields.cjs
       - name: Verify
         run: |
           npm ci
@@ -36,5 +36,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/pages/portal/ClientRecueilJourneyBase.tsx
-          git commit -m 'Hide regime convention when not applicable'
+          git commit -m 'Condition family fields by marital status'
           git push origin main
