@@ -35,6 +35,8 @@ jobs:
         run: npm run test:household-consolidation
       - name: Investor profile engine
         run: npm run test:investor-profile
+      - name: Document requirements policy
+        run: npm run test:document-policy
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
