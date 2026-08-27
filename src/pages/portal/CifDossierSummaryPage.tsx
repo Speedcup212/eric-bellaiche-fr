@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FileCheck2, ShieldCheck, UserRound } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FileCheck2, Home, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { evaluateConsistency, type ConsistencyIssue, type ConsistencySnapshot } from '../../portal/consistencyEngine';
 import { summarizeAdvisorDossier, type ChecklistItemInput, type SectionInput } from '../../portal/advisorSummaryEngine';
+import { consolidateHousehold } from '../../portal/householdConsolidationEngine';
 import type { DataStatusInput } from '../../portal/dataStatusEngine';
 import { messageFromError } from '../../portal/portalHelpers';
 
@@ -18,10 +19,18 @@ const sectionLabel: Record<string, string> = {
   identity: 'Identité', family: 'Famille', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus', patrimony: 'Immobilier', financial: 'Financier', credits: 'Crédits', regulatory: 'Réglementaire',
 };
 
+const financialCategoryLabel: Record<string, string> = {
+  savings: 'Livrets / épargne bancaire', life_insurance: 'Assurance-vie', retirement: 'PER / retraite', securities: 'PEA / compte-titres', paper_real_estate: 'SCPI / OPCI', employee_savings: 'Épargne salariale', other: 'Autres placements',
+};
+
 function readinessLabel(value: 'blocked' | 'review' | 'ready') {
   if (value === 'ready') return { label: 'Prêt pour analyse', className: 'bg-emerald-100 text-emerald-800', icon: <CheckCircle2 className="h-4 w-4" /> };
   if (value === 'review') return { label: 'Contrôles CIF requis', className: 'bg-amber-100 text-amber-800', icon: <AlertCircle className="h-4 w-4" /> };
   return { label: 'Dossier bloqué', className: 'bg-red-100 text-red-800', icon: <AlertTriangle className="h-4 w-4" /> };
+}
+
+function euro(value: number) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
 
 export default function CifDossierSummaryPage() {
@@ -66,6 +75,13 @@ export default function CifDossierSummaryPage() {
     return () => { active = false; };
   }, [dossierId]);
 
+  const household = useMemo(() => consolidateHousehold(sections.map((row) => ({
+    investisseur_id: row.investisseur_id,
+    role_dossier: investors.find((investor) => investor.investisseur_id === row.investisseur_id)?.role_dossier ?? '',
+    section_code: row.section_code,
+    payload: row.payload,
+  }))), [sections, investors]);
+
   const investorSummaries = useMemo(() => investors.map((investor) => {
     const investorSections = sections.filter((row) => row.investisseur_id === investor.investisseur_id);
     const payloadByCode = Object.fromEntries(investorSections.map((row) => [row.section_code, row.payload ?? {}]));
@@ -89,6 +105,18 @@ export default function CifDossierSummaryPage() {
       <div><Link to="/cabinet" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Retour aux dossiers</Link><p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Synthèse conseiller</p><h1 className="mt-2 text-3xl font-semibold text-slate-950">{dossier.reference || dossier.libelle || 'Dossier client'}</h1><p className="mt-2 text-sm text-slate-500">Recueil : {dossier.recueil_status} · Dossier : {dossier.statut}</p></div>
       <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-blue-900"><strong>Objectif :</strong> ne montrer que les points nécessitant une intervention CIF.</div>
     </div>
+
+    <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Vue foyer consolidée</p><h2 className="mt-1 text-xl font-semibold text-slate-950">{household.isCouple ? 'Dossier couple' : 'Dossier individuel'}</h2><p className="mt-1 text-sm text-slate-500">Les éléments communs sont comptés une seule fois. Les ressaisies détectées entre Identifiant 1 et Identifiant 2 sont neutralisées.</p></div></div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Immobilier</p><p className="mt-2 text-2xl font-semibold">{household.realEstate.count}</p><p className="mt-1 text-xs text-slate-500">biens consolidés</p></div>
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Valeur immobilière</p><p className="mt-2 text-2xl font-semibold">{euro(household.realEstate.totalValue)}</p><p className="mt-1 text-xs text-slate-500">valeur brute déclarée</p></div>
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Biens communs</p><p className="mt-2 text-2xl font-semibold">{euro(household.realEstate.jointValue)}</p><p className="mt-1 text-xs text-slate-500">comptés une seule fois</p></div>
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Ressaisies neutralisées</p><p className="mt-2 text-2xl font-semibold">{household.realEstate.duplicatesIgnored}</p><p className="mt-1 text-xs text-slate-500">doublons inter-personnes</p></div>
+      </div>
+      {household.financialCategories.length > 0 && <p className="mt-5 text-sm text-slate-600"><strong>Familles de placements présentes :</strong> {household.financialCategories.map((code) => financialCategoryLabel[code] ?? code).join(', ')}.</p>}
+      {household.warnings.length > 0 && <div className="mt-4 space-y-2">{household.warnings.map((warning) => <p key={warning} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{warning}</p>)}</div>}
+    </section>
 
     {investorSummaries.map(({ investor, issues, summary }) => { const badge = readinessLabel(summary.readiness); return <section key={investor.investisseur_id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><div className="rounded-2xl bg-slate-100 p-3"><UserRound className="h-5 w-5 text-slate-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2'}</p><h2 className="mt-1 text-xl font-semibold text-slate-950">{investor.investisseurs?.prenom} {investor.investisseurs?.nom}</h2><p className="mt-1 text-xs text-slate-500">Recueil {investor.recueil_status} · QPI {investor.qpi_status} · ESG {investor.esg_status} · Documents {investor.documents_status}</p></div></div><span className={`inline-flex items-center gap-2 self-start rounded-full px-3 py-2 text-xs font-bold ${badge.className}`}>{badge.icon}{badge.label}</span></div>
