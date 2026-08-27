@@ -10,7 +10,34 @@ page = page.replace('Les fichiers sont archivés dans le dossier réglementaire 
 fs.writeFileSync(pagePath, page);
 
 const testPath = 'scripts/test-generated-document-pipeline.mjs';
-const test = `import fs from 'node:fs';\n\nconst page = fs.readFileSync('src/pages/portal/CifDossierSummaryPage.tsx', 'utf8');\nconst edgePath = 'supabase/functions/generate-cif-pdfs/index.ts';\nconst edge = fs.readFileSync(edgePath, 'utf8');\nconst checks = [\n  ['portal invokes PDF generator', page.includes("functions.invoke('generate-cif-pdfs'")],\n  ['recueil PDF readiness', page.includes("types.push('recueil')")],\n  ['qpi PDF readiness', page.includes("types.push('qpi')")],\n  ['esg PDF readiness', page.includes("types.push('esg')")],\n  ['PDF download links exposed', page.includes('generatedDocumentLabel[document.type]')],\n  ['PDF generator versioned', edge.includes("PDF_VERSION = '2026-MAITRE-PDF-1.0'")],\n  ['private regulatory storage used', edge.includes("BUCKET = 'regulatory-docs'")],\n  ['PDF path archived', edge.includes('storage_path_pdf') && !edge.includes('storage_path_docx: storagePath')],\n  ['PDF MIME type used', edge.includes("contentType: 'application/pdf'")],\n  ['PDF extension used', edge.includes(".pdf`" ) || edge.includes(".pdf'" )],\n  ['documents hashed', edge.includes('hash_sha256') && edge.includes('snapshot_hash')],\n  ['Youtrust handoff metadata', edge.includes("signature_provider: 'youtrust'") && edge.includes("signature_status: 'ready_to_send'")],\n  ['final format is PDF', edge.includes("final_format: 'pdf'")],\n  ['identity document not requested', !edge.includes("categorie='identite'") && !edge.includes('justificatif_domicile')],\n];\nconst failures = checks.filter(([, ok]) => !ok);\nfor (const [name, ok] of checks) console.log((ok ? '✓' : '✗') + ' ' + name);\nif (failures.length) process.exit(1);\nconsole.log('Generated PDF document pipeline: ' + checks.length + '/' + checks.length + ' controls passed.');\n`;
+const test = [
+  "import fs from 'node:fs';",
+  "",
+  "const page = fs.readFileSync('src/pages/portal/CifDossierSummaryPage.tsx', 'utf8');",
+  "const edgePath = 'supabase/functions/generate-cif-pdfs/index.ts';",
+  "const edge = fs.readFileSync(edgePath, 'utf8');",
+  "const checks = [",
+  "  ['portal invokes PDF generator', page.includes(\"functions.invoke('generate-cif-pdfs'\")],",
+  "  ['recueil PDF readiness', page.includes(\"types.push('recueil')\")],",
+  "  ['qpi PDF readiness', page.includes(\"types.push('qpi')\")],",
+  "  ['esg PDF readiness', page.includes(\"types.push('esg')\")],",
+  "  ['PDF download links exposed', page.includes('generatedDocumentLabel[document.type]')],",
+  "  ['PDF generator versioned', edge.includes(\"PDF_VERSION = '2026-MAITRE-PDF-1.0'\")],",
+  "  ['private regulatory storage used', edge.includes(\"BUCKET = 'regulatory-docs'\")],",
+  "  ['PDF path archived', edge.includes('storage_path_pdf') && !edge.includes('storage_path_docx: storagePath')],",
+  "  ['PDF MIME type used', edge.includes(\"contentType: 'application/pdf'\")],",
+  "  ['PDF extension used', edge.includes('.pdf')],",
+  "  ['documents hashed', edge.includes('hash_sha256') && edge.includes('snapshot_hash')],",
+  "  ['Youtrust handoff metadata', edge.includes(\"signature_provider: 'youtrust'\") && edge.includes(\"signature_status: 'ready_to_send'\")],",
+  "  ['final format is PDF', edge.includes(\"final_format: 'pdf'\")],",
+  "  ['identity document not requested', !edge.includes(\"categorie='identite'\") && !edge.includes('justificatif_domicile')],",
+  "];",
+  "const failures = checks.filter(([, ok]) => !ok);",
+  "for (const [name, ok] of checks) console.log((ok ? '✓' : '✗') + ' ' + name);",
+  "if (failures.length) process.exit(1);",
+  "console.log('Generated PDF document pipeline: ' + checks.length + '/' + checks.length + ' controls passed.');",
+  "",
+].join('\n');
 fs.writeFileSync(testPath, test);
 
 const pkgPath = 'package.json';
