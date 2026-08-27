@@ -10,7 +10,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
     cssCodeSplit: false,
-    minify: 'esbuild',
+    minify: 'oxc',
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -20,8 +20,5 @@ export default defineConfig({
         },
       },
     },
-  },
-  esbuild: {
-    drop: ['console', 'debugger'],
   },
 });
