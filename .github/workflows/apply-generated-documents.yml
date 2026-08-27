@@ -1,0 +1,45 @@
+name: Apply generated document integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch-generated-documents.cjs
+      - .github/workflows/apply-generated-documents.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply patch
+        run: node scripts/patch-generated-documents.cjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Generated document pipeline test
+        run: npm run test:generated-documents
+      - name: Portal typecheck
+        run: npm run typecheck:portal
+      - name: Portal lint
+        run: npx eslint src/lib src/portal src/pages/portal src/App.tsx scripts
+      - name: Build
+        run: npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/CifDossierSummaryPage.tsx scripts/test-generated-document-pipeline.mjs package.json .github/workflows/portal-ci.yml
+          git diff --cached --check
+          git commit -m "Connect generated documents to Supabase" || exit 0
+          git push origin main
