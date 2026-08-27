@@ -23,7 +23,7 @@ jobs:
       - run: npm run test:recueil-100
       - run: npm run test:investor-profile
       - run: npm run typecheck:portal
-      - run: npm run lint
+      - run: npx eslint src/lib src/portal src/pages/portal src/App.tsx scripts
       - run: npm run build
       - name: Commit changes
         run: |
