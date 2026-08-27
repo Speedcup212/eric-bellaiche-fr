@@ -18,6 +18,7 @@
     "test:couple-policy": "node scripts/test-couple-family-policy.mjs",
     "test:household-consolidation": "node scripts/test-household-consolidation-engine.mjs",
     "test:investor-profile": "node scripts/test-investor-profile-engine.mjs",
+    "test:document-policy": "node scripts/test-document-policy.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs"
   },
   "dependencies": {
