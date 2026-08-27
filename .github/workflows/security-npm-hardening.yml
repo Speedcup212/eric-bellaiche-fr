@@ -30,7 +30,7 @@ jobs:
       - name: Apply full npm audit remediation
         run: |
           npm audit fix --force
-          npm install --save-dev @vitejs/plugin-react@latest
+          npm install --save-dev @vitejs/plugin-react@latest typescript-eslint@latest
       - name: Verify zero npm vulnerabilities
         run: |
           npm audit --json > audit-after.json || true
