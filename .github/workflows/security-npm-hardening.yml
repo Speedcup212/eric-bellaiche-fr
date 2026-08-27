@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   harden:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,15 +24,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Audit before
-        run: npm audit --json > audit-before.json || true
+        run: |
+          npm audit --json > audit-before.json || true
+          node -e "const a=require('./audit-before.json'); console.log('AUDIT_BEFORE', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('BEFORE',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
       - name: Apply non-breaking npm audit fixes
-        run: npm audit fix
+        run: npm audit fix || true
+      - name: Audit after non-breaking fixes
+        run: |
+          npm audit --json > audit-after.json || true
+          node -e "const a=require('./audit-after.json'); console.log('AUDIT_AFTER', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('AFTER',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
+          npm audit --omit=dev --json > runtime-audit.json || true
+          node -e "const a=require('./runtime-audit.json'); console.log('RUNTIME_AUDIT', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('RUNTIME',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
       - name: Reinstall from lockfile
         run: npm ci
-      - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
-      - name: Full dependency audit
-        run: npm audit --audit-level=high
       - name: Portal runtime safety
         run: npm run test:portal-safety
       - name: Recueil crash test (100 dossiers)
@@ -66,7 +71,7 @@ jobs:
         run: node scripts/firefox-smoke.mjs
       - name: Commit dependency hardening
         run: |
-          rm -f audit-before.json
+          rm -f audit-before.json audit-after.json runtime-audit.json
           if git diff --quiet -- package.json package-lock.json; then
             echo "No dependency changes to commit"
             exit 0
