@@ -3,6 +3,7 @@ import type { ConsistencyIssue } from './consistencyEngine';
 
 export type ChecklistItemInput = { statut?: string | null };
 export type SectionInput = { section_code?: string | null; completed_at?: string | null };
+export type DossierRole = 'investisseur_1' | 'investisseur_2' | string;
 
 export type AdvisorSummary = {
   sections: { completed: number; total: number; missing: string[] };
@@ -23,15 +24,21 @@ export type AdvisorSummary = {
 
 export const REQUIRED_RECUEIL_SECTIONS = ['identity', 'family', 'professional', 'objectives', 'capacity', 'patrimony', 'financial', 'credits', 'regulatory'] as const;
 
+export function requiredRecueilSectionsForRole(roleDossier?: DossierRole | null): string[] {
+  return REQUIRED_RECUEIL_SECTIONS.filter((code) => !(roleDossier === 'investisseur_2' && code === 'family'));
+}
+
 export function summarizeAdvisorDossier(input: {
   sections?: SectionInput[];
   provenance?: DataStatusInput[];
   checklist?: ChecklistItemInput[];
   issues?: ConsistencyIssue[];
+  roleDossier?: DossierRole | null;
 }): AdvisorSummary {
+  const requiredSections = requiredRecueilSectionsForRole(input.roleDossier);
   const sections = input.sections ?? [];
   const completedCodes = new Set(sections.filter((row) => Boolean(row.completed_at)).map((row) => row.section_code).filter(Boolean) as string[]);
-  const missing = REQUIRED_RECUEIL_SECTIONS.filter((code) => !completedCodes.has(code));
+  const missing = requiredSections.filter((code) => !completedCodes.has(code));
 
   const provenanceRows = input.provenance ?? [];
   const resolved = provenanceRows.map(resolveDataStatus);
@@ -50,7 +57,7 @@ export function summarizeAdvisorDossier(input: {
   else if (review > 0 || cifReviewRequired > 0 || docCount('requested') > 0 || docCount('received') > 0) readiness = 'review';
 
   return {
-    sections: { completed: REQUIRED_RECUEIL_SECTIONS.length - missing.length, total: REQUIRED_RECUEIL_SECTIONS.length, missing },
+    sections: { completed: requiredSections.length - missing.length, total: requiredSections.length, missing },
     provenance: {
       total: resolved.length,
       declared: count('declared'),
