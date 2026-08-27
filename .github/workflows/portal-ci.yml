@@ -33,6 +33,8 @@ jobs:
         run: npm run test:couple-policy
       - name: Household consolidation engine
         run: npm run test:household-consolidation
+      - name: Investor profile engine
+        run: npm run test:investor-profile
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
