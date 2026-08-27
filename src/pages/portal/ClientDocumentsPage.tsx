@@ -34,8 +34,6 @@ interface Requirement {
 }
 
 const categories = [
-  ['identite', 'Pièce d’identité'],
-  ['justificatif_domicile', 'Justificatif de domicile'],
   ['avis_imposition', 'Avis d’imposition'],
   ['tableau_amortissement', 'Tableau d’amortissement / prêt'],
   ['patrimoine_financier', 'Épargne / placements'],
@@ -302,8 +300,6 @@ export default function ClientDocumentsPage() {
   };
   const conditionalStatus = (required: boolean): RequirementStatus => required ? 'required' : allContextsComplete ? 'optional' : 'conditional';
   const requirements: Requirement[] = [
-    { category: 'identite', label: 'Pièce d’identité', description: 'Document officiel en cours de validité avec photographie pour chaque personne du dossier. CNI et titre de séjour : recto + verso. Passeport : page d’identité avec photo.', status: 'required', expectedCount: progress.dossier_members_total, receivedCount: identityReceivedCount },
-    { category: 'justificatif_domicile', label: 'Justificatif de domicile', description: 'Un justificatif de domicile datant de moins de 3 mois est nécessaire pour sécuriser les coordonnées du dossier.', status: 'required', expectedCount: 1, receivedCount: categoryCounts.justificatif_domicile ?? 0 },
     { category: 'avis_imposition', label: 'Avis d’imposition', description: aggregate.tax ? 'Transmettez les avis utiles à l’analyse : avis personnel ou commun et, le cas échéant, avis rectificatif. Plusieurs fichiers sont acceptés.' : 'L’avis n’est demandé que si vous en disposez. Si vous êtes rattaché au foyer fiscal de vos parents ou si aucun avis n’a encore été émis, précisez votre situation ci-dessus.', status: conditionalStatus(aggregate.tax), expectedCount: aggregate.tax ? 1 : 0, receivedCount: categoryCounts.avis_imposition ?? 0 },
     { category: 'patrimoine_financier', label: 'Épargne / placements', description: 'Transmettez les relevés de vos différents placements : livrets, assurance-vie, PER, PEA, compte-titres, SCPI ou autres. Ajoutez autant de fichiers que nécessaire.', status: conditionalStatus(aggregate.assets), expectedCount: aggregate.assets ? 1 : 0, receivedCount: categoryCounts.patrimoine_financier ?? 0 },
     { category: 'patrimoine_immobilier', label: 'Patrimoine immobilier', description: 'Transmettez les documents utiles pour chaque bien : titre de propriété, taxe foncière, estimation récente ou document équivalent.', status: conditionalStatus(aggregate.realEstate), expectedCount: aggregate.realEstate ? 1 : 0, receivedCount: categoryCounts.patrimoine_immobilier ?? 0 },
