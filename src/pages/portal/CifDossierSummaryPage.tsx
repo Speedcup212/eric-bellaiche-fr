@@ -76,7 +76,7 @@ export default function CifDossierSummaryPage() {
     };
     const issues = evaluateConsistency(snapshot);
     const investorProvenance = provenance.filter((row) => !row.investisseur_id || row.investisseur_id === investor.investisseur_id);
-    const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues });
+    const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier });
     return { investor, issues, summary };
   }), [investors, sections, contexts, provenance, checklist]);
 
