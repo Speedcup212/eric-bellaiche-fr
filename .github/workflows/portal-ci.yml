@@ -11,14 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Dependency audit
+        run: |
+          npm audit --audit-level=low
+          npm audit --omit=dev --audit-level=low
       - name: Portal runtime safety
         run: npm run test:portal-safety
       - name: Recueil crash test (100 dossiers)
