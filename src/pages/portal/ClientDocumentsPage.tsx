@@ -290,7 +290,6 @@ export default function ClientDocumentsPage() {
   const currentContextComplete = contextComplete(currentContext);
   const activeDocumentView = transmitted || documentView === 'uploads' || (documentView === 'auto' && currentContextComplete) ? 'uploads' : 'situation';
   const categoryCounts = Object.fromEntries(categories.map(([code]) => [code, sources.filter((doc) => doc.categorie === code).length])) as Record<string, number>;
-  const identityReceivedCount = dossierMembers.filter((member) => sources.some((doc) => doc.categorie === 'identite' && doc.investisseur_id === member.investisseur_id)).length;
   const aggregate = {
     tax: contexts.some((item) => item.tax_status === 'personal_notice'),
     assets: contexts.some((item) => item.has_financial_assets === true),
