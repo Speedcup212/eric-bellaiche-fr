@@ -43,3 +43,5 @@ jobs:
           git diff --cached --check
           git commit -m "Connect generated documents to Supabase" || exit 0
           git push origin main
+
+# Retry after versioning the Supabase generator source.
