@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: security/npm-hardening-20260827
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -27,14 +27,14 @@ jobs:
         run: |
           npm audit --json > audit-before.json || true
           node -e "const a=require('./audit-before.json'); console.log('AUDIT_BEFORE', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('BEFORE',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
-      - name: Apply non-breaking npm audit fixes
-        run: npm audit fix || true
-      - name: Audit after non-breaking fixes
+      - name: Apply full npm audit remediation
+        run: npm audit fix --force
+      - name: Verify zero npm vulnerabilities
         run: |
           npm audit --json > audit-after.json || true
           node -e "const a=require('./audit-after.json'); console.log('AUDIT_AFTER', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('AFTER',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
-          npm audit --omit=dev --json > runtime-audit.json || true
-          node -e "const a=require('./runtime-audit.json'); console.log('RUNTIME_AUDIT', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('RUNTIME',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
+          npm audit --audit-level=low
+          npm audit --omit=dev --audit-level=low
       - name: Reinstall from lockfile
         run: npm ci
       - name: Portal runtime safety
@@ -71,7 +71,7 @@ jobs:
         run: node scripts/firefox-smoke.mjs
       - name: Commit dependency hardening
         run: |
-          rm -f audit-before.json audit-after.json runtime-audit.json
+          rm -f audit-before.json audit-after.json
           if git diff --quiet -- package.json package-lock.json; then
             echo "No dependency changes to commit"
             exit 0
@@ -79,5 +79,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json
-          git commit -m "Harden npm dependencies"
+          git commit -m "Complete npm security hardening"
           git push origin HEAD:security/npm-hardening-20260827
