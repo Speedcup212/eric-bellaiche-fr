@@ -19,7 +19,8 @@
     "test:household-consolidation": "node scripts/test-household-consolidation-engine.mjs",
     "test:investor-profile": "node scripts/test-investor-profile-engine.mjs",
     "test:document-policy": "node scripts/test-document-policy.mjs",
-    "test:routes": "node scripts/smoke-built-routes.mjs"
+    "test:routes": "node scripts/smoke-built-routes.mjs",
+    "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

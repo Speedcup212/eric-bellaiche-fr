@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FileCheck2, Home, ShieldCheck, UserRound } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Download, FileCheck2, FileText, Home, Loader2, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { evaluateConsistency, type ConsistencyIssue, type ConsistencySnapshot } from '../../portal/consistencyEngine';
@@ -14,6 +14,7 @@ type SectionRow = SectionInput & { investisseur_id: string; section_code: string
 type ContextRow = Record<string, unknown> & { investisseur_id: string };
 type ProvenanceRow = DataStatusInput & { investisseur_id?: string | null; entity_table?: string | null; field_name?: string | null };
 type ChecklistRow = ChecklistItemInput & { document_code?: string | null; libelle?: string | null; source_document_id?: string | null };
+type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg'; document_id: string; signed_url: string | null; path: string; reused: boolean };
 
 const sectionLabel: Record<string, string> = {
   identity: 'Identité', family: 'Famille', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus', patrimony: 'Immobilier', financial: 'Financier', credits: 'Crédits', regulatory: 'Réglementaire',
@@ -21,6 +22,12 @@ const sectionLabel: Record<string, string> = {
 
 const financialCategoryLabel: Record<string, string> = {
   savings: 'Livrets / épargne bancaire', life_insurance: 'Assurance-vie', retirement: 'PER / retraite', securities: 'PEA / compte-titres', paper_real_estate: 'SCPI / OPCI', employee_savings: 'Épargne salariale', other: 'Autres placements',
+};
+
+const generatedDocumentLabel: Record<GeneratedDocument['type'], string> = {
+  recueil: 'Recueil d’informations',
+  qpi: 'Profil investisseur',
+  esg: 'Questionnaire ESG',
 };
 
 function readinessLabel(value: 'blocked' | 'review' | 'ready') {
@@ -44,6 +51,9 @@ export default function CifDossierSummaryPage() {
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]);
+  const [generatingDocuments, setGeneratingDocuments] = useState(false);
+  const [generationMessage, setGenerationMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -96,6 +106,32 @@ export default function CifDossierSummaryPage() {
     return { investor, issues, summary };
   }), [investors, sections, contexts, provenance, checklist]);
 
+  const readyDocumentTypes = useMemo(() => {
+    if (investors.length === 0) return [] as GeneratedDocument['type'][];
+    const types: GeneratedDocument['type'][] = [];
+    if (investors.every((investor) => ['completed', 'validated'].includes(investor.recueil_status))) types.push('recueil');
+    if (investors.every((investor) => ['completed', 'validated'].includes(investor.qpi_status))) types.push('qpi');
+    if (investors.every((investor) => ['completed', 'validated', 'not_applicable'].includes(investor.esg_status))) types.push('esg');
+    return types;
+  }, [investors]);
+
+  useEffect(() => {
+    if (!dossierId || !dossier || readyDocumentTypes.length === 0) return;
+    let active = true;
+    const generate = async () => {
+      setGeneratingDocuments(true);
+      setGenerationMessage('');
+      const { data, error } = await supabase.functions.invoke('generate-cif-documents', {
+        body: { dossier_id: dossierId, document_types: readyDocumentTypes },
+      });
+      if (error) throw error;
+      if (!data?.ok || !Array.isArray(data.documents)) throw new Error(data?.error || 'Génération documentaire impossible.');
+      if (active) setGeneratedDocuments(data.documents as GeneratedDocument[]);
+    };
+    void generate().catch((error) => { if (active) setGenerationMessage(messageFromError(error)); }).finally(() => { if (active) setGeneratingDocuments(false); });
+    return () => { active = false; };
+  }, [dossierId, dossier?.id, readyDocumentTypes.join('|')]);
+
   if (loading) return <div className="min-h-screen bg-slate-50 p-10 text-sm text-slate-500">Chargement de la synthèse conseiller…</div>;
   if (errorMessage) return <div className="min-h-screen bg-slate-50 p-10"><Link to="/cabinet" className="text-sm font-semibold text-slate-600">← Retour cabinet</Link><p className="mt-6 rounded-2xl bg-red-50 p-5 text-sm text-red-700">{errorMessage}</p></div>;
   if (!dossier) return null;
@@ -105,6 +141,20 @@ export default function CifDossierSummaryPage() {
       <div><Link to="/cabinet" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Retour aux dossiers</Link><p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Synthèse conseiller</p><h1 className="mt-2 text-3xl font-semibold text-slate-950">{dossier.reference || dossier.libelle || 'Dossier client'}</h1><p className="mt-2 text-sm text-slate-500">Recueil : {dossier.recueil_status} · Dossier : {dossier.statut}</p></div>
       <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-blue-900"><strong>Objectif :</strong> ne montrer que les points nécessitant une intervention CIF.</div>
     </div>
+
+    <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3"><div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents automatiques</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Recueil, profil et ESG générés depuis Supabase</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Dès qu’un document est finalisé pour tous les investisseurs, sa version Word à signer est générée automatiquement à partir des données enregistrées. Une version identique est réutilisée tant que les données n’ont pas changé.</p></div></div>
+        {generatingDocuments && <span className="inline-flex items-center gap-2 self-start rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"><Loader2 className="h-4 w-4 animate-spin" /> Génération…</span>}
+      </div>
+      {generationMessage && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{generationMessage}</p>}
+      <div className="mt-5 flex flex-wrap gap-3">
+        {generatedDocuments.map((document) => document.signed_url ? <a key={document.document_id} href={document.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100"><Download className="h-4 w-4" /> {generatedDocumentLabel[document.type]}</a> : null)}
+        {!generatingDocuments && generatedDocuments.length === 0 && readyDocumentTypes.length > 0 && <p className="text-sm text-slate-500">Les documents finalisés seront générés automatiquement.</p>}
+        {readyDocumentTypes.length === 0 && <p className="text-sm text-slate-500">Aucun document n’est encore finalisé pour l’ensemble du dossier.</p>}
+      </div>
+      <p className="mt-4 text-xs leading-5 text-slate-400">Les fichiers sont archivés dans le dossier réglementaire avec leur hash SHA-256 et un instantané des données. Ils sont préparés pour l’étape de signature électronique Youtrust.</p>
+    </section>
 
     <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
       <div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Vue foyer consolidée</p><h2 className="mt-1 text-xl font-semibold text-slate-950">{household.isCouple ? 'Dossier couple' : 'Dossier individuel'}</h2><p className="mt-1 text-sm text-slate-500">Les éléments communs sont comptés une seule fois. Les ressaisies détectées entre Identifiant 1 et Identifiant 2 sont neutralisées.</p></div></div>
