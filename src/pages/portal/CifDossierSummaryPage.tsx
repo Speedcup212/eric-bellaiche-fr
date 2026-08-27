@@ -14,7 +14,7 @@ type SectionRow = SectionInput & { investisseur_id: string; section_code: string
 type ContextRow = Record<string, unknown> & { investisseur_id: string };
 type ProvenanceRow = DataStatusInput & { investisseur_id?: string | null; entity_table?: string | null; field_name?: string | null };
 type ChecklistRow = ChecklistItemInput & { document_code?: string | null; libelle?: string | null; source_document_id?: string | null };
-type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg'; document_id: string; signed_url: string | null; path: string; reused: boolean };
+type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg'; document_id: string; signed_url: string | null; path: string; reused: boolean; format?: 'pdf' };
 
 const sectionLabel: Record<string, string> = {
   identity: 'Identité', family: 'Famille', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus', patrimony: 'Immobilier', financial: 'Financier', credits: 'Crédits', regulatory: 'Réglementaire',
@@ -121,7 +121,7 @@ export default function CifDossierSummaryPage() {
     const generate = async () => {
       setGeneratingDocuments(true);
       setGenerationMessage('');
-      const { data, error } = await supabase.functions.invoke('generate-cif-documents', {
+      const { data, error } = await supabase.functions.invoke('generate-cif-pdfs', {
         body: { dossier_id: dossierId, document_types: readyDocumentTypes },
       });
       if (error) throw error;
@@ -144,7 +144,7 @@ export default function CifDossierSummaryPage() {
 
     <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3"><div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents automatiques</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Recueil, profil et ESG générés depuis Supabase</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Dès qu’un document est finalisé pour tous les investisseurs, sa version Word à signer est générée automatiquement à partir des données enregistrées. Une version identique est réutilisée tant que les données n’ont pas changé.</p></div></div>
+        <div className="flex items-start gap-3"><div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents automatiques</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Recueil, profil et ESG générés en PDF depuis Supabase</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Dès qu’un document est finalisé pour tous les investisseurs, sa version PDF finale à signer est générée automatiquement à partir des données enregistrées. Une version identique est réutilisée tant que les données n’ont pas changé.</p></div></div>
         {generatingDocuments && <span className="inline-flex items-center gap-2 self-start rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"><Loader2 className="h-4 w-4 animate-spin" /> Génération…</span>}
       </div>
       {generationMessage && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{generationMessage}</p>}
@@ -153,7 +153,7 @@ export default function CifDossierSummaryPage() {
         {!generatingDocuments && generatedDocuments.length === 0 && readyDocumentTypes.length > 0 && <p className="text-sm text-slate-500">Les documents finalisés seront générés automatiquement.</p>}
         {readyDocumentTypes.length === 0 && <p className="text-sm text-slate-500">Aucun document n’est encore finalisé pour l’ensemble du dossier.</p>}
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-400">Les fichiers sont archivés dans le dossier réglementaire avec leur hash SHA-256 et un instantané des données. Ils sont préparés pour l’étape de signature électronique Youtrust.</p>
+      <p className="mt-4 text-xs leading-5 text-slate-400">Les PDF finaux sont archivés dans le dossier réglementaire avec leur hash SHA-256 et un instantané des données. Ils sont préparés pour l’étape de signature électronique Youtrust.</p>
     </section>
 
     <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
