@@ -22,7 +22,9 @@ if (compile.status !== 0) process.exit(compile.status ?? 1);
 
 const loaded = await import(pathToFileURL(join(temp, 'advisorSummaryEngine.js')).href);
 const summarizeAdvisorDossier = loaded.summarizeAdvisorDossier ?? loaded.default?.summarizeAdvisorDossier;
+const requiredRecueilSectionsForRole = loaded.requiredRecueilSectionsForRole ?? loaded.default?.requiredRecueilSectionsForRole;
 assert.equal(typeof summarizeAdvisorDossier, 'function', 'Le moteur de synthèse conseiller doit être importable.');
+assert.equal(typeof requiredRecueilSectionsForRole, 'function', 'La politique de sections par rôle doit être importable.');
 
 const completeSections = ['identity', 'family', 'professional', 'objectives', 'capacity', 'patrimony', 'financial', 'credits', 'regulatory'].map((section_code) => ({ section_code, completed_at: '2026-08-26T12:00:00Z' }));
 
@@ -62,5 +64,19 @@ assert.equal(blocked.sections.missing.length, 2);
 assert.equal(blocked.documents.missing, 1);
 assert.equal(blocked.consistency.blocking, 1);
 
-console.log('Advisor summary engine: 15 contrôles validés.');
+const secondInvestorSections = completeSections.filter((row) => row.section_code !== 'family');
+const secondInvestor = summarizeAdvisorDossier({
+  roleDossier: 'investisseur_2',
+  sections: secondInvestorSections,
+  checklist: [{ statut: 'validated' }],
+  issues: [],
+});
+assert.equal(secondInvestor.readiness, 'ready', 'Identifiant 2 ne doit pas être bloqué par la section Famille commune.');
+assert.equal(secondInvestor.sections.total, 8);
+assert.equal(secondInvestor.sections.completed, 8);
+assert.deepEqual(secondInvestor.sections.missing, []);
+assert.equal(requiredRecueilSectionsForRole('investisseur_2').includes('family'), false);
+assert.equal(requiredRecueilSectionsForRole('investisseur_1').includes('family'), true);
+
+console.log('Advisor summary engine: 21 contrôles validés.');
 await rm(temp, { recursive: true, force: true });
