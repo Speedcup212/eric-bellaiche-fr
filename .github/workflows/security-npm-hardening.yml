@@ -28,7 +28,9 @@ jobs:
           npm audit --json > audit-before.json || true
           node -e "const a=require('./audit-before.json'); console.log('AUDIT_BEFORE', JSON.stringify(a.metadata?.vulnerabilities||{})); for (const [k,v] of Object.entries(a.vulnerabilities||{})) console.log('BEFORE',k,v.severity,'fixAvailable='+JSON.stringify(v.fixAvailable))"
       - name: Apply full npm audit remediation
-        run: npm audit fix --force
+        run: |
+          npm audit fix --force
+          npm install --save-dev @vitejs/plugin-react@latest
       - name: Verify zero npm vulnerabilities
         run: |
           npm audit --json > audit-after.json || true
