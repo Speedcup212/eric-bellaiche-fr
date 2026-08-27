@@ -31,6 +31,8 @@ jobs:
         run: npm run test:advisor-summary
       - name: Couple family policy
         run: npm run test:couple-policy
+      - name: Household consolidation engine
+        run: npm run test:household-consolidation
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
