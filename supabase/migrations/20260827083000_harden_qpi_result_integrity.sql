@@ -1,4 +1,4 @@
-create or replace function public.enforce_qpi_result_integrity()
+create or replace function private.enforce_qpi_result_integrity()
 returns trigger
 language plpgsql
 security definer
@@ -61,4 +61,4 @@ $$;
 drop trigger if exists trg_enforce_qpi_result_integrity on public.qpi_results;
 create trigger trg_enforce_qpi_result_integrity
 before insert or update on public.qpi_results
-for each row execute function public.enforce_qpi_result_integrity();
+for each row execute function private.enforce_qpi_result_integrity();
