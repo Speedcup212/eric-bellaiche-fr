@@ -23,9 +23,9 @@ alter table public.audit_recommendations enable row level security;
 
 create policy "audit recommendations cabinet read" on public.audit_recommendations
 for select to authenticated
-using (exists (select 1 from public.app_users u where u.user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')));
+using (exists (select 1 from public.app_users u where u.auth_user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')));
 
 create policy "audit recommendations cabinet write" on public.audit_recommendations
 for all to authenticated
-using (exists (select 1 from public.app_users u where u.user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')))
-with check (exists (select 1 from public.app_users u where u.user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')));
+using (exists (select 1 from public.app_users u where u.auth_user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')))
+with check (exists (select 1 from public.app_users u where u.auth_user_id = auth.uid() and u.actif = true and u.role in ('cif','admin')));
