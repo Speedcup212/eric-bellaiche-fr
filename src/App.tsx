@@ -56,6 +56,7 @@ const QuestionnairePage = lazyWithReload(() => import('./pages/portal/Questionna
 const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');
 const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminPage'), 'cif-admin');
 const CifDossierSummaryPage = lazyWithReload(() => import('./pages/portal/CifDossierSummaryPage'), 'cif-dossier-summary');
+const CifAuditPage = lazyWithReload(() => import('./pages/portal/CifAuditPage'), 'cif-audit');
 
 const articleSlugs = ['conseiller-scpi','audit-patrimonial-en-ligne','scpi-fiscalite','scpi-assurance-vie-ou-direct','per-ou-assurance-vie','scpi-a-credit','scpi-demembrement','scpi-retraite','scpi-revenus-complementaires','scpi-succession-transmission','per-fiscalite','assurance-vie-fiscalite','assurance-vie-apres-70-ans','reduire-impot-sans-risque-excessif','fiscalite-revenus-fonciers','lmnp-ou-location-nue','sci-ir-ou-sci-is','immobilier-locatif-fiscalite','deficit-foncier','investissement-locatif-retraite','conseiller-patrimoine-en-ligne','structurer-son-patrimoine','preparer-retraite-patrimoine','transmission-patrimoine-famille-recomposee','erreurs-gestion-patrimoine'];
 
@@ -84,6 +85,7 @@ export default function App() {
     <Route path="/espace-client" element={<PortalErrorBoundary><PortalShell /></PortalErrorBoundary>}><Route index element={<ClientDashboardPage />} /><Route path="documents" element={<ClientDocumentsPage />} /><Route path="recueil" element={<ClientRecueilEntryPage />} /><Route path="recueil/parcours" element={<ClientRecueilPage />} /><Route path="profil-investisseur" element={<QuestionnairePage mode="QPI" />} /><Route path="esg" element={<QuestionnairePage mode="ESG" />} /><Route path="synthese" element={<ClientSummaryPage />} /></Route>
     <Route path="/cabinet" element={<PortalErrorBoundary><CifAdminPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/synthese" element={<PortalErrorBoundary><CifDossierSummaryPage /></PortalErrorBoundary>} />
+    <Route path="/cabinet/audit" element={<PortalErrorBoundary><CifAuditPage /></PortalErrorBoundary>} />
     <Route path="*" element={<HomePage />} />
   </Routes></Suspense></BrowserRouter>;
 }
