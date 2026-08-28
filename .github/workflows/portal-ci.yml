@@ -43,6 +43,8 @@ jobs:
         run: npm run test:document-policy
       - name: Generated document pipeline
         run: npm run test:generated-documents
+      - name: V22 audit document pipeline
+        run: npm run test:audit-documents
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
