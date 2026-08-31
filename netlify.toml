@@ -7,5 +7,20 @@
   to = "/index.html"
   status = 200
 
+[[headers]]
+  for = "/cabinet"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0"
+
+[[headers]]
+  for = "/cabinet/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate, max-age=0"
+
 [build.environment]
   NODE_VERSION = "20"
