@@ -7,6 +7,7 @@ interface Props {
 }
 
 const CABINET_EMAIL = 'eric.bellaiche@gmail.com';
+const CABINET_REDIRECT_URL = 'https://eric-bellaiche.fr/cabinet';
 
 function friendlyError(message: string) {
   if (/invalid login credentials/i.test(message)) return 'Mot de passe incorrect. Utilise le lien sécurisé ci-dessous si tu ne te souviens plus du mot de passe.';
@@ -42,11 +43,11 @@ export default function CifCabinetLogin({ onAuthenticated }: Props) {
         email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/cabinet`,
+          emailRedirectTo: CABINET_REDIRECT_URL,
         },
       });
       if (otpError) throw otpError;
-      setMessage('Lien sécurisé envoyé à ton adresse Gmail. Ouvre le mail puis clique sur le lien pour entrer dans le cockpit.');
+      setMessage('Lien sécurisé envoyé à ton adresse Gmail. Ouvre uniquement le dernier email reçu puis clique une seule fois sur le lien.');
     } catch (e) {
       setError(friendlyError(e instanceof Error ? e.message : 'Envoi impossible.'));
     } finally {
