@@ -1,0 +1,134 @@
+/* Cabinet — forced dark navy theme for adviser routes. */
+body:has(a[href="/cabinet"]) {
+  background: #06111f;
+}
+
+body:has(a[href="/cabinet"]) #root {
+  min-height: 100vh;
+  background: #06111f;
+  color: #e8eef7;
+  color-scheme: dark;
+}
+
+body:has(a[href="/cabinet"]) .min-h-screen,
+body:has(a[href="/cabinet"]) .bg-slate-50,
+body:has(a[href="/cabinet"]) .bg-slate-100,
+body:has(a[href="/cabinet"]) .bg-\[\#F6F9FD\] {
+  background-color: #071426 !important;
+}
+
+body:has(a[href="/cabinet"]) .bg-white,
+body:has(a[href="/cabinet"]) .bg-white\/95,
+body:has(a[href="/cabinet"]) .bg-\[\#F8FBFF\] {
+  background-color: #0d1d33 !important;
+}
+
+body:has(a[href="/cabinet"]) .text-slate-950,
+body:has(a[href="/cabinet"]) .text-slate-900,
+body:has(a[href="/cabinet"]) .text-slate-800,
+body:has(a[href="/cabinet"]) .text-slate-700,
+body:has(a[href="/cabinet"]) .text-\[\#0F172A\],
+body:has(a[href="/cabinet"]) .text-\[\#0B1F3A\] {
+  color: #f8fafc !important;
+}
+
+body:has(a[href="/cabinet"]) .text-slate-600,
+body:has(a[href="/cabinet"]) .text-slate-500,
+body:has(a[href="/cabinet"]) .text-\[\#52627A\],
+body:has(a[href="/cabinet"]) .text-\[\#6F8198\] {
+  color: #b9c7d8 !important;
+}
+
+body:has(a[href="/cabinet"]) .text-slate-400 {
+  color: #8ea3bb !important;
+}
+
+body:has(a[href="/cabinet"]) .border-slate-100,
+body:has(a[href="/cabinet"]) .border-slate-200,
+body:has(a[href="/cabinet"]) .border-slate-300,
+body:has(a[href="/cabinet"]) .border-blue-100,
+body:has(a[href="/cabinet"]) .border-emerald-100,
+body:has(a[href="/cabinet"]) .border-\[\#D9E5F5\] {
+  border-color: #243a58 !important;
+}
+
+body:has(a[href="/cabinet"]) .bg-blue-50,
+body:has(a[href="/cabinet"]) .bg-blue-100 {
+  background-color: #102a4c !important;
+}
+
+body:has(a[href="/cabinet"]) .bg-emerald-50,
+body:has(a[href="/cabinet"]) .bg-emerald-100 {
+  background-color: #0d342d !important;
+}
+
+body:has(a[href="/cabinet"]) .bg-amber-50,
+body:has(a[href="/cabinet"]) .bg-amber-100 {
+  background-color: #3a2b0d !important;
+}
+
+body:has(a[href="/cabinet"]) .bg-red-50,
+body:has(a[href="/cabinet"]) .bg-red-100 {
+  background-color: #3c1820 !important;
+}
+
+body:has(a[href="/cabinet"]) .text-blue-900,
+body:has(a[href="/cabinet"]) .text-blue-800,
+body:has(a[href="/cabinet"]) .text-blue-700,
+body:has(a[href="/cabinet"]) .text-blue-600 {
+  color: #79b4ff !important;
+}
+
+body:has(a[href="/cabinet"]) .text-emerald-900,
+body:has(a[href="/cabinet"]) .text-emerald-800,
+body:has(a[href="/cabinet"]) .text-emerald-700 {
+  color: #68e0bd !important;
+}
+
+body:has(a[href="/cabinet"]) .text-amber-900,
+body:has(a[href="/cabinet"]) .text-amber-800,
+body:has(a[href="/cabinet"]) .text-amber-700 {
+  color: #f6c65b !important;
+}
+
+body:has(a[href="/cabinet"]) .text-red-900,
+body:has(a[href="/cabinet"]) .text-red-800,
+body:has(a[href="/cabinet"]) .text-red-700 {
+  color: #ff9aa8 !important;
+}
+
+body:has(a[href="/cabinet"]) input,
+body:has(a[href="/cabinet"]) textarea,
+body:has(a[href="/cabinet"]) select {
+  background: #0a1729 !important;
+  border-color: #2a4466 !important;
+  color: #f8fafc !important;
+}
+
+body:has(a[href="/cabinet"]) input::placeholder,
+body:has(a[href="/cabinet"]) textarea::placeholder {
+  color: #7f93aa !important;
+}
+
+body:has(a[href="/cabinet"]) .shadow-sm,
+body:has(a[href="/cabinet"]) .shadow-lg,
+body:has(a[href="/cabinet"]) .shadow-2xl {
+  box-shadow: 0 20px 55px -32px rgba(0, 0, 0, 0.78) !important;
+}
+
+body:has(a[href="/cabinet"]) button.bg-white,
+body:has(a[href="/cabinet"]) a.bg-white {
+  background: #142640 !important;
+  color: #eef5ff !important;
+  border-color: #2a4466 !important;
+}
+
+body:has(a[href="/cabinet"]) button.bg-white:hover,
+body:has(a[href="/cabinet"]) a.bg-white:hover {
+  background: #1a3151 !important;
+}
+
+body:has(a[href="/cabinet"]) .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+body:has(a[href="/cabinet"]) .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #243a58 !important;
+}
