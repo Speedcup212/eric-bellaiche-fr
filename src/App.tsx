@@ -54,7 +54,7 @@ const ClientRecueilEntryPage = lazyWithReload(() => import('./pages/portal/Clien
 const ClientRecueilPage = lazyWithReload(() => import('./pages/portal/ClientRecueilJourneyPage'), 'client-recueil');
 const QuestionnairePage = lazyWithReload(() => import('./pages/portal/QuestionnairePage'), 'client-questionnaire');
 const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');
-const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminPage'), 'cif-admin');
+const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminGate'), 'cif-admin');
 const CifDossierSummaryPage = lazyWithReload(() => import('./pages/portal/CifDossierSummaryPage'), 'cif-dossier-summary');
 const CifAuditPage = lazyWithReload(() => import('./pages/portal/CifAuditPage'), 'cif-audit');
 const CifAdequationPage = lazyWithReload(() => import('./pages/portal/CifAdequationPage'), 'cif-adequation');
