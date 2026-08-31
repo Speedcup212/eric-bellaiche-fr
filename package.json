@@ -21,7 +21,8 @@
     "test:document-policy": "node scripts/test-document-policy.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs",
     "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs",
-    "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs"
+    "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs",
+    "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
