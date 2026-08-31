@@ -57,13 +57,13 @@ const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSumm
 const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminPage'), 'cif-admin');
 const CifDossierSummaryPage = lazyWithReload(() => import('./pages/portal/CifDossierSummaryPage'), 'cif-dossier-summary');
 const CifAuditPage = lazyWithReload(() => import('./pages/portal/CifAuditPage'), 'cif-audit');
+const CifAdequationPage = lazyWithReload(() => import('./pages/portal/CifAdequationPage'), 'cif-adequation');
 
 const articleSlugs = ['conseiller-scpi','audit-patrimonial-en-ligne','scpi-fiscalite','scpi-assurance-vie-ou-direct','per-ou-assurance-vie','scpi-a-credit','scpi-demembrement','scpi-retraite','scpi-revenus-complementaires','scpi-succession-transmission','per-fiscalite','assurance-vie-fiscalite','assurance-vie-apres-70-ans','reduire-impot-sans-risque-excessif','fiscalite-revenus-fonciers','lmnp-ou-location-nue','sci-ir-ou-sci-is','immobilier-locatif-fiscalite','deficit-foncier','investissement-locatif-retraite','conseiller-patrimoine-en-ligne','structurer-son-patrimoine','preparer-retraite-patrimoine','transmission-patrimoine-famille-recomposee','erreurs-gestion-patrimoine'];
 
 function PublicDossierAccess() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/espace-client') || pathname.startsWith('/cabinet')) return null;
-
   return (
     <Link
       to="/espace-client/connexion"
@@ -86,6 +86,7 @@ export default function App() {
     <Route path="/cabinet" element={<PortalErrorBoundary><CifAdminPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/synthese" element={<PortalErrorBoundary><CifDossierSummaryPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/audit" element={<PortalErrorBoundary><CifAuditPage /></PortalErrorBoundary>} />
+    <Route path="/cabinet/adequation" element={<PortalErrorBoundary><CifAdequationPage /></PortalErrorBoundary>} />
     <Route path="*" element={<HomePage />} />
   </Routes></Suspense></BrowserRouter>;
 }
