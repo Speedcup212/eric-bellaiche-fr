@@ -54,6 +54,7 @@ const ClientRecueilEntryPage = lazyWithReload(() => import('./pages/portal/Clien
 const ClientRecueilPage = lazyWithReload(() => import('./pages/portal/ClientRecueilJourneyPage'), 'client-recueil');
 const QuestionnairePage = lazyWithReload(() => import('./pages/portal/QuestionnairePage'), 'client-questionnaire');
 const ClientSummaryPage = lazyWithReload(() => import('./pages/portal/ClientSummaryPage'), 'client-summary');
+const PasswordRecoveryPage = lazyWithReload(() => import('./pages/portal/PasswordRecoveryPage'), 'password-recovery');
 const CifAdminPage = lazyWithReload(() => import('./pages/portal/CifAdminGate'), 'cif-admin');
 const CifDossierSummaryPage = lazyWithReload(() => import('./pages/portal/CifDossierSummaryPage'), 'cif-dossier-summary');
 const CifAuditPage = lazyWithReload(() => import('./pages/portal/CifAuditPage'), 'cif-audit');
@@ -75,14 +76,23 @@ function PublicDossierAccess() {
   );
 }
 
+function RootEntry() {
+  const hash = window.location.hash;
+  const search = window.location.search;
+  const isRecovery = /(?:^|[&#?])type=recovery(?:&|$)/.test(hash) || /(?:^|[?&])type=recovery(?:&|$)/.test(search);
+  if (isRecovery) return <PortalErrorBoundary><PasswordRecoveryPage /></PortalErrorBoundary>;
+  return <HomePage />;
+}
+
 export default function App() {
   return <BrowserRouter><ConsentBanner /><PublicDossierAccess /><Suspense fallback={<AppLoadingFallback />}><Routes>
-    <Route path="/" element={<HomePage />} />
+    <Route path="/" element={<RootEntry />} />
     <Route path="/conseil-investissement-grenoble" element={<GrenoblePageWrapper />} /><Route path="/conseil-investissement-montrouge" element={<MontrougePageWrapper />} /><Route path="/conseil-investissement-toulouse" element={<ToulousePageWrapper />} /><Route path="/conseil-investissement-rennes" element={<RennesPageWrapper />} /><Route path="/conseil-investissement-aix-en-provence" element={<AixPageWrapper />} /><Route path="/conseil-investissement-nantes" element={<NantesPageWrapper />} />
     <Route path="/merci" element={<ThankYouPage />} /><Route path="/eric-bellaiche-cgp-cif" element={<CgpCifRedirect />} /><Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} /><Route path="/conseiller-scpi" element={<ConseillerScpiRedirect />} /><Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
     <Route path="/articles" element={<ArticlesHubPage />} />{articleSlugs.map((slug) => <Route key={slug} path={`/articles/${slug}`} element={<ArticlePageWrapper slug={slug} />} />)}{articleSlugs.map((slug) => <Route key={`${slug}-wildcard`} path={`/articles/${slug}/*`} element={<ArticlePageWrapper slug={slug} />} />)}
     <Route path="/espace-client/connexion" element={<PortalErrorBoundary><ClientLoginPage /></PortalErrorBoundary>} /><Route path="/espace-client/invitation" element={<PortalErrorBoundary><ClientInvitationPage /></PortalErrorBoundary>} />
     <Route path="/espace-client" element={<PortalErrorBoundary><PortalShell /></PortalErrorBoundary>}><Route index element={<ClientDashboardPage />} /><Route path="documents" element={<ClientDocumentsPage />} /><Route path="recueil" element={<ClientRecueilEntryPage />} /><Route path="recueil/parcours" element={<ClientRecueilPage />} /><Route path="profil-investisseur" element={<QuestionnairePage mode="QPI" />} /><Route path="esg" element={<QuestionnairePage mode="ESG" />} /><Route path="synthese" element={<ClientSummaryPage />} /></Route>
+    <Route path="/cabinet/reinitialiser-mot-de-passe" element={<PortalErrorBoundary><PasswordRecoveryPage /></PortalErrorBoundary>} />
     <Route path="/cabinet" element={<PortalErrorBoundary><CifAdminPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/synthese" element={<PortalErrorBoundary><CifDossierSummaryPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/audit" element={<PortalErrorBoundary><CifAuditPage /></PortalErrorBoundary>} />
