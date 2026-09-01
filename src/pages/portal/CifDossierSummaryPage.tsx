@@ -43,13 +43,30 @@ function flattenNumbers(value: unknown, prefix = '', out: Array<{ key: string; v
   if (value && typeof value === 'object') { Object.entries(value as Record<string, unknown>).forEach(([key, child]) => flattenNumbers(child, prefix ? `${prefix}.${key}` : key, out)); return out; }
   const parsed = numberValue(value); if (parsed !== null) out.push({ key: prefix.toLowerCase(), value: parsed }); return out;
 }
+function flattenText(value: unknown, prefix = '', out: Array<{ key: string; value: string }> = []) {
+  if (Array.isArray(value)) { value.forEach((item, index) => flattenText(item, `${prefix}[${index}]`, out)); return out; }
+  if (value && typeof value === 'object') { Object.entries(value as Record<string, unknown>).forEach(([key, child]) => flattenText(child, prefix ? `${prefix}.${key}` : key, out)); return out; }
+  if (typeof value === 'string' && value.trim()) out.push({ key: prefix.toLowerCase(), value: value.trim() });
+  return out;
+}
 function sumMatching(payloads: Array<Record<string, unknown> | null>, include: RegExp, exclude?: RegExp) {
   const matches = payloads.flatMap((payload) => flattenNumbers(payload ?? {})).filter((item) => include.test(item.key) && !(exclude?.test(item.key)));
   return { value: matches.reduce((sum, item) => sum + item.value, 0), found: matches.length > 0 };
 }
+function firstMatchingNumber(payloads: Array<Record<string, unknown> | null>, include: RegExp) {
+  const match = payloads.flatMap((payload) => flattenNumbers(payload ?? {})).find((item) => include.test(item.key));
+  return match ? { value: match.value, found: true } : { value: 0, found: false };
+}
+function objectiveSummary(payloads: Array<Record<string, unknown> | null>) {
+  const candidates = payloads.flatMap((payload) => flattenText(payload ?? {}))
+    .filter((item) => /(objectif|priorite|priorité|projet)/i.test(item.key) && !/(commentaire|precision|précision)/i.test(item.key))
+    .map((item) => item.value)
+    .filter((value, index, array) => array.indexOf(value) === index);
+  return candidates.slice(0, 3);
+}
 function financialSnapshot(sections: SectionRow[], householdRealEstate: number) {
   const byCode = (code: string) => sections.filter((row) => row.section_code === code).map((row) => row.payload);
-  const capacity = byCode('capacity'); const financial = byCode('financial'); const credits = byCode('credits');
+  const capacity = byCode('capacity'); const financial = byCode('financial'); const credits = byCode('credits'); const regulatory = byCode('regulatory'); const objectives = byCode('objectives');
   const annualIncome = sumMatching(capacity, /(revenu.*annuel|revenus.*annuels|salaire.*annuel|net.*annuel|revenu_net|income)/i, /(conjoint|foyer_total)/i);
   const annualCharges = sumMatching(capacity, /(charges?.*annuell|depenses?.*annuell)/i);
   const savingsCapacityMonthly = sumMatching(capacity, /(capacite.*epargne|epargne.*mensuell|effort.*epargne)/i);
@@ -57,12 +74,22 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const financialAssets = sumMatching(financial, /(montant|valorisation|encours|valeur)/i, /(disponible.*compte|compte.*courant|liquidit|mensualite|versement)/i);
   const monthlyDebt = sumMatching(credits, /(mensualite|mensualité|echeance.*mensuell|échéance.*mensuell)/i);
   const debtOutstanding = sumMatching(credits, /(^|\.)(crd|capital_restant|capital.*restant|encours.*credit|encours.*crédit|reste.*rembourser)/i);
-  const monthlyIncome = annualIncome.found ? annualIncome.value / 12 : 0;
-  const debtRatio = monthlyIncome > 0 && monthlyDebt.found ? (monthlyDebt.value / monthlyIncome) * 100 : null;
-  const remainingMonthly = monthlyIncome > 0 ? monthlyIncome - (monthlyDebt.found ? monthlyDebt.value : 0) - (annualCharges.found ? annualCharges.value / 12 : 0) : null;
-  const netRealEstate = Math.max(0, householdRealEstate - (debtOutstanding.found ? debtOutstanding.value : 0));
-  const patrimonyNet = netRealEstate + (financialAssets.found ? financialAssets.value : 0) + (bankAvailable.found ? bankAvailable.value : 0);
-  return { annualIncome, annualCharges, savingsCapacityMonthly, bankAvailable, financialAssets, monthlyDebt, debtOutstanding, debtRatio, remainingMonthly, netRealEstate, patrimonyNet };
+  const tmi = firstMatchingNumber([...regulatory, ...capacity], /(^|\.)(tmi|tranche.*marginale|taux.*marginal)/i);
+  const monthlyIncome = annualIncome.found ? annualIncome.value / 12 : null;
+  const debtRatio = monthlyIncome !== null && monthlyDebt.found ? (monthlyDebt.value / monthlyIncome) * 100 : null;
+  const remainingMonthly = monthlyIncome !== null && monthlyDebt.found && annualCharges.found ? monthlyIncome - monthlyDebt.value - (annualCharges.value / 12) : null;
+  const netRealEstate = debtOutstanding.found ? Math.max(0, householdRealEstate - debtOutstanding.value) : null;
+  const patrimonyNet = netRealEstate !== null && financialAssets.found && bankAvailable.found ? netRealEstate + financialAssets.value + bankAvailable.value : null;
+  const goals = objectiveSummary(objectives);
+  const missing: string[] = [];
+  if (!bankAvailable.found) missing.push('disponible bancaire');
+  if (!annualIncome.found) missing.push('revenus du foyer');
+  if (!annualCharges.found) missing.push('charges fixes');
+  if (!monthlyDebt.found) missing.push('mensualités de crédits');
+  if (!debtOutstanding.found) missing.push('capital restant dû');
+  if (!financialAssets.found) missing.push('valorisation des actifs financiers');
+  if (!tmi.found) missing.push('TMI');
+  return { annualIncome, annualCharges, savingsCapacityMonthly, bankAvailable, financialAssets, monthlyDebt, debtOutstanding, tmi, debtRatio, remainingMonthly, netRealEstate, patrimonyNet, goals, missing };
 }
 function formatValue(value: unknown, key = ''): string {
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
@@ -76,8 +103,8 @@ function PayloadCard({ code, payload }: { code: string; payload: Record<string, 
   if (!entries.length) return null;
   return <div className="rounded-2xl border border-blue-100 bg-white p-5"><h4 className="text-sm font-bold text-slate-950">{sectionLabel[code] ?? humanize(code)}</h4><dl className="mt-4 space-y-3">{entries.map(([key, value]) => <div key={key} className="grid gap-1 border-t border-blue-50 pt-3 first:border-0 first:pt-0 sm:grid-cols-[180px_1fr]"><dt className="text-xs font-semibold text-slate-500">{humanize(key)}</dt><dd className="break-words text-sm font-medium leading-5 text-slate-900">{formatValue(value, key)}</dd></div>)}</dl></div>;
 }
-function Metric({ label, value, helper, emphasis = false }: { label: string; value: string; helper: string; emphasis?: boolean }) {
-  return <div className={`rounded-2xl border p-4 ${emphasis ? 'border-blue-400 bg-blue-50/70' : 'border-blue-100'}`}><p className="text-xs font-bold uppercase text-blue-500">{label}</p><p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{helper}</p></div>;
+function Metric({ label, value, helper, attention = false }: { label: string; value: string; helper: string; attention?: boolean }) {
+  return <div className={`rounded-2xl border bg-[#0B1A2F] p-4 ${attention ? 'border-amber-500/70 ring-1 ring-amber-500/15' : 'border-[#25405F]'}`}><p className={`text-xs font-bold uppercase ${attention ? 'text-amber-300' : 'text-blue-400'}`}>{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p><p className="mt-1 text-xs text-slate-400">{helper}</p></div>;
 }
 
 export default function CifDossierSummaryPage() {
@@ -108,23 +135,28 @@ export default function CifDossierSummaryPage() {
   return <div className="min-h-screen bg-blue-50/30 px-4 py-8 sm:px-6"><div className="mx-auto max-w-7xl space-y-6">
     <header className="rounded-3xl bg-slate-950 p-7 text-white shadow-sm sm:p-9"><Link to="/cabinet" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-200"><ArrowLeft className="h-4 w-4" /> Retour aux dossiers</Link><p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-300">Synthèse patrimoniale conseiller</p><h1 className="mt-2 text-3xl font-semibold">{dossier.reference || dossier.libelle || 'Dossier client'}</h1><p className="mt-2 text-sm text-slate-300">Vue de travail complète : situation, patrimoine, objectifs, profil réglementaire, pièces et contrôles CIF.</p></header>
 
-    <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Photographie patrimoniale du foyer</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Les chiffres utiles pour travailler le dossier</h2><p className="mt-1 text-sm text-slate-500">Lecture immédiate de la solvabilité, des liquidités, de l’endettement et des masses patrimoniales déclarées.</p></div></div>
+    <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Photographie patrimoniale du foyer</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Les chiffres utiles pour travailler le dossier</h2><p className="mt-1 text-sm text-slate-500">Les calculs ne sont affichés que lorsque les données nécessaires sont réellement renseignées.</p></div></div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Disponible bancaire" value={snapshot.bankAvailable.found ? euro(snapshot.bankAvailable.value) : 'À renseigner'} helper="comptes courants, livrets et liquidités identifiés" emphasis />
-        <Metric label="Revenus annuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'À renseigner'} helper={snapshot.annualIncome.found ? `${euro(snapshot.annualIncome.value / 12)} / mois` : 'base du calcul d’endettement'} />
-        <Metric label="Mensualités crédits" value={snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) : '0 € / à vérifier'} helper="total mensuel des crédits déclarés" emphasis />
-        <Metric label="Taux d’endettement" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} helper="mensualités de crédits / revenus mensuels" emphasis />
-        <Metric label="Capital restant dû" value={snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : '0 € / à vérifier'} helper="CRD total des crédits déclarés" />
-        <Metric label="Reste disponible mensuel" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} helper="revenus - crédits - charges déclarées" />
-        <Metric label="Capacité d’épargne" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'À renseigner'} helper="effort d’épargne déclaré" />
-        <Metric label="Actifs financiers" value={snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'À valoriser'} helper="placements hors liquidités bancaires" />
+        <Metric label="Disponible bancaire" value={snapshot.bankAvailable.found ? euro(snapshot.bankAvailable.value) : 'Non renseigné'} helper="comptes courants, livrets et liquidités" attention={!snapshot.bankAvailable.found} />
+        <Metric label="Revenus annuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'Non renseigné'} helper={snapshot.annualIncome.found ? `${euro(snapshot.annualIncome.value / 12)} / mois` : 'nécessaires au calcul d’endettement'} attention={!snapshot.annualIncome.found} />
+        <Metric label="Mensualités crédits" value={snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) : 'Non renseigné'} helper="total mensuel des crédits" attention={!snapshot.monthlyDebt.found} />
+        <Metric label="Taux d’endettement" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} helper="mensualités de crédits / revenus mensuels" attention={snapshot.debtRatio === null} />
+        <Metric label="Capital restant dû" value={snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : 'Non renseigné'} helper="CRD total des crédits" attention={!snapshot.debtOutstanding.found} />
+        <Metric label="Reste disponible mensuel" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} helper="revenus - crédits - charges fixes" attention={snapshot.remainingMonthly === null} />
+        <Metric label="Capacité d’épargne" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'Non renseigné'} helper="effort d’épargne déclaré" attention={!snapshot.savingsCapacityMonthly.found} />
+        <Metric label="Actifs financiers" value={snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'Non valorisés'} helper="placements hors liquidités bancaires" attention={!snapshot.financialAssets.found} />
         <Metric label="Immobilier brut" value={euro(household.realEstate.totalValue)} helper={`${household.realEstate.count} bien${household.realEstate.count > 1 ? 's' : ''} consolidé${household.realEstate.count > 1 ? 's' : ''}`} />
-        <Metric label="Immobilier net estimé" value={euro(snapshot.netRealEstate)} helper="immobilier brut - CRD identifié" />
-        <Metric label="Patrimoine net estimé" value={euro(snapshot.patrimonyNet)} helper="immobilier net + financier + liquidités identifiées" emphasis />
-        <Metric label="Charges annuelles" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'À renseigner'} helper="hors mensualités de crédits" />
+        <Metric label="Immobilier net estimé" value={snapshot.netRealEstate !== null ? euro(snapshot.netRealEstate) : 'Non calculable'} helper="immobilier brut - CRD" attention={snapshot.netRealEstate === null} />
+        <Metric label="Patrimoine net estimé" value={snapshot.patrimonyNet !== null ? euro(snapshot.patrimonyNet) : 'Non calculable'} helper="immobilier net + financier + liquidités" attention={snapshot.patrimonyNet === null} />
+        <Metric label="Charges annuelles" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseigné'} helper="hors mensualités de crédits" attention={!snapshot.annualCharges.found} />
+        <Metric label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} helper="tranche marginale d’imposition" attention={!snapshot.tmi.found} />
       </div>
-      {household.financialCategories.length > 0 && <div className="mt-5 rounded-2xl bg-blue-50 p-4 text-sm text-slate-700"><strong>Placements identifiés :</strong> {household.financialCategories.map((c) => financialCategoryLabel[c] ?? c).join(', ')}.</div>}
-      {household.warnings.length > 0 && <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>À contrôler :</strong> {household.warnings.join(' ')}</div>}
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 text-sm text-slate-200"><strong className="text-white">Objectifs prioritaires :</strong> {snapshot.goals.length ? snapshot.goals.join(' · ') : <span className="text-amber-300">À préciser</span>}</div>
+        <div className={`rounded-2xl border p-4 text-sm ${snapshot.missing.length ? 'border-amber-500/60 bg-amber-950/20 text-amber-100' : 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100'}`}><strong>{snapshot.missing.length ? 'Points à compléter avant conseil :' : 'Données de travail principales disponibles.'}</strong>{snapshot.missing.length ? ` ${snapshot.missing.join(', ')}.` : ''}</div>
+      </div>
+      {household.financialCategories.length > 0 && <div className="mt-3 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 text-sm text-slate-300"><strong className="text-white">Placements identifiés :</strong> {household.financialCategories.map((c) => financialCategoryLabel[c] ?? c).join(', ')}.</div>}
+      {household.warnings.length > 0 && <div className="mt-3 rounded-2xl border border-amber-500/60 bg-amber-950/20 p-4 text-sm text-amber-100"><strong>À contrôler :</strong> {household.warnings.join(' ')}</div>}
     </section>
 
     {investorSummaries.map(({ investor, investorSections, issues, summary }) => { const badge = readinessLabel(summary.readiness); const orderedSections = [...investorSections].sort((a, b) => sectionOrder.indexOf(a.section_code) - sectionOrder.indexOf(b.section_code)); return <section key={investor.investisseur_id} className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><UserRound className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-500">{investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2'}</p><h2 className="mt-1 text-xl font-semibold text-slate-950">{investor.investisseurs?.prenom} {investor.investisseurs?.nom}</h2><p className="mt-1 text-xs text-slate-500">{investor.investisseurs?.email || 'Email non renseigné'} · Recueil {investor.recueil_status} · QPI {investor.qpi_status} · ESG {investor.esg_status}</p></div></div><span className={`inline-flex items-center gap-2 self-start rounded-full px-3 py-2 text-xs font-bold ${badge.className}`}>{badge.icon}{badge.label}</span></div>
