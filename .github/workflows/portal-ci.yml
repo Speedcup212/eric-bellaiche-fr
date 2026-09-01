@@ -27,6 +27,8 @@ jobs:
         run: npm run test:portal-safety
       - name: Recueil crash test (100 dossiers)
         run: npm run test:recueil-100
+      - name: Real-client preflight (10 scenarios)
+        run: npm run test:preflight-clients
       - name: Métier consistency engine
         run: npm run test:consistency
       - name: Data status engine
