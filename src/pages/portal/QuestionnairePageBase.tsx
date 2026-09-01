@@ -336,8 +336,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   const selectSingleAnswer = async (question: QuestionRow, option: OptionRow) => {
     await upsertQuestionAnswer(question, { option_id: option.id });
-    const needsDetails = ['Q4', 'Q5', 'Q10'].includes(question.code)
-      || (['ESG_SCOPE', 'ESG_TAX_MIN', 'ESG_SFDR_MIN'].includes(question.code) && option.code === 'AUTRE');
+    // In the investor profile, every single-choice answer advances immediately.
+    // Optional QPI precision fields must never force the client to click “Suivant”.
+    // ESG keeps its explicit-detail exceptions when “Autre” requires a follow-up field.
+    const needsDetails = mode === 'ESG'
+      && ['ESG_SCOPE', 'ESG_TAX_MIN', 'ESG_SFDR_MIN'].includes(question.code)
+      && option.code === 'AUTRE';
     if (!needsDetails && currentIndex < totalSteps - 1) {
       window.setTimeout(() => {
         setCurrentIndex((index) => Math.min(index + 1, totalSteps - 1));
