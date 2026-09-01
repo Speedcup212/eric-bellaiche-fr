@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.3';
+const PDF_VERSION = '2026-MAITRE-PDF-1.4';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -63,7 +63,53 @@ function ensure(ctx: PdfContext, height: number) { if (ctx.y - height < 44) addP
 function drawText(ctx: PdfContext, value: string, options: Json = {}) { const size = options.size ?? 9.5; const font = options.bold ? ctx.bold : ctx.regular; const width = options.width ?? (A4.width - 2 * MARGIN); const x = options.x ?? MARGIN; const lineHeight = options.lineHeight ?? size * 1.28; const lines = wrap(font, clean(value), size, width); const height = lines.length * lineHeight + (options.after ?? 4); ensure(ctx, height); for (const line of lines) { ctx.page.drawText(line, { x, y: ctx.y - size, size, font, color: options.color ?? NAVY }); ctx.y -= lineHeight; } ctx.y -= options.after ?? 4; }
 function title(ctx: PdfContext, main: string, dateLine: string) { drawText(ctx, 'CABINET ERIC BELLAICHE', { bold: true, size: 11, color: BLUE, after: 10 }); drawText(ctx, main, { bold: true, size: 18, color: NAVY, after: 8 }); drawText(ctx, dateLine, { bold: true, size: 9, color: GREEN, after: 16 }); }
 function heading(ctx: PdfContext, value: string, level = 1) { ensure(ctx, level === 1 ? 30 : 24); ctx.y -= level === 1 ? 5 : 2; drawText(ctx, value, { bold: true, size: level === 1 ? 12.5 : 10.5, color: BLUE, after: 7 }); }
-function drawTable(ctx: PdfContext, headers: string[], rows: string[][], widths?: number[]) { const available = A4.width - 2 * MARGIN; const fractions = widths?.map((w) => w / widths.reduce((a, b) => a + b, 0)) ?? headers.map(() => 1 / headers.length); const colWidths = fractions.map((f) => available * f); const padding = 4; const fontSize = headers.length >= 6 ? 6.8 : headers.length >= 4 ? 7.5 : 8.2; const lineHeight = fontSize * 1.25; const renderRow = (values: string[], isHeader: boolean) => { const font = isHeader ? ctx.bold : ctx.regular; const wrapped = values.map((v, i) => wrap(font, clean(v), fontSize, colWidths[i] - padding * 2)); const maxLines = Math.max(...wrapped.map((x) => x.length), 1); const rowHeight = Math.max(18, maxLines * lineHeight + padding * 2); ensure(ctx, rowHeight + 1); let x = MARGIN; for (let i = 0; i < values.length; i++) { ctx.page.drawRectangle({ x, y: ctx.y - rowHeight, width: colWidths[i], height: rowHeight, borderWidth: 0.6, borderColor: BORDER, color: isHeader ? NAVY : WHITE }); let ty = ctx.y - padding - fontSize; for (const line of wrapped[i]) { ctx.page.drawText(line, { x: x + padding, y: ty, size: fontSize, font, color: isHeader ? WHITE : NAVY }); ty -= lineHeight; } x += colWidths[i]; } ctx.y -= rowHeight; }; renderRow(headers, true); for (const row of rows) { if (ctx.y < 90) { addPage(ctx); renderRow(headers, true); } renderRow(row, false); } ctx.y -= 9; }
+function drawTable(ctx: PdfContext, headers: string[], rows: string[][], widths?: number[]) {
+  const available = A4.width - 2 * MARGIN;
+  const fractions = widths?.map((w) => w / widths.reduce((a, b) => a + b, 0)) ?? headers.map(() => 1 / headers.length);
+  const colWidths = fractions.map((f) => available * f);
+  const padding = 4;
+  const fontSize = headers.length >= 6 ? 6.8 : headers.length >= 4 ? 7.5 : 8.2;
+  const lineHeight = fontSize * 1.25;
+  const measureRow = (values: string[], isHeader: boolean) => {
+    const font = isHeader ? ctx.bold : ctx.regular;
+    const wrapped = values.map((v, i) => wrap(font, clean(v), fontSize, colWidths[i] - padding * 2));
+    const maxLines = Math.max(...wrapped.map((x) => x.length), 1);
+    return { wrapped, rowHeight: Math.max(18, maxLines * lineHeight + padding * 2) };
+  };
+  const renderRow = (values: string[], isHeader: boolean) => {
+    const font = isHeader ? ctx.bold : ctx.regular;
+    const measured = measureRow(values, isHeader);
+    const rowHeight = measured.rowHeight;
+    let x = MARGIN;
+    for (let i = 0; i < values.length; i++) {
+      ctx.page.drawRectangle({ x, y: ctx.y - rowHeight, width: colWidths[i], height: rowHeight, borderWidth: 0.6, borderColor: BORDER, color: isHeader ? NAVY : WHITE });
+      let ty = ctx.y - padding - fontSize;
+      for (const line of measured.wrapped[i]) { ctx.page.drawText(line, { x: x + padding, y: ty, size: fontSize, font, color: isHeader ? WHITE : NAVY }); ty -= lineHeight; }
+      x += colWidths[i];
+    }
+    ctx.y -= rowHeight;
+  };
+
+  const headerHeight = measureRow(headers, true).rowHeight;
+  const firstRowHeight = rows.length ? measureRow(rows[0], false).rowHeight : 0;
+  const secondRowHeight = rows.length > 1 ? measureRow(rows[1], false).rowHeight : 0;
+  const minimumStartHeight = headerHeight + firstRowHeight + (rows.length > 1 ? Math.min(secondRowHeight, 24) : 0) + 10;
+  ensure(ctx, minimumStartHeight);
+  renderRow(headers, true);
+
+  rows.forEach((row, index) => {
+    const rowHeight = measureRow(row, false).rowHeight;
+    const nextHeight = index + 1 < rows.length ? measureRow(rows[index + 1], false).rowHeight : 0;
+    if (ctx.y - rowHeight < 52) {
+      addPage(ctx);
+      const continuationMinimum = headerHeight + rowHeight + (nextHeight ? Math.min(nextHeight, 24) : 0) + 8;
+      ensure(ctx, continuationMinimum);
+      renderRow(headers, true);
+    }
+    renderRow(row, false);
+  });
+  ctx.y -= 9;
+}
 function signatureBoxes(ctx: PdfContext, investors: Json[]) { const boxes = [...investors.map((inv) => ({ name: investorName(inv), color: BLUE })), { name: 'Eric Bellaiche', color: GREEN }]; const gap = 8; const width = (A4.width - 2 * MARGIN - gap * (boxes.length - 1)) / boxes.length; const height = 92; ensure(ctx, height + 10); let x = MARGIN; for (const box of boxes) { ctx.page.drawRectangle({ x, y: ctx.y - height, width, height, borderWidth: 1, borderColor: box.color, color: WHITE }); ctx.page.drawText(clean(box.name), { x: x + 7, y: ctx.y - 16, size: 8, font: ctx.bold, color: box.color }); ctx.page.drawText('Fait à : __________________', { x: x + 7, y: ctx.y - 32, size: 7, font: ctx.regular, color: NAVY }); ctx.page.drawText('Date : ___________________', { x: x + 7, y: ctx.y - 47, size: 7, font: ctx.regular, color: NAVY }); ctx.page.drawText('Signature :', { x: x + 7, y: ctx.y - 64, size: 7, font: ctx.bold, color: NAVY }); x += width + gap; } ctx.y -= height + 10; }
 function answerValue(answer: Json, optionMap: Map<string, Json>) { if (answer.option_id && optionMap.has(answer.option_id)) return clean(optionMap.get(answer.option_id)?.libelle); if (answer.answer_text) return clean(answer.answer_text); if (answer.answer_numeric !== null && answer.answer_numeric !== undefined) return clean(answer.answer_numeric); if (answer.answer_date) return frDate(answer.answer_date); if (Array.isArray(answer.answer_json) && answer.answer_json.length) return readable(answer.answer_json); if (answer.answer_json && Object.keys(answer.answer_json).length) return readable(answer.answer_json); return 'Non renseigné'; }
 function drawResultPanel(ctx: PdfContext, label: string, score: string, level: string, explanation: string, incidences: string, note: string) { const width = A4.width - 2 * MARGIN; const explanationLines = wrap(ctx.regular, explanation, 9, width - 28); const incidenceLines = wrap(ctx.regular, incidences, 9, width - 28); const noteLines = wrap(ctx.regular, note, 8, width - 28); const height = 100 + (explanationLines.length + incidenceLines.length) * 11.5 + noteLines.length * 10.5; ensure(ctx, height + 10); const top = ctx.y; ctx.page.drawRectangle({ x: MARGIN, y: top - height, width, height, color: LIGHT_BLUE, borderWidth: 1.2, borderColor: BLUE }); ctx.page.drawText(label, { x: MARGIN + 14, y: top - 20, size: 8.5, font: ctx.bold, color: BLUE }); ctx.page.drawText(score, { x: MARGIN + 14, y: top - 52, size: 25, font: ctx.bold, color: NAVY }); ctx.page.drawText(level, { x: MARGIN + 162, y: top - 47, size: 15, font: ctx.bold, color: GREEN }); let y = top - 73; ctx.page.drawText('INTERPRÉTATION', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of explanationLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 4; ctx.page.drawText('INCIDENCES POUR LE CONSEIL', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of incidenceLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 5; for (const line of noteLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 8, font: ctx.regular, color: rgb(0.28, 0.36, 0.46) }); y -= 10.5; } ctx.y = top - height - 12; }
@@ -87,14 +133,14 @@ async function buildRecueil(snapshot: Json) {
   const crdTotal = credits.reduce((sum, x) => sum + num(x.crd ?? x.capital_restant_du), 0); const monthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite), 0); const monthlyIncome = incomeAnnual / 12; const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null; const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null; const propertyTotal = properties.reduce((sum, x) => sum + num(x.valeur_actuelle), 0);
   heading(ctx, `${n++}. Crédits et endettement`); drawTable(ctx, ['Crédit', 'Type', 'Banque', 'Montant initial', 'CRD', 'Mensualité', 'Taux', 'Échéance'], credits.length ? credits.map((x, idx) => [`Crédit ${idx + 1}`, clean(x.type_credit ?? x.type_pret), clean(x.banque), eur(x.montant_initial), eur(x.crd ?? x.capital_restant_du), eur(x.mensualite), pct(x.taux), frDate(x.date_echeance)]) : [['-', 'Aucun crédit déclaré', '-', '0 EUR', '0 EUR', '0 EUR', '-', '-']], [9, 14, 18, 14, 13, 12, 9, 11]); drawTable(ctx, ['Ratio', 'Résultat'], [['Revenus annuels consolidés', eur(incomeAnnual)], ['Mensualités de crédits', eur(monthlyDebt)], ['Taux d’endettement', debtRatio === null ? 'Non calculable' : pct(debtRatio)], ['Marge mensuelle théorique à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)], ['Patrimoine immobilier brut', eur(propertyTotal)], ['Patrimoine financier exact disponible', financialExact > 0 ? eur(financialExact) : 'Non consolidé en montant exact'], ['CRD total', eur(crdTotal)], ['Patrimoine net calculable', financialExact > 0 ? eur(propertyTotal + financialExact - crdTotal) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non chiffré`]], [64, 36]); drawText(ctx, 'Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.', { bold: true, color: GREEN, size: 8.4, after: 12 });
   heading(ctx, `${n++}. Informations réglementaires`); for (const { inv, map } of maps) { const reg = map.regulatory ?? {}; drawText(ctx, investorName(inv), { bold: true, size: 9.5, color: BLUE, after: 5 }); drawTable(ctx, ['Question / information', 'Réponse'], [['Pays de résidence fiscale', clean(reg.pays_residence_fiscale)], ['Citoyen ou résident fiscal américain', clean(reg.citoyen_ou_resident_us)], ['TIN américain', clean(reg.code_tin)], ['Sanctions internationales / gel des avoirs', clean(reg.sanctions_declarees)], ['PPE - client ou proche', clean(reg.ppe_declaree)], ['Personne exposée', clean(reg.ppe_personne_exposee)], ['Fonction PPE', clean(reg.ppe_motif)], ['Pays d’exercice PPE', clean(reg.ppe_pays_exercice)], ['Période PPE', clean(reg.ppe_anciennete)], ['Souhaite prendre en compte des critères ESG', clean(reg.esg_opt_in)]], [62, 38]); }
-  heading(ctx, `${n++}. Validation des informations`); drawText(ctx, 'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.', { size: 8.6 }); drawText(ctx, 'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.', { bold: true, color: GREEN, size: 8.6, after: 12 }); signatureBoxes(ctx, investors); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
+  ensure(ctx, 145); heading(ctx, `${n++}. Validation des informations`); drawText(ctx, 'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.', { size: 8.6 }); drawText(ctx, 'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.', { bold: true, color: GREEN, size: 8.6, after: 12 }); signatureBoxes(ctx, investors); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 
 async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
   const ctx = await newPdfContext(); const dossier = snapshot.dossier; const investors = snapshot.investors; const sessions = snapshot.sessions.filter((s: Json) => snapshot.templateById[s.template_id]?.type_questionnaire === type); const titleText = type === 'QPI' ? 'PROFIL INVESTISSEUR' : 'QUESTIONNAIRE ESG / PRÉFÉRENCES DE DURABILITÉ'; const dateValue = type === 'QPI' ? snapshot.qpi_date : snapshot.esg_date; title(ctx, titleText, `Date de l’évaluation : ${frDate(dateValue)} - Date d’entrée en relation : ${frDate(dossier.date_entree_relation)}`);
   for (const inv of investors) {
     const session = sessions.find((s: Json) => s.investisseur_id === inv.id);
-    heading(ctx, `${investorName(inv)} - ${type === 'QPI' ? 'profil investisseur' : 'préférences ESG'}`);
+    ensure(ctx, 80); heading(ctx, `${investorName(inv)} - ${type === 'QPI' ? 'profil investisseur' : 'préférences ESG'}`);
     if (!session) { if (type === 'ESG' && inv.esg_status === 'not_applicable') drawText(ctx, 'Aucune préférence ESG détaillée : questionnaire non applicable selon le choix du client.', { bold: true, color: GREEN }); else drawText(ctx, 'Questionnaire non disponible pour cet investisseur.', { color: rgb(0.7, 0.3, 0.05) }); continue; }
     const questions = snapshot.questions.filter((q: Json) => q.template_id === session.template_id).sort((a: Json, b: Json) => a.ordre - b.ordre); const answers = snapshot.answers.filter((a: Json) => a.session_id === session.id); const answerByQuestion = new Map(answers.map((a: Json) => [a.question_id, a]));
     if (type === 'QPI') {
@@ -105,10 +151,10 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
       if (pref) drawTable(ctx, ['Thème', 'Préférence'], [['Périmètre', readable(pref.perimetre)], ['Taxonomie - choix', readable(pref.taxonomie_choix)], ['Taxonomie - minimum', pct(pref.taxonomie_min_pct)], ['Objectifs environnementaux', readable(pref.taxonomie_objectifs)], ['Investissements durables - choix', readable(pref.sfdr_choix)], ['Investissements durables - minimum', pct(pref.sfdr_min_pct)], ['Thématiques durables', readable(pref.sfdr_thematiques)], ['PAI - choix', readable(pref.pai_choix)], ['Priorités PAI', readable(pref.pai_priorites)], ['Exclusions sectorielles', readable(pref.exclusions_sectorielles)], ['Conséquences acceptées', readable(pref.limitations_sectorielles)], ['Besoins spécifiques', clean(pref.besoins_specifiques, 'Aucune précision complémentaire')], ['Synthèse', clean(pref.synthese_reglementaire)]], [44, 56]);
     }
     const q8 = questions.find((q: Json) => q.ordre === 8); const q8a = q8 ? answerByQuestion.get(q8.id) : null; const q8code = q8a?.option_id ? snapshot.optionMap.get(q8a.option_id)?.code_option : null;
-    heading(ctx, 'Détail réglementaire du questionnaire', 2);
+    ensure(ctx, 165); heading(ctx, 'Détail réglementaire du questionnaire', 2);
     drawTable(ctx, ['N', 'Question', 'Réponse', 'Points'], questions.map((q: Json) => { const a = answerByQuestion.get(q.id) ?? {}; let response = answerValue(a, snapshot.optionMap); let points = a.points_awarded === null || a.points_awarded === undefined ? '-' : clean(a.points_awarded); if (type === 'ESG' && !a.id) { if ([9, 10].includes(q.ordre) && q8code === 'NON') { response = 'Non applicable compte tenu de la réponse précédente'; points = '-'; } else if (q.ordre === 13) { response = 'Aucune précision complémentaire'; points = '-'; } } return [String(q.ordre), clean(q.libelle), response, points]; }), [7, 52, 31, 10]);
   }
-  heading(ctx, 'Validation et signatures'); drawText(ctx, type === 'QPI' ? 'En signant, les clients confirment avoir pris connaissance des réponses reproduites, du résultat du profil et des éventuelles limites de capacité de perte.' : 'En signant, les clients confirment que les préférences de durabilité reproduites correspondent à leurs réponses à la date du questionnaire.', { size: 8.6, after: 12 }); const signers = type === 'ESG' ? investors.filter((inv: Json) => sessions.some((s: Json) => s.investisseur_id === inv.id)) : investors; signatureBoxes(ctx, signers); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
+  ensure(ctx, 155); heading(ctx, 'Validation et signatures'); drawText(ctx, type === 'QPI' ? 'En signant, les clients confirment avoir pris connaissance des réponses reproduites, du résultat du profil et des éventuelles limites de capacité de perte.' : 'En signant, les clients confirment que les préférences de durabilité reproduites correspondent à leurs réponses à la date du questionnaire.', { size: 8.6, after: 12 }); const signers = type === 'ESG' ? investors.filter((inv: Json) => sessions.some((s: Json) => s.investisseur_id === inv.id)) : investors; signatureBoxes(ctx, signers); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 
 async function loadSnapshot(client: any, dossierId: string) {
