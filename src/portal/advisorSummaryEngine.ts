@@ -52,9 +52,18 @@ export function summarizeAdvisorDossier(input: {
   const info = issues.filter((issue) => issue.severity === 'info').length;
   const cifReviewRequired = resolved.filter((row) => ['declared', 'extracted', 'to_review'].includes(row.status)).length;
 
+  // Un dossier vide ou simplement incomplet n'est pas un dossier "bloqué".
+  // Le rouge est réservé aux incohérences métier réellement bloquantes.
   let readiness: AdvisorSummary['readiness'] = 'ready';
-  if (blocking > 0 || missing.length > 0 || docCount('missing') > 0) readiness = 'blocked';
-  else if (review > 0 || cifReviewRequired > 0 || docCount('requested') > 0 || docCount('received') > 0) readiness = 'review';
+  if (blocking > 0) readiness = 'blocked';
+  else if (
+    missing.length > 0 ||
+    docCount('missing') > 0 ||
+    review > 0 ||
+    cifReviewRequired > 0 ||
+    docCount('requested') > 0 ||
+    docCount('received') > 0
+  ) readiness = 'review';
 
   return {
     sections: { completed: requiredSections.length - missing.length, total: requiredSections.length, missing },
