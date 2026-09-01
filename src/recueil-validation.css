@@ -1,0 +1,32 @@
+[data-validation-error="true"] {
+  position: relative;
+}
+
+[data-validation-error="true"] > input,
+[data-validation-error="true"] > select,
+[data-validation-error="true"] > textarea,
+[data-validation-error="true"] select,
+[data-validation-error="true"] input,
+[data-validation-error="true"] textarea {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14) !important;
+}
+
+[data-validation-error="true"] > span > select {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14) !important;
+}
+
+[data-validation-error="true"]::after {
+  content: "Information obligatoire à renseigner";
+  display: block;
+  margin-top: 0.4rem;
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.15rem;
+}
+
+#recueil-validation-alert {
+  scroll-margin-top: 7rem;
+}
