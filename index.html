@@ -23,27 +23,6 @@
     <meta name="theme-color" content="#0F2B46" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
 
-    <style>
-      body.cabinet-summary #root .max-w-7xl.space-y-6 { display: flex; flex-direction: column; }
-      body.cabinet-summary #root .max-w-7xl.space-y-6 > header { order: 1; }
-      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:first-of-type { order: 2; }
-      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:last-child { order: 3; }
-      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:not(:first-of-type):not(:last-child) { order: 4; }
-    </style>
-    <script>
-      (function () {
-        function syncCabinetSummaryClass() {
-          document.body && document.body.classList.toggle('cabinet-summary', window.location.pathname === '/cabinet/synthese');
-        }
-        window.addEventListener('DOMContentLoaded', syncCabinetSummaryClass);
-        window.addEventListener('popstate', syncCabinetSummaryClass);
-        var pushState = history.pushState;
-        history.pushState = function () { pushState.apply(history, arguments); syncCabinetSummaryClass(); };
-        var replaceState = history.replaceState;
-        history.replaceState = function () { replaceState.apply(history, arguments); syncCabinetSummaryClass(); };
-      })();
-    </script>
-
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
