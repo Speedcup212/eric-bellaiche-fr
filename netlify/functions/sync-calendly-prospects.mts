@@ -1,5 +1,6 @@
 const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
 const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
+const CALENDLY_USER_URI = 'https://api.calendly.com/users/HDEFNCQFDM5IQRHX';
 
 interface CalendlyEvent {
   uri: string;
@@ -91,7 +92,6 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncS
 export default async () => {
   const token = normalize(Netlify.env.get('CALENDLY_API_TOKEN'));
   const syncSecret = normalize(Netlify.env.get('CALENDLY_SYNC_SECRET'));
-  const configuredUserUri = normalize(Netlify.env.get('CALENDLY_USER_URI'));
   const syncFromRaw = normalize(Netlify.env.get('CALENDLY_SYNC_FROM'));
   if (!token || !syncSecret) {
     console.log('Calendly sync inactive: CALENDLY_API_TOKEN or CALENDLY_SYNC_SECRET missing.');
@@ -99,10 +99,9 @@ export default async () => {
   }
 
   const syncFrom = syncFromRaw ? new Date(syncFromRaw) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const userUri = configuredUserUri || (await calendlyFetch<{ resource: { uri: string } }>('/users/me', token)).resource.uri;
   const max = new Date(Date.now() + 366 * 24 * 60 * 60 * 1000);
   const params = new URLSearchParams({
-    user: userUri,
+    user: CALENDLY_USER_URI,
     status: 'active',
     min_start_time: syncFrom.toISOString(),
     max_start_time: max.toISOString(),
