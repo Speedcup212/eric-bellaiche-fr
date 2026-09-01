@@ -21,12 +21,22 @@ Cet espace vous permettra notamment de :
 - renseigner, si vous souhaitez exprimer des préférences de durabilité, le questionnaire correspondant ;
 - consulter les documents réglementaires mis à votre disposition.
 
+Avant de commencer, je vous conseille de préparer les principaux documents utiles à l’étude de votre situation :
+- votre dernier avis d’imposition ;
+- vos relevés de placements et d’épargne ;
+- les tableaux d’amortissement de vos crédits en cours ;
+- les éléments utiles relatifs à votre patrimoine immobilier ;
+- vos justificatifs de revenus si nécessaire.
+
 Si votre situation familiale est « Marié » ou « Pacsé », le conjoint sera rattaché automatiquement au dossier lors du recueil et disposera ensuite de son propre accès pour ses questionnaires personnels.
 
 Pour activer votre accès, utilisez votre lien personnel :
 ${link}
 
 Ce lien est personnel, valable 7 jours et ne doit pas être transféré.
+
+Pour vos prochains rendez-vous en visioconférence, vous pourrez utiliser le lien Zoom permanent du cabinet :
+https://us06web.zoom.us/j/2254306545
 
 Bien cordialement,
 
