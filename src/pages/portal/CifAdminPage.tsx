@@ -33,8 +33,8 @@ Bien cordialement,
 Eric Bellaiche
 Conseiller en gestion de patrimoine — CIF
 https://eric-bellaiche.fr`; }
-const done=(value?:string|null)=>['completed','validated','not_applicable'].includes(value??'');
-function progressOf(d:DossierView){if(!d.investors.length)return 0;const c=d.investors.reduce<boolean[]>((a,i)=>a.concat([done(i.recueil_status),done(i.qpi_status),done(i.esg_status)]),[]);return Math.round((c.filter(Boolean).length/c.length)*100);}
+const done=(value?:string|null)=>['completed','validated'].includes(value??'');
+function progressOf(d:DossierView){if(!d.investors.length)return 0;const steps=d.investors.flatMap(i=>{const base=[done(i.recueil_status),done(i.qpi_status)];return i.esg_status==='not_applicable'?base:[...base,done(i.esg_status)];});return steps.length?Math.round((steps.filter(Boolean).length/steps.length)*100):0;}
 function initials(d:DossierView){const n=d.investors.map(i=>i.investisseurs).filter(Boolean) as Array<{prenom:string;nom:string}>;if(!n.length)return'CL';return n.slice(0,2).map(x=>`${x.prenom?.[0]??''}${x.nom?.[0]??''}`).join('').slice(0,3).toUpperCase();}
 function clientLabel(d:DossierView){const n=d.investors.map(i=>i.investisseurs).filter(Boolean) as Array<{prenom:string;nom:string}>;return n.length?n.map(x=>`${x.prenom} ${x.nom}`).join(' & '):(d.libelle||d.reference||'Dossier client');}
 function formatSentAt(v?:string|null){return v?new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):'';}
