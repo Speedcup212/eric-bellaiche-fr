@@ -132,3 +132,27 @@ body:has(a[href="/cabinet"]) .divide-slate-100 > :not([hidden]) ~ :not([hidden])
 body:has(a[href="/cabinet"]) .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
   border-color: #243a58 !important;
 }
+
+/* Dossier cards — dedicated PDF document block. */
+body:has(a[href="/cabinet"]) #dossiers article::after {
+  content: "PDF DU DOSSIER\A Recueil  ·  Profil investisseur  ·  ESG  ·  DER  ·  Lettre de mission  ·  Adéquation";
+  display: block;
+  margin-top: 1.15rem;
+  padding: 1rem 1.1rem;
+  white-space: pre-line;
+  border: 1px solid #28486f;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0a1930 0%, #102746 100%);
+  color: #dcecff;
+  font-size: 0.79rem;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+
+body:has(a[href="/cabinet"]) #dossiers article::first-line {
+  color: #77adff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
