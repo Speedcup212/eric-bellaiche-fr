@@ -57,7 +57,11 @@ const findMissingFields = (): MissingField[] => {
     let focusTarget: HTMLElement | null = null;
 
     if (controls.length) {
-      const relevant = controls.filter((control) => !control.readOnly && !control.disabled);
+      const relevant = controls.filter((control) => {
+        if (control.disabled) return false;
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) return !control.readOnly;
+        return true;
+      });
       if (relevant.length) {
         missing = relevant.every(isEmptyControl);
         focusTarget = relevant[0] ?? null;
