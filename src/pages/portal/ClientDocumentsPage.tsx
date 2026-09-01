@@ -452,7 +452,7 @@ export default function ClientDocumentsPage() {
         </div>}
 
         {!transmitted && activeDocumentView === 'uploads' && <div>
-          {finalBlocked && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">{waitingPartner ? 'La transmission reste en attente de l’autre parcours individuel.' : !allContextsComplete ? 'Chaque personne doit d’abord préciser sa situation documentaire, y compris le motif si elle ne dispose pas encore d’un avis d’imposition.' : `Pièce${missingRequired.length > 1 ? 's' : ''} obligatoire${missingRequired.length > 1 ? 's' : ''} manquante${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.map((item) => item.label).join(', ')}.`}</div>}
+          {finalBlocked && <div className="mx-6 my-4 rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-semibold leading-6 text-amber-950 shadow-sm sm:mx-9">{waitingPartner ? 'La transmission reste en attente de l’autre parcours individuel.' : !allContextsComplete ? 'Chaque personne doit d’abord préciser sa situation documentaire, y compris le motif si elle ne dispose pas encore d’un avis d’imposition.' : `Pièce${missingRequired.length > 1 ? 's' : ''} obligatoire${missingRequired.length > 1 ? 's' : ''} manquante${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.map((item) => item.label).join(', ')}.`}</div>}
           <WizardFooter onPrevious={() => setDocumentView('situation')} onNext={() => void finish()} previousLabel="Modifier ma situation" nextLabel={finalBlocked ? 'Dossier incomplet' : 'Finaliser et transmettre le dossier'} nextDisabled={finalBlocked} busy={finishBusy} />
         </div>}
       </WizardCard>
