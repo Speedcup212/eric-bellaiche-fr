@@ -1,0 +1,36 @@
+name: Apply QPI automatic advance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch-qpi-auto-advance.cjs'
+      - '.github/workflows/apply-qpi-auto-advance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply patch
+        run: node scripts/patch-qpi-auto-advance.cjs
+      - name: Commit application change
+        run: |
+          if git diff --quiet; then
+            echo "No change needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/QuestionnairePageBase.tsx
+          git commit -m "Harmonize investor profile automatic advance"
+          git push origin main
