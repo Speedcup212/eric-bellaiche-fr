@@ -151,19 +151,22 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       setMulti(multiMap);
 
       if (mode === 'ESG') {
-        const loadedSelectedCodes = {};
+        const loadedSelectedCodes: Record<string, string> = {};
         for (const question of normalized) {
           const selected = question.options?.find((option) => option.id === answerMap[question.id]?.option_id);
           if (selected) loadedSelectedCodes[question.code] = selected.code;
         }
-        const loadedVisibleQuestions = normalized.filter((question) => visible(question, loadedSelectedCodes));
-        const loadedQuestionComplete = (question) => {
+        const loadedVisibleQuestions = normalized.filter((question: QuestionRow) => visible(question, loadedSelectedCodes));
+        const loadedQuestionComplete = (question: QuestionRow) => {
           const answer = answerMap[question.id];
           if (question.type_reponse === 'single') {
             if (!answer?.option_id) return false;
             const selected = question.options?.find((option) => option.id === answer.option_id);
             if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') {
               return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;
+            }
+            if (question.code === 'ESG_SCOPE' && selected?.code === 'AUTRE') {
+              return Boolean(answer.answer_text?.trim());
             }
             return true;
           }
@@ -275,6 +278,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       if (!answer?.option_id) return false;
       const selected = question.options?.find((option) => option.id === answer.option_id);
       if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;
+      if (question.code === 'ESG_SCOPE' && selected?.code === 'AUTRE') return Boolean(answer.answer_text?.trim());
       return true;
     }
     if (question.type_reponse === 'multiple') {
@@ -501,7 +505,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         {currentQuestion?.code === 'Q4' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code !== 'A' && answers[currentQuestion.id]?.option_id && <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Échéance envisagée <span className="font-normal text-slate-400">— facultatif</span><input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'Q5' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-sm text-sm font-semibold text-slate-700">Montant de l’investissement envisagé (€)<input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_investissement_envisage ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_investissement_envisage: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'Q10' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-md text-sm font-semibold text-slate-700">Montant maximum de perte estimé (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).perte_max_declairee_montant ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), perte_max_declairee_montant: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
-        {currentQuestion?.code === 'ESG_SCOPE' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code === 'AUTRE' && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block text-sm font-semibold text-slate-700">Précisez les placements concernés <span className="font-normal text-slate-400">— facultatif</span><input value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} onBlur={() => void persistCurrentQuestion().catch((error) => setErrorMessage(messageFromError(error)))} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ex. assurance-vie et PER" /></label></div>}
+        {currentQuestion?.code === 'ESG_SCOPE' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code === 'AUTRE' && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block text-sm font-semibold text-slate-700">Précisez les placements concernés *<input value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} onBlur={() => void persistCurrentQuestion().catch((error) => setErrorMessage(messageFromError(error)))} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ex. assurance-vie et PER" /></label><p className="mt-2 text-xs leading-5 text-slate-500">Cette précision est nécessaire uniquement si vous choisissez « À certains placements seulement ».</p></div>}
         {(currentQuestion?.code === 'ESG_TAX_MIN' || currentQuestion?.code === 'ESG_SFDR_MIN') && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code === 'AUTRE' && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-sm text-sm font-semibold text-slate-700">Pourcentage minimum souhaité<input type="number" min="0" max="100" value={answers[currentQuestion.id]?.answer_numeric ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_numeric: e.target.value ? Number(e.target.value) : null })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
 
         {experienceStep && <div className="space-y-4">
