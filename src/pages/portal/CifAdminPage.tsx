@@ -37,10 +37,28 @@ interface InvestorInviteRow {
   recueil_status?: string | null;
   qpi_status?: string | null;
   esg_status?: string | null;
+  invite_sent_at?: string | null;
+  invite_send_count?: number;
   investisseurs: { prenom: string; nom: string; email: string | null } | null;
 }
 
-interface InviteDraft { email: string; subject: string; body: string; link: string; sentAt?: string; }
+interface InviteStatusRow {
+  dossier_id: string;
+  investisseur_id: string;
+  email: string | null;
+  last_sent_at: string | null;
+  send_count: number | string | null;
+}
+
+interface InviteDraft {
+  email: string;
+  subject: string;
+  body: string;
+  link: string;
+  sentAt?: string;
+  dossierId: string;
+  investisseurId: string;
+}
 
 interface DossierView extends DossierRow {
   investors: InvestorInviteRow[];
@@ -96,6 +114,11 @@ function clientLabel(dossier: DossierView) {
   return dossier.libelle || dossier.reference || 'Dossier client';
 }
 
+function formatSentAt(value?: string | null) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}>{label}</span>;
 }
@@ -122,16 +145,29 @@ export default function CifAdminPage() {
     if (!current?.actif || !['cif', 'admin'].includes(current.role)) { setReady(false); return; }
     setReady(true);
 
-    const [dossiersResult, linksResult] = await Promise.all([
+    const [dossiersResult, linksResult, inviteStatusResult] = await Promise.all([
       supabase.from('dossiers').select('id,reference,libelle,recueil_status,statut,created_at').order('created_at', { ascending: false }),
       supabase.from('dossier_investisseurs').select('dossier_id,investisseur_id,role_dossier,recueil_status,qpi_status,esg_status,investisseurs(prenom,nom,email)').order('role_dossier'),
+      supabase.rpc('get_client_invite_statuses'),
     ]);
     if (dossiersResult.error) throw dossiersResult.error;
     if (linksResult.error) throw linksResult.error;
+    if (inviteStatusResult.error) throw inviteStatusResult.error;
 
+    const statuses = (inviteStatusResult.data ?? []) as InviteStatusRow[];
+    const statusMap = new Map(statuses.map((status) => [`${status.dossier_id}:${status.investisseur_id}`, status]));
     const links = (linksResult.data ?? []) as unknown as Array<InvestorInviteRow & { dossier_id: string }>;
     const grouped = new Map<string, InvestorInviteRow[]>();
-    links.forEach((link) => grouped.set(link.dossier_id, [...(grouped.get(link.dossier_id) ?? []), link]));
+
+    links.forEach((link) => {
+      const status = statusMap.get(`${link.dossier_id}:${link.investisseur_id}`);
+      const enriched: InvestorInviteRow = {
+        ...link,
+        invite_sent_at: status?.last_sent_at ?? null,
+        invite_send_count: Number(status?.send_count ?? 0),
+      };
+      grouped.set(link.dossier_id, [...(grouped.get(link.dossier_id) ?? []), enriched]);
+    });
 
     setRows(((dossiersResult.data ?? []) as DossierRow[]).map((row) => ({ ...row, investors: grouped.get(row.id) ?? [] })));
   };
@@ -173,9 +209,16 @@ export default function CifAdminPage() {
     event.preventDefault(); setBusy(true); setErrorMessage(''); setMessage('');
     try {
       const { data, error } = await supabase.rpc('create_client_dossier', {
-        p_reference: form.reference || null, p_libelle: form.libelle || null,
-        p_inv1_prenom: form.p1, p_inv1_nom: form.n1, p_inv1_email: form.e1.trim().toLowerCase(), p_inv1_mobile: form.m1 || null,
-        p_inv2_prenom: null, p_inv2_nom: null, p_inv2_email: null, p_inv2_mobile: null,
+        p_reference: form.reference || null,
+        p_libelle: form.libelle || null,
+        p_inv1_prenom: form.p1,
+        p_inv1_nom: form.n1,
+        p_inv1_email: form.e1.trim().toLowerCase(),
+        p_inv1_mobile: form.m1 || null,
+        p_inv2_prenom: null,
+        p_inv2_nom: null,
+        p_inv2_email: null,
+        p_inv2_mobile: null,
       });
       if (error) throw error;
       setMessage(`Dossier créé : ${(data as { reference?: string }).reference ?? ''}.`);
@@ -211,18 +254,41 @@ export default function CifAdminPage() {
           'content-type': 'application/json',
           authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ to: email, subject, body }),
+        body: JSON.stringify({
+          to: email,
+          subject,
+          body,
+          dossierId,
+          investisseurId: investor.investisseur_id,
+        }),
       });
       const result = await response.json().catch(() => ({})) as { error?: string; sentAt?: string };
       if (!response.ok) throw new Error(result.error || 'Échec de l’envoi Gmail.');
 
-      setInviteDraft({ email, subject, body, link, sentAt: result.sentAt });
+      setInviteDraft({
+        email,
+        subject,
+        body,
+        link,
+        sentAt: result.sentAt,
+        dossierId,
+        investisseurId: investor.investisseur_id,
+      });
       setMessage(`Invitation envoyée automatiquement à ${email}.`);
+      await load();
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
       setSendingInviteDossierId(null);
     }
+  };
+
+  const resendDraft = async () => {
+    if (!inviteDraft) return;
+    const dossier = rows.find((row) => row.id === inviteDraft.dossierId);
+    const investor = dossier?.investors.find((item) => item.investisseur_id === inviteDraft.investisseurId);
+    if (!investor) { setErrorMessage('Investisseur introuvable pour le renvoi.'); return; }
+    await createInvite(inviteDraft.dossierId, investor);
   };
 
   const listInvestors = async (dossierId: string) => {
@@ -231,7 +297,11 @@ export default function CifAdminPage() {
     const investors = dossier?.investors ?? [];
     if (!investors.length) { setErrorMessage('Aucun investisseur rattaché.'); return; }
     if (investors.length === 1) { await createInvite(dossierId, investors[0]); return; }
-    const labels = investors.map((item, index) => `${index + 1}. ${item.investisseurs?.prenom ?? ''} ${item.investisseurs?.nom ?? ''}`).join('\n');
+
+    const labels = investors.map((item, index) => {
+      const sent = item.invite_sent_at ? ` — envoyée ${formatSentAt(item.invite_sent_at)}` : ' — jamais envoyée';
+      return `${index + 1}. ${item.investisseurs?.prenom ?? ''} ${item.investisseurs?.nom ?? ''}${sent}`;
+    }).join('\n');
     const answer = window.prompt(`Quelle personne inviter ?\n${labels}`, '1');
     const index = Number(answer) - 1;
     if (Number.isInteger(index) && investors[index]) await createInvite(dossierId, investors[index]);
@@ -239,14 +309,10 @@ export default function CifAdminPage() {
 
   const deleteDossier = async (row: DossierView) => {
     const label = clientLabel(row);
-    const confirmed = window.confirm(
-      `Supprimer définitivement le dossier « ${label} » ?\n\nLe recueil, le profil investisseur, l’ESG, les documents et les données rattachées à ce dossier seront supprimés. Cette action est irréversible.`,
-    );
+    const confirmed = window.confirm(`Supprimer définitivement le dossier « ${label} » ?\n\nLe recueil, le profil investisseur, l’ESG, les documents et les données rattachées à ce dossier seront supprimés. Cette action est irréversible.`);
     if (!confirmed) return;
 
-    setDeletingId(row.id);
-    setErrorMessage('');
-    setMessage('');
+    setDeletingId(row.id); setErrorMessage(''); setMessage('');
     try {
       const [sourcesResult, regulatoryResult] = await Promise.all([
         supabase.from('documents_sources').select('storage_bucket,storage_path').eq('dossier_id', row.id),
@@ -260,13 +326,11 @@ export default function CifAdminPage() {
         if (!bucket || !path) return;
         filesByBucket.set(bucket, [...(filesByBucket.get(bucket) ?? []), path]);
       };
-
       (sourcesResult.data ?? []).forEach((doc) => addFile(doc.storage_bucket, doc.storage_path));
       (regulatoryResult.data ?? []).forEach((doc) => {
         addFile(doc.storage_bucket, doc.storage_path_docx);
         addFile(doc.storage_bucket, doc.storage_path_pdf);
       });
-
       for (const [bucket, paths] of filesByBucket.entries()) {
         const uniquePaths = [...new Set(paths)];
         if (!uniquePaths.length) continue;
@@ -276,14 +340,10 @@ export default function CifAdminPage() {
 
       const { error } = await supabase.from('dossiers').delete().eq('id', row.id);
       if (error) throw error;
-
       setRows((current) => current.filter((item) => item.id !== row.id));
       setMessage(`Dossier supprimé : ${label}.`);
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setDeletingId(null);
-    }
+    } catch (error) { setErrorMessage(messageFromError(error)); }
+    finally { setDeletingId(null); }
   };
 
   const filteredRows = useMemo(() => {
@@ -309,12 +369,8 @@ export default function CifAdminPage() {
     <div className="flex min-h-screen">
       <aside className={`${mobileMenu ? 'fixed inset-y-0 left-0 z-50 flex' : 'hidden'} w-[280px] flex-col bg-[#0B172A] px-5 py-6 text-white lg:static lg:flex`}>
         <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.24em] text-[#6EA8FF]">Cabinet privé</p><p className="mt-1 text-xl font-semibold">Eric Bellaiche</p></div><button className="lg:hidden" onClick={() => setMobileMenu(false)}><X className="h-5 w-5" /></button></div>
-        <nav className="mt-10 space-y-2">
-          <a href="/cabinet" className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold"><LayoutDashboard className="h-4 w-4" /> Vue d’ensemble</a>
-          <a href="#dossiers" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/75 transition hover:bg-white/5 hover:text-white"><Users className="h-4 w-4" /> Dossiers clients</a>
-          <a href="#integrations" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/75 transition hover:bg-white/5 hover:text-white"><Sparkles className="h-4 w-4" /> Intégrations</a>
-        </nav>
-        <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-xs font-semibold text-white">Architecture modulaire</p><p className="mt-1 text-xs leading-5 text-white/55">Le cockpit est prêt à accueillir des connecteurs futurs : signature, email, agenda, stockage, automatisations.</p></div>
+        <nav className="mt-10 space-y-2"><a href="/cabinet" className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold"><LayoutDashboard className="h-4 w-4" /> Vue d’ensemble</a><a href="#dossiers" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/75 transition hover:bg-white/5 hover:text-white"><Users className="h-4 w-4" /> Dossiers clients</a><a href="#integrations" className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white/75 transition hover:bg-white/5 hover:text-white"><Sparkles className="h-4 w-4" /> Intégrations</a></nav>
+        <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-xs font-semibold text-white">Architecture modulaire</p><p className="mt-1 text-xs leading-5 text-white/55">Le cockpit centralise le dossier client, les documents et les intégrations.</p></div>
         <button onClick={() => void signOut()} className="mt-4 inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white/70 transition hover:bg-white/5 hover:text-white"><LogOut className="h-4 w-4" /> Déconnexion</button>
       </aside>
 
@@ -328,7 +384,7 @@ export default function CifAdminPage() {
 
           {(message || errorMessage) && <div className="space-y-3">{message && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}{errorMessage && <p className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}</div>}
 
-          {inviteDraft && <section className="rounded-[28px] border border-emerald-200 bg-emerald-50 p-6"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white"><CheckCircle2 className="h-5 w-5" /></div><div><p className="font-semibold">Invitation envoyée</p><p className="mt-1 text-sm text-emerald-800">{inviteDraft.email}</p>{inviteDraft.sentAt && <p className="mt-1 text-xs text-emerald-700">Envoyée le {new Date(inviteDraft.sentAt).toLocaleString('fr-FR')}</p>}</div></div><button onClick={() => setInviteDraft(null)} className="rounded-xl p-2 text-emerald-800 hover:bg-white/60"><X className="h-4 w-4" /></button></div><div className="mt-4 max-h-60 overflow-auto rounded-2xl bg-white p-5 text-sm whitespace-pre-wrap"><strong>Objet : {inviteDraft.subject}</strong>{'\n\n'}{inviteDraft.body}</div></section>}
+          {inviteDraft && <section className="rounded-[28px] border border-emerald-200 bg-emerald-50 p-6"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white"><CheckCircle2 className="h-5 w-5" /></div><div><p className="font-semibold">Invitation envoyée</p><p className="mt-1 text-sm text-emerald-800">{inviteDraft.email}</p>{inviteDraft.sentAt && <p className="mt-1 text-xs text-emerald-700">Envoyée le {formatSentAt(inviteDraft.sentAt)}</p>}</div></div><button onClick={() => setInviteDraft(null)} className="rounded-xl p-2 text-emerald-800 hover:bg-white/60"><X className="h-4 w-4" /></button></div><div className="mt-4 max-h-60 overflow-auto rounded-2xl bg-white p-5 text-sm whitespace-pre-wrap"><strong>Objet : {inviteDraft.subject}</strong>{'\n\n'}{inviteDraft.body}</div><div className="mt-4"><button disabled={sendingInviteDossierId === inviteDraft.dossierId} onClick={() => void resendDraft()} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Mail className="h-4 w-4" /> {sendingInviteDossierId === inviteDraft.dossierId ? 'Renvoi…' : 'Renvoyer l’invitation'}</button></div></section>}
 
           <section id="dossiers" className="space-y-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Portefeuille clients</p><h2 className="mt-2 text-2xl font-semibold">Dossiers</h2></div><div className="flex flex-col gap-3 sm:flex-row"><div className="relative min-w-[280px]"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D7F97]" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un client, email, référence…" className="w-full rounded-2xl border border-[#D9E5F5] bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#3B82F6]" /></div><div className="flex rounded-2xl border border-[#D9E5F5] bg-white p-1">{([['all','Tous'],['progress','En cours'],['ready','Complets']] as const).map(([value,label]) => <button key={value} onClick={() => setFilter(value)} className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${filter === value ? 'bg-[#0F172A] text-white' : 'text-[#5B6E87] hover:bg-[#F3F7FC]'}`}>{label}</button>)}</div></div></div>
@@ -339,13 +395,18 @@ export default function CifAdminPage() {
                 const allRecueil = row.investors.length > 0 && row.investors.every((i) => done(i.recueil_status));
                 const allQpi = row.investors.length > 0 && row.investors.every((i) => done(i.qpi_status));
                 const allEsg = row.investors.length > 0 && row.investors.every((i) => done(i.esg_status));
+                const sentInvestors = row.investors.filter((i) => i.invite_sent_at);
+                const lastSent = sentInvestors.map((i) => i.invite_sent_at as string).sort().at(-1);
+                const allInvited = row.investors.length > 0 && sentInvestors.length === row.investors.length;
+                const inviteLabel = sendingInviteDossierId === row.id ? 'Envoi…' : allInvited ? 'Renvoyer' : 'Inviter';
+
                 return <article key={row.id} className="group rounded-[26px] border border-[#E0EAF6] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/5 sm:p-6">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="flex min-w-0 items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#EAF3FF] text-sm font-bold text-[#2563EB]">{initials(row)}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-lg font-semibold">{clientLabel(row)}</h3>{row.reference && <span className="rounded-full bg-[#F3F7FC] px-2.5 py-1 text-[10px] font-semibold text-[#60728A]">{row.reference}</span>}</div><p className="mt-1 text-sm text-[#667991]">{row.libelle || 'Dossier patrimonial'} · {row.investors.length || 1} investisseur{row.investors.length > 1 ? 's' : ''}</p><div className="mt-3 flex flex-wrap gap-2"><StatusPill ok={allRecueil} label="Recueil" /><StatusPill ok={allQpi} label="Profil" /><StatusPill ok={allEsg} label="ESG" /></div></div></div>
+                    <div className="flex min-w-0 items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#EAF3FF] text-sm font-bold text-[#2563EB]">{initials(row)}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-lg font-semibold">{clientLabel(row)}</h3>{row.reference && <span className="rounded-full bg-[#F3F7FC] px-2.5 py-1 text-[10px] font-semibold text-[#60728A]">{row.reference}</span>}</div><p className="mt-1 text-sm text-[#667991]">{row.libelle || 'Dossier patrimonial'} · {row.investors.length || 1} investisseur{row.investors.length > 1 ? 's' : ''}</p><div className="mt-3 flex flex-wrap gap-2"><StatusPill ok={allRecueil} label="Recueil" /><StatusPill ok={allQpi} label="Profil" /><StatusPill ok={allEsg} label="ESG" />{lastSent && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Invitation envoyée · {formatSentAt(lastSent)}</span>}</div></div></div>
 
                     <div className="w-full xl:max-w-[360px]"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold text-[#667991]">Avancement réglementaire</span><span className="font-bold text-[#0F172A]">{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[#EAF1F8]"><div className="h-full rounded-full bg-[#3B82F6] transition-all" style={{ width: `${progress}%` }} /></div></div>
 
-                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button disabled={sendingInviteDossierId === row.id} onClick={() => void listInvestors(row.id)} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"><Mail className="h-4 w-4" /> {sendingInviteDossierId === row.id ? 'Envoi…' : 'Inviter'}</button><button type="button" disabled={deletingId === row.id} onClick={() => void deleteDossier(row)} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" title="Supprimer définitivement ce dossier"><Trash2 className="h-4 w-4" /> {deletingId === row.id ? 'Suppression…' : 'Supprimer'}</button></div>
+                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button disabled={sendingInviteDossierId === row.id} onClick={() => void listInvestors(row.id)} className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${allInvited ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#D9E5F5] bg-white text-[#0F172A]'}`}><Mail className="h-4 w-4" /> {inviteLabel}</button><button type="button" disabled={deletingId === row.id} onClick={() => void deleteDossier(row)} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" title="Supprimer définitivement ce dossier"><Trash2 className="h-4 w-4" /> {deletingId === row.id ? 'Suppression…' : 'Supprimer'}</button></div>
                   </div>
                 </article>;
               })}
@@ -353,9 +414,9 @@ export default function CifAdminPage() {
             </div>
           </section>
 
-          <section id="integrations" className="rounded-[30px] border border-[#E0EAF6] bg-white p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Architecture extensible</p><h2 className="mt-2 text-2xl font-semibold">Intégrations</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#667991]">Gmail est désormais relié au cockpit pour l’envoi automatique des invitations. Les autres modules pourront être ajoutés sans refaire le CRM.</p></div><Sparkles className="hidden h-8 w-8 text-[#C5A059] sm:block" /></div><div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
+          <section id="integrations" className="rounded-[30px] border border-[#E0EAF6] bg-white p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Architecture extensible</p><h2 className="mt-2 text-2xl font-semibold">Intégrations</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#667991]">Gmail est relié au cockpit avec traçabilité des invitations dans Supabase.</p></div><Sparkles className="hidden h-8 w-8 text-[#C5A059] sm:block" /></div><div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
             ['Signature électronique','Youtrust / signature','Disponible plus tard'],
-            ['Messagerie','Gmail / envoi automatique','Actif'],
+            ['Messagerie','Gmail / envoi + traçabilité','Actif'],
             ['Agenda','Rendez-vous / relances','Disponible plus tard'],
             ['Documents','Drive / archivage','Disponible plus tard'],
           ].map(([title,subtitle,status]) => <div key={title} className="rounded-2xl border border-[#E0EAF6] bg-[#F9FBFE] p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#3B82F6] shadow-sm"><FileText className="h-4 w-4" /></div><p className="mt-4 font-semibold">{title}</p><p className="mt-1 text-xs text-[#6A7D95]">{subtitle}</p><span className={`mt-4 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${status === 'Actif' ? 'bg-emerald-100 text-emerald-700' : 'bg-[#EEF5FF] text-[#3B82F6]'}`}>{status}</span></div>)}</div></section>
