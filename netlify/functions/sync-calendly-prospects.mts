@@ -91,20 +91,20 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncS
 export default async () => {
   const token = normalize(Netlify.env.get('CALENDLY_API_TOKEN'));
   const syncSecret = normalize(Netlify.env.get('CALENDLY_SYNC_SECRET'));
+  const configuredUserUri = normalize(Netlify.env.get('CALENDLY_USER_URI'));
   const syncFromRaw = normalize(Netlify.env.get('CALENDLY_SYNC_FROM'));
   if (!token || !syncSecret) {
     console.log('Calendly sync inactive: CALENDLY_API_TOKEN or CALENDLY_SYNC_SECRET missing.');
     return;
   }
 
-  const syncFrom = syncFromRaw ? new Date(syncFromRaw) : new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const currentUser = await calendlyFetch<{ resource: { uri: string } }>('/users/me', token);
-  const now = new Date();
-  const max = new Date(now.getTime() + 366 * 24 * 60 * 60 * 1000);
+  const syncFrom = syncFromRaw ? new Date(syncFromRaw) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const userUri = configuredUserUri || (await calendlyFetch<{ resource: { uri: string } }>('/users/me', token)).resource.uri;
+  const max = new Date(Date.now() + 366 * 24 * 60 * 60 * 1000);
   const params = new URLSearchParams({
-    user: currentUser.resource.uri,
+    user: userUri,
     status: 'active',
-    min_start_time: now.toISOString(),
+    min_start_time: syncFrom.toISOString(),
     max_start_time: max.toISOString(),
     count: '100',
     sort: 'start_time:asc',
