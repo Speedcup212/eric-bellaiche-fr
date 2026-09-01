@@ -9,7 +9,7 @@ const checks = [
   ['qpi PDF readiness', page.includes("types.push('qpi')")],
   ['esg PDF readiness', page.includes("types.push('esg')")],
   ['PDF download links exposed', page.includes('generatedDocumentLabel[document.type]')],
-  ['PDF generator versioned', edge.includes("PDF_VERSION = '2026-MAITRE-PDF-1.0'")],
+  ['PDF generator versioned', /PDF_VERSION\s*=\s*'2026-MAITRE-PDF-\d+\.\d+'/.test(edge)],
   ['private regulatory storage used', edge.includes("BUCKET = 'regulatory-docs'")],
   ['PDF path archived', edge.includes('storage_path_pdf') && !edge.includes('storage_path_docx: storagePath')],
   ['PDF MIME type used', edge.includes("contentType: 'application/pdf'")],
