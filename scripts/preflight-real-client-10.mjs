@@ -75,24 +75,25 @@ const blocked = [
 ];
 for (const [name, mutate, expected] of blocked) assert(canFinishRecueil(mutate(base())).includes(expected), `${name} doit être bloqué explicitement`);
 
-const [journey, familyPage, qpiPage, esgPage, validationGuard, helpers] = await Promise.all([
+const [journey, familyPage, questionnairePage, validationGuard, helpers, app] = await Promise.all([
   read('src/pages/portal/ClientRecueilJourneyBase.tsx'),
   read('src/pages/portal/ClientRecueilJourneyPage.tsx'),
-  read('src/pages/portal/ClientQuestionnairePage.tsx'),
-  read('src/pages/portal/ClientEsgPage.tsx'),
+  read('src/pages/portal/QuestionnairePage.tsx'),
   read('src/pages/portal/RecueilValidationGuard.tsx'),
   read('src/portal/portalHelpers.ts'),
+  read('src/App.tsx'),
 ]);
 
-// Conditions de parcours réel : sauvegarde serveur, reprise, couple, validation explicite, QPI/ESG.
 assert.match(journey, /save_my_recueil_section|recueil_sections/, 'Le recueil doit enregistrer les sections côté Supabase');
 assert.match(journey, /setProgress|fetchPortalProgress/, 'Le recueil doit recharger la progression');
 assert.match(familyPage, /save_my_family_setup/, 'Le couple doit être créé via la RPC atomique');
 assert.match(familyPage, /Le parcours s’enregistre au fur et à mesure/, 'Le client doit être informé de la reprise possible');
 assert.match(familyPage, /email personnel/, 'Le conjoint doit avoir une adresse personnelle distincte');
 assert.match(validationGuard, /manquant|compl|valid/i, 'La validation finale doit exposer les éléments manquants');
-assert.match(qpiPage, /questionnaire|profil/i, 'Le parcours QPI doit être présent');
-assert.match(esgPage, /durabilit|ESG/i, 'Le parcours ESG doit être présent');
+assert.match(questionnairePage, /QPI|profil investisseur|questionnaire/i, 'Le parcours QPI doit être présent');
+assert.match(questionnairePage, /ESG|durabilit/i, 'Le parcours ESG doit être présent');
+assert.match(app, /profil-investisseur[\s\S]{0,180}QuestionnairePage mode="QPI"/, 'La route QPI doit être câblée');
+assert.match(app, /path="esg"[\s\S]{0,120}QuestionnairePage mode="ESG"/, 'La route ESG doit être câblée');
 assert.match(helpers, /selectedProgress/, 'La reprise doit sélectionner le bon dossier/investisseur');
 assert.match(journey, /current_accounts_amount/, 'Le montant des comptes courants doit être conservé dans le recueil');
 assert.match(journey, /has_credits/, 'Le chemin sans crédit et avec crédits doit être explicite');
