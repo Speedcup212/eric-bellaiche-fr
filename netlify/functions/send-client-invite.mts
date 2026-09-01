@@ -2,6 +2,7 @@ import tls from 'node:tls';
 
 const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
 const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
+const ZOOM_URL = 'https://us06web.zoom.us/j/2254306545';
 
 function json(status: number, payload: Record<string, unknown>) {
   return new Response(JSON.stringify(payload), {
@@ -32,6 +33,27 @@ function encodedHeader(value: string) {
 
 function dotStuff(value: string) {
   return value.replace(/(^|\r\n)\./g, '$1..');
+}
+
+function ensureInvitationDetails(value: string) {
+  let body = value.trim();
+  const preparationBlock = `Avant de commencer, je vous conseille de préparer les principaux documents utiles à l’étude de votre situation :\n- votre dernier avis d’imposition ;\n- vos relevés de placements et d’épargne ;\n- les tableaux d’amortissement de vos crédits en cours ;\n- les éléments utiles relatifs à votre patrimoine immobilier ;\n- vos justificatifs de revenus si nécessaire.`;
+  const zoomBlock = `Pour vos prochains rendez-vous en visioconférence, vous pourrez utiliser le lien Zoom permanent du cabinet :\n${ZOOM_URL}`;
+
+  const insertBeforeSignature = (text: string) => {
+    const marker = '\nBien cordialement,';
+    const index = body.indexOf(marker);
+    if (index >= 0) body = `${body.slice(0, index)}\n\n${text}${body.slice(index)}`;
+    else body = `${body}\n\n${text}`;
+  };
+
+  if (!body.includes('dernier avis d’imposition') && !body.includes('dernier avis d\'imposition')) {
+    insertBeforeSignature(preparationBlock);
+  }
+  if (!body.includes(ZOOM_URL)) {
+    insertBeforeSignature(zoomBlock);
+  }
+  return body;
 }
 
 function supabaseConfig(req: Request) {
@@ -161,7 +183,7 @@ export default async (req: Request) => {
     const payload = await req.json() as { to?: string; subject?: string; body?: string; dossierId?: string; investisseurId?: string };
     const to = cleanHeader(payload.to ?? '').toLowerCase();
     const subject = cleanHeader(payload.subject ?? '');
-    const body = String(payload.body ?? '').trim();
+    const body = ensureInvitationDetails(String(payload.body ?? ''));
     const dossierId = String(payload.dossierId ?? '').trim();
     const investisseurId = String(payload.investisseurId ?? '').trim();
 
