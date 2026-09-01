@@ -394,12 +394,20 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     const nextPath = nextStepHref(progress);
     const qpiNextIsEsg = mode === 'QPI' && progress.esg_opt_in === true;
     const completionDescription = mode === 'QPI'
-      ? qpiNextIsEsg
-        ? 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers vos préférences de durabilité.'
-        : 'Votre questionnaire est terminé. Vérifiez le résultat retenu avant de poursuivre vers les documents.'
-      : 'Cette étape a été validée.';
-    const completionCta = qpiNextIsEsg ? 'Continuer vers la durabilité' : 'Continuer vers les documents';
-    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} hideSubstepText={mode === 'QPI'} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8">{mode === 'QPI' ? <QpiResultSummary result={qpiResult} /> : <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Étape terminée</p><p className="mt-1 text-sm leading-6">Vous pouvez poursuivre votre parcours.</p></div>}<button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{completionCta}</button></WizardCard></div>;
+      ? 'Votre profil investisseur est maintenant terminé.'
+      : 'Votre questionnaire de durabilité est maintenant terminé.';
+    const completionCta = mode === 'QPI'
+      ? (qpiNextIsEsg ? 'Commencer mes préférences de durabilité' : 'Continuer vers les documents')
+      : 'Continuer vers les documents';
+    const nextTitle = mode === 'QPI'
+      ? (qpiNextIsEsg ? 'Préférences de durabilité' : 'Documents')
+      : 'Documents';
+    const nextDescription = mode === 'QPI'
+      ? (qpiNextIsEsg
+        ? 'Vous allez maintenant indiquer si vous souhaitez que vos placements prennent en compte des critères environnementaux, sociaux et de gouvernance (ESG).'
+        : 'Vous allez maintenant déposer les documents nécessaires à l’étude de votre dossier.')
+      : 'Vous allez maintenant déposer les documents nécessaires à l’étude et à la préparation de votre dossier.';
+    return <div><JourneyProgress current={mode === 'QPI' ? 'qpi' : 'esg'} esgEnabled={progress.esg_opt_in !== false} hideSubstepText={mode === 'QPI'} /><PageIntro compact eyebrow={mode === 'QPI' ? 'Étape 2' : 'Étape 3'} title={mode === 'QPI' ? 'Votre profil investisseur' : 'Préférences de durabilité'} description={completionDescription} icon={<CheckCircle2 className="h-5 w-5" />} /><WizardCard className="p-8"><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950"><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">Étape terminée</p><p className="mt-2 text-xl font-bold">{mode === 'QPI' ? 'Votre profil investisseur est terminé.' : 'Vos préférences de durabilité sont terminées.'}</p><p className="mt-2 text-sm leading-6">{mode === 'QPI' ? 'Vos réponses ont permis d’évaluer votre horizon, votre capacité de perte, vos connaissances, votre expérience et votre tolérance au risque.' : 'Vos choix ESG ont été enregistrés et seront pris en compte lors de l’étude des solutions qui pourront vous être proposées.'}</p></div>{mode === 'QPI' && <div className="mt-5"><QpiResultSummary result={qpiResult} /></div>}<div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-6 text-blue-950"><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Étape suivante</p><p className="mt-2 text-xl font-bold">{nextTitle}</p><p className="mt-2 text-sm leading-6">{nextDescription}</p></div><button type="button" onClick={() => navigate(nextPath)} className="mt-6 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white">{completionCta}</button></WizardCard></div>;
   }
 
   const introTitle = mode === 'QPI' ? 'Votre profil investisseur' : 'Vos préférences de durabilité';

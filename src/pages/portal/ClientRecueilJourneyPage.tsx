@@ -278,14 +278,20 @@ export default function ClientRecueilJourneyPage() {
       <JourneyProgress current="recueil" esgEnabled={progress.esg_opt_in !== false} />
       <PageIntro variant="recueil" eyebrow="Étape 1" title="Recueil d’informations" description="Votre recueil est validé. Vous pouvez encore corriger ou compléter vos informations tant que le dossier n’a pas été transmis définitivement au cabinet." icon={<CheckCircle2 className="h-5 w-5" />} />
       <WizardCard className="p-8">
-        <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800">
-          <p className="font-semibold">Recueil validé</p>
-          <p className="mt-1 text-sm leading-6">Toute modification sera enregistrée et vous devrez valider de nouveau le recueil avant de poursuivre.</p>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">Étape terminée</p>
+          <p className="mt-2 text-xl font-bold">Votre recueil d’informations est terminé.</p>
+          <p className="mt-2 text-sm leading-6 text-emerald-900">Vous avez renseigné votre situation personnelle, familiale, patrimoniale, financière et fiscale.</p>
+        </div>
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-6 text-blue-950">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Étape suivante</p>
+          <p className="mt-2 text-xl font-bold">Profil investisseur</p>
+          <p className="mt-2 text-sm leading-6">Vous allez maintenant répondre à quelques questions sur votre horizon de placement, votre capacité de perte, vos connaissances, votre expérience et votre tolérance au risque.</p>
         </div>
         {errorMessage && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
           <button type="button" disabled={busy} onClick={() => void edit()} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"><Pencil className="h-4 w-4" /> {busy ? 'Ouverture…' : 'Modifier mon recueil'}</button>
-          <button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Continuer</button>
+          <button type="button" onClick={() => navigate(dossierHref('/espace-client/profil-investisseur', progress.dossier_id))} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Commencer mon profil investisseur</button>
         </div>
       </WizardCard>
     </div>;
