@@ -21,9 +21,28 @@
 
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0F2B46" />
-
-    <!-- TODO: Ajouter un favicon propre au site (ex: /favicon.ico), puis supprimer ce commentaire et la ligne ci-dessous -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <style>
+      body.cabinet-summary #root .max-w-7xl.space-y-6 { display: flex; flex-direction: column; }
+      body.cabinet-summary #root .max-w-7xl.space-y-6 > header { order: 1; }
+      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:first-of-type { order: 2; }
+      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:last-child { order: 3; }
+      body.cabinet-summary #root .max-w-7xl.space-y-6 > section:not(:first-of-type):not(:last-child) { order: 4; }
+    </style>
+    <script>
+      (function () {
+        function syncCabinetSummaryClass() {
+          document.body && document.body.classList.toggle('cabinet-summary', window.location.pathname === '/cabinet/synthese');
+        }
+        window.addEventListener('DOMContentLoaded', syncCabinetSummaryClass);
+        window.addEventListener('popstate', syncCabinetSummaryClass);
+        var pushState = history.pushState;
+        history.pushState = function () { pushState.apply(history, arguments); syncCabinetSummaryClass(); };
+        var replaceState = history.replaceState;
+        history.replaceState = function () { replaceState.apply(history, arguments); syncCabinetSummaryClass(); };
+      })();
+    </script>
 
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -32,13 +51,11 @@
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
     })(window,document,'script','dataLayer','GTM-N2JLWKH');</script>
     <!-- End Google Tag Manager -->
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-932681130"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'AW-932681130');
     </script>
     <script type="application/ld+json">
@@ -50,21 +67,8 @@
       "name": "Eric Bellaiche",
       "jobTitle": "Conseiller en gestion de patrimoine, CGP-CIF",
       "url": "https://eric-bellaiche.fr/",
-      "knowsAbout": [
-        "Conseil en gestion de patrimoine",
-        "SCPI",
-        "Assurance-vie",
-        "PER",
-        "Fiscalité patrimoniale",
-        "Immobilier",
-        "LMNP",
-        "SCI",
-        "Transmission",
-        "Audit patrimonial"
-      ],
-      "sameAs": [
-        "https://maximusscpi.com"
-      ]
+      "knowsAbout": ["Conseil en gestion de patrimoine","SCPI","Assurance-vie","PER","Fiscalité patrimoniale","Immobilier","LMNP","SCI","Transmission","Audit patrimonial"],
+      "sameAs": ["https://maximusscpi.com"]
     },
     {
       "@type": "ProfessionalService",
@@ -72,29 +76,10 @@
       "url": "https://eric-bellaiche.fr/",
       "description": "Cabinet de conseil en gestion de patrimoine en ligne spécialisé en SCPI, assurance-vie, PER, fiscalité, immobilier, retraite et transmission.",
       "areaServed": "France",
-      "serviceType": [
-        "Conseil en gestion de patrimoine",
-        "Audit patrimonial",
-        "Conseil SCPI",
-        "Conseil assurance-vie",
-        "Conseil PER",
-        "Conseil fiscalité patrimoniale"
-      ],
-      "identifier": {
-        "@type": "PropertyValue",
-        "name": "ORIAS",
-        "value": "13001580"
-      },
-      "address": {
-        "@type": "PostalAddress",
-        "addressCountry": "FR",
-        "addressRegion": "Auvergne-Rhône-Alpes",
-        "addressLocality": "Coublevie"
-      },
-      "founder": {
-        "@type": "Person",
-        "name": "Eric Bellaiche"
-      },
+      "serviceType": ["Conseil en gestion de patrimoine","Audit patrimonial","Conseil SCPI","Conseil assurance-vie","Conseil PER","Conseil fiscalité patrimoniale"],
+      "identifier": {"@type":"PropertyValue","name":"ORIAS","value":"13001580"},
+      "address": {"@type":"PostalAddress","addressCountry":"FR","addressRegion":"Auvergne-Rhône-Alpes","addressLocality":"Coublevie"},
+      "founder": {"@type":"Person","name":"Eric Bellaiche"},
       "priceRange": "Sur devis ou selon mission"
     },
     {
@@ -115,10 +100,7 @@
     </script>
   </head>
   <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N2JLWKH"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N2JLWKH" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
