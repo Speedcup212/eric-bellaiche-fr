@@ -41,7 +41,8 @@ const controlsStart = investorRaw.indexOf(controlsStartMarker);
 const controlsEnd = investorRaw.lastIndexOf('\n    </section>; })}');
 if (controlsStart < 0 || controlsEnd < 0 || controlsEnd <= controlsStart) throw new Error('Controls block not found inside investor block');
 const controlsBlock = investorRaw.slice(controlsStart, controlsEnd).trimEnd();
-const investorsBlock = investorRaw.slice(0, controlsStart) + investorRaw.slice(controlsEnd);
+let investorsBlock = investorRaw.slice(0, controlsStart) + investorRaw.slice(controlsEnd);
+investorsBlock = investorsBlock.replace('({ investor, investorSections, issues, summary })', '({ investor, investorSections, summary })');
 
 const controlsSection = `    <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">\n      <div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><ShieldCheck className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Contrôles du dossier</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Contrôles CIF à traiter et Complétude réglementaire</h2><p className="mt-1 text-sm text-slate-500">Lecture consolidée des incohérences, données manquantes et validations réglementaires.</p></div></div>\n      <div className="mt-5 space-y-5">{investorSummaries.map(({ investor, issues, summary }) => <div key={investor.investisseur_id}>{investorSummaries.length > 1 && <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-blue-500">{investor.investisseurs?.prenom} {investor.investisseurs?.nom}</p>}\n${controlsBlock}\n      </div>)}</div>\n    </section>`;
 
