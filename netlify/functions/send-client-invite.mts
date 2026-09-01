@@ -35,26 +35,50 @@ function dotStuff(value: string) {
   return value.replace(/(^|\r\n)\./g, '$1..');
 }
 
-function ensureInvitationDetails(value: string) {
-  let body = value.trim();
-  const detailsBlock = `Pour préparer votre recueil, merci d’avoir à portée de main, selon votre situation :\n- votre dernier avis d’imposition ;\n- vos derniers relevés d’épargne et de placements ;\n- un justificatif de patrimoine immobilier si vous détenez un bien ;\n- le tableau d’amortissement ou le justificatif de vos crédits en cours ;\n- les documents utiles concernant votre SCI ou votre société, le cas échéant.\n\nPour tous vos prochains rendez-vous en visioconférence, utilisez ce lien Zoom unique :\n${ZOOM_URL}`;
+function canonicalInvitationBody(value: string) {
+  const source = value.trim();
+  const greetingMatch = source.match(/^Bonjour\s+([^,\r\n]+),/i);
+  const firstName = greetingMatch?.[1]?.trim() || '';
+  const linkMatch = source.match(/https:\/\/eric-bellaiche\.fr\/espace-client\/invitation\?token=[^\s]+/i);
+  const link = linkMatch?.[0] ?? '';
 
-  body = body
-    .replace(/\n\nAvant de commencer, je vous conseille de préparer les principaux documents utiles à l’étude de votre situation :[\s\S]*?(?=\n\nSi votre situation familiale|\n\nPour activer votre accès|\n\nCe lien est personnel|\n\nPour vos prochains rendez-vous|\n\nBien cordialement,|$)/g, '')
-    .replace(/\n\nPour préparer votre recueil, merci d’avoir à portée de main, selon votre situation :[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '')
-    .replace(/\n\nPour vos prochains rendez-vous en visioconférence,[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '')
-    .replace(/\n\nPour tous vos prochains rendez-vous en visioconférence,[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '');
+  if (!link) return source;
 
-  const markers = ['\n\nSi votre situation familiale', '\n\nPour activer votre accès', '\n\nBien cordialement,'];
-  const marker = markers.find((candidate) => body.includes(candidate));
-  if (marker) {
-    const index = body.indexOf(marker);
-    body = `${body.slice(0, index)}\n\n${detailsBlock}${body.slice(index)}`;
-  } else {
-    body = `${body}\n\n${detailsBlock}`;
-  }
+  return `Bonjour ${firstName},
 
-  return body;
+Dans le cadre de mon accompagnement, je vous ai ouvert un espace client personnel et sécurisé sur eric-bellaiche.fr.
+
+Pour commencer, vous pouvez accéder directement à votre espace grâce à votre lien personnel :
+${link}
+
+Ce lien est personnel, valable 7 jours et ne doit pas être transféré.
+
+Votre espace vous permettra notamment de :
+- compléter et valider votre recueil d’informations patrimoniales ;
+- remplir votre questionnaire de profil investisseur ;
+- renseigner, si vous souhaitez exprimer des préférences de durabilité, le questionnaire correspondant ;
+- déposer les documents utiles à l’étude de votre situation ;
+- consulter les documents réglementaires mis à votre disposition.
+
+Documents à préparer
+
+Vous n’avez pas nécessairement besoin de tous ces documents. Selon votre situation, préparez si possible :
+- votre dernier avis d’imposition ;
+- vos derniers relevés d’épargne et de placements ;
+- les éléments concernant vos biens immobiliers, si vous en détenez ;
+- les tableaux d’amortissement ou justificatifs de vos crédits en cours ;
+- les documents utiles concernant une SCI ou une société, le cas échéant.
+
+Si votre dossier concerne également votre conjoint, ses informations seront ajoutées au cours du recueil. Il recevra ensuite son propre accès pour compléter les éléments qui le concernent.
+
+Pour tous nos prochains rendez-vous en visioconférence, vous pourrez utiliser ce lien Zoom unique :
+${ZOOM_URL}
+
+Bien cordialement,
+
+Eric Bellaiche
+Conseiller en gestion de patrimoine — CIF
+https://eric-bellaiche.fr`;
 }
 
 function supabaseConfig(req: Request) {
@@ -184,7 +208,7 @@ export default async (req: Request) => {
     const payload = await req.json() as { to?: string; subject?: string; body?: string; dossierId?: string; investisseurId?: string };
     const to = cleanHeader(payload.to ?? '').toLowerCase();
     const subject = cleanHeader(payload.subject ?? '');
-    const body = ensureInvitationDetails(String(payload.body ?? ''));
+    const body = canonicalInvitationBody(String(payload.body ?? ''));
     const dossierId = String(payload.dossierId ?? '').trim();
     const investisseurId = String(payload.investisseurId ?? '').trim();
 
