@@ -117,6 +117,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
 
   useEffect(() => {
+    // QPI and ESG share this component. Reset navigation immediately so a QPI
+    // position can never leak into the ESG questionnaire during route changes.
+    setCurrentIndex(0);
+    setValidationAttempted(false);
+    setErrorMessage('');
+    setNoteOpen(false);
     void fetchPortalProgress().then(async (rows) => {
       setProgressRows(rows);
       const row = selectedProgress(rows, dossierId);
@@ -143,6 +149,37 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
       }
       setAnswers(answerMap);
       setMulti(multiMap);
+
+      if (mode === 'ESG') {
+        const loadedSelectedCodes = {};
+        for (const question of normalized) {
+          const selected = question.options?.find((option) => option.id === answerMap[question.id]?.option_id);
+          if (selected) loadedSelectedCodes[question.code] = selected.code;
+        }
+        const loadedVisibleQuestions = normalized.filter((question) => visible(question, loadedSelectedCodes));
+        const loadedQuestionComplete = (question) => {
+          const answer = answerMap[question.id];
+          if (question.type_reponse === 'single') {
+            if (!answer?.option_id) return false;
+            const selected = question.options?.find((option) => option.id === answer.option_id);
+            if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') {
+              return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;
+            }
+            return true;
+          }
+          if (question.type_reponse === 'multiple') {
+            const values = multiMap[question.id] ?? [];
+            if (question.code === 'ESG_EXCLUSIONS' && values.includes('AUTRE') && !answer?.answer_text?.trim()) return false;
+            if (question.obligatoire || question.code === 'ESG_PAI_PRIORITIES' || question.code === 'ESG_PAI_MODALITIES') return values.length > 0;
+            return true;
+          }
+          if (question.type_reponse === 'text') return !question.obligatoire || Boolean(answer?.answer_text?.trim());
+          return true;
+        };
+        const firstIncompleteIndex = loadedVisibleQuestions.findIndex((question) => !loadedQuestionComplete(question));
+        setCurrentIndex(firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0);
+      }
+
       if (mode === 'QPI') {
         const [{ data: expRows, error: expError }, { data: details, error: detailsError }, { data: resultData, error: resultError }] = await Promise.all([
           supabase.from('qpi_product_experience').select('famille_produit,niveau_experience').eq('session_id', id),
