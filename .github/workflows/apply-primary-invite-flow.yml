@@ -1,0 +1,27 @@
+name: Apply primary invite flow
+on:
+  push:
+    paths:
+      - 'scripts/patch-primary-invite-flow.cjs'
+      - '.github/workflows/apply-primary-invite-flow.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-primary-invite-flow.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit application
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/CifAdminPage.tsx
+          git commit -m "Invite primary Calendly contact first" || exit 0
+          git push
