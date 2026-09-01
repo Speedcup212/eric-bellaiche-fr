@@ -37,22 +37,23 @@ function dotStuff(value: string) {
 
 function ensureInvitationDetails(value: string) {
   let body = value.trim();
-  const preparationBlock = `Avant de commencer, je vous conseille de préparer les principaux documents utiles à l’étude de votre situation :\n- votre dernier avis d’imposition ;\n- vos relevés de placements et d’épargne ;\n- les tableaux d’amortissement de vos crédits en cours ;\n- les éléments utiles relatifs à votre patrimoine immobilier ;\n- vos justificatifs de revenus si nécessaire.`;
-  const zoomBlock = `Pour vos prochains rendez-vous en visioconférence, vous pourrez utiliser le lien Zoom permanent du cabinet :\n${ZOOM_URL}`;
+  const detailsBlock = `Pour préparer votre recueil, merci d’avoir à portée de main, selon votre situation :\n- votre dernier avis d’imposition ;\n- vos derniers relevés d’épargne et de placements ;\n- un justificatif de patrimoine immobilier si vous détenez un bien ;\n- le tableau d’amortissement ou le justificatif de vos crédits en cours ;\n- les documents utiles concernant votre SCI ou votre société, le cas échéant.\n\nPour tous vos prochains rendez-vous en visioconférence, utilisez ce lien Zoom unique :\n${ZOOM_URL}`;
 
-  const insertBeforeSignature = (text: string) => {
-    const marker = '\nBien cordialement,';
+  body = body
+    .replace(/\n\nAvant de commencer, je vous conseille de préparer les principaux documents utiles à l’étude de votre situation :[\s\S]*?(?=\n\nSi votre situation familiale|\n\nPour activer votre accès|\n\nCe lien est personnel|\n\nPour vos prochains rendez-vous|\n\nBien cordialement,|$)/g, '')
+    .replace(/\n\nPour préparer votre recueil, merci d’avoir à portée de main, selon votre situation :[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '')
+    .replace(/\n\nPour vos prochains rendez-vous en visioconférence,[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '')
+    .replace(/\n\nPour tous vos prochains rendez-vous en visioconférence,[\s\S]*?https:\/\/us06web\.zoom\.us\/j\/2254306545/g, '');
+
+  const markers = ['\n\nSi votre situation familiale', '\n\nPour activer votre accès', '\n\nBien cordialement,'];
+  const marker = markers.find((candidate) => body.includes(candidate));
+  if (marker) {
     const index = body.indexOf(marker);
-    if (index >= 0) body = `${body.slice(0, index)}\n\n${text}${body.slice(index)}`;
-    else body = `${body}\n\n${text}`;
-  };
+    body = `${body.slice(0, index)}\n\n${detailsBlock}${body.slice(index)}`;
+  } else {
+    body = `${body}\n\n${detailsBlock}`;
+  }
 
-  if (!body.includes('dernier avis d’imposition') && !body.includes('dernier avis d\'imposition')) {
-    insertBeforeSignature(preparationBlock);
-  }
-  if (!body.includes(ZOOM_URL)) {
-    insertBeforeSignature(zoomBlock);
-  }
   return body;
 }
 
