@@ -110,6 +110,12 @@ body:has(a[href="/cabinet"]) textarea::placeholder {
   color: #7f93aa !important;
 }
 
+/* Reference and dossier label are internal metadata: do not ask the adviser to enter them. */
+body:has(a[href="/cabinet"]) input[placeholder="Référence (facultatif)"],
+body:has(a[href="/cabinet"]) input[placeholder="Libellé du dossier"] {
+  display: none !important;
+}
+
 body:has(a[href="/cabinet"]) .shadow-sm,
 body:has(a[href="/cabinet"]) .shadow-lg,
 body:has(a[href="/cabinet"]) .shadow-2xl {
