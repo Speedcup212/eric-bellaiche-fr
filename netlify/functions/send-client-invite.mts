@@ -18,6 +18,10 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
+function validUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function wrapBase64(value: string) {
   return Buffer.from(value, 'utf8').toString('base64').match(/.{1,76}/g)?.join('\r\n') ?? '';
 }
@@ -30,13 +34,20 @@ function dotStuff(value: string) {
   return value.replace(/(^|\r\n)\./g, '$1..');
 }
 
-async function verifyCabinetUser(req: Request) {
+function supabaseConfig(req: Request) {
   const authorization = req.headers.get('authorization') ?? '';
-  if (!authorization.startsWith('Bearer ')) return false;
-
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
   const supabaseKey = Netlify.env.get('VITE_SUPABASE_PUBLISHABLE_KEY') || FALLBACK_SUPABASE_KEY;
-  const headers = { Authorization: authorization, apikey: supabaseKey };
+  return {
+    authorization,
+    supabaseUrl,
+    headers: { Authorization: authorization, apikey: supabaseKey, 'content-type': 'application/json' },
+  };
+}
+
+async function verifyCabinetUser(req: Request) {
+  const { authorization, supabaseUrl, headers } = supabaseConfig(req);
+  if (!authorization.startsWith('Bearer ')) return false;
 
   const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, { headers });
   if (!userResponse.ok) return false;
@@ -45,6 +56,24 @@ async function verifyCabinetUser(req: Request) {
   if (!roleResponse.ok) return false;
   const rows = await roleResponse.json() as Array<{ role?: string; actif?: boolean }>;
   return Boolean(rows[0]?.actif && ['cif', 'admin'].includes(rows[0]?.role ?? ''));
+}
+
+async function markInviteSent(req: Request, dossierId: string, investisseurId: string, sentAt: string, smtpReply: string) {
+  const { supabaseUrl, headers } = supabaseConfig(req);
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/mark_client_invite_sent`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      p_dossier_id: dossierId,
+      p_investisseur_id: investisseurId,
+      p_sent_at: sentAt,
+      p_smtp_reply: smtpReply,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Email envoyé, mais traçabilité Supabase impossible : ${detail.slice(0, 300)}`);
+  }
 }
 
 function readReply(socket: tls.TLSSocket): Promise<{ code: number; text: string }> {
@@ -129,17 +158,23 @@ export default async (req: Request) => {
     const gmailPassword = Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g, '') ?? '';
     if (!gmailUser || !gmailPassword) return json(500, { error: 'Configuration Gmail incomplète.' });
 
-    const payload = await req.json() as { to?: string; subject?: string; body?: string };
+    const payload = await req.json() as { to?: string; subject?: string; body?: string; dossierId?: string; investisseurId?: string };
     const to = cleanHeader(payload.to ?? '').toLowerCase();
     const subject = cleanHeader(payload.subject ?? '');
     const body = String(payload.body ?? '').trim();
+    const dossierId = String(payload.dossierId ?? '').trim();
+    const investisseurId = String(payload.investisseurId ?? '').trim();
 
     if (!validEmail(to)) return json(400, { error: 'Adresse email destinataire invalide.' });
     if (!subject || subject.length > 180) return json(400, { error: 'Objet du mail invalide.' });
     if (!body || body.length > 20_000) return json(400, { error: 'Contenu du mail invalide.' });
+    if (!validUuid(dossierId) || !validUuid(investisseurId)) return json(400, { error: 'Référence dossier/investisseur invalide.' });
 
     const smtpReply = await sendWithGmail({ user: gmailUser, password: gmailPassword, to, subject, body });
-    return json(200, { ok: true, sentAt: new Date().toISOString(), smtpReply });
+    const sentAt = new Date().toISOString();
+    await markInviteSent(req, dossierId, investisseurId, sentAt, smtpReply);
+
+    return json(200, { ok: true, sentAt, smtpReply });
   } catch (error) {
     console.error('send-client-invite failed', error);
     return json(500, { error: error instanceof Error ? error.message : 'Échec de l’envoi Gmail.' });
