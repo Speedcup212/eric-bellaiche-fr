@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   BarChart3,
+  CheckCircle2,
   ChevronRight,
-  Copy,
   FileCheck2,
   FileText,
   LayoutDashboard,
@@ -40,7 +40,7 @@ interface InvestorInviteRow {
   investisseurs: { prenom: string; nom: string; email: string | null } | null;
 }
 
-interface InviteDraft { email: string; subject: string; body: string; link: string; }
+interface InviteDraft { email: string; subject: string; body: string; link: string; sentAt?: string; }
 
 interface DossierView extends DossierRow {
   investors: InvestorInviteRow[];
@@ -110,6 +110,7 @@ export default function CifAdminPage() {
   const [message, setMessage] = useState('');
   const [inviteDraft, setInviteDraft] = useState<InviteDraft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sendingInviteDossierId, setSendingInviteDossierId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'progress' | 'ready'>('all');
@@ -186,19 +187,42 @@ export default function CifAdminPage() {
   };
 
   const createInvite = async (dossierId: string, investor: InvestorInviteRow) => {
-    setErrorMessage(''); setInviteDraft(null);
+    setErrorMessage(''); setMessage(''); setInviteDraft(null); setSendingInviteDossierId(dossierId);
     try {
       const email = investor.investisseurs?.email?.trim();
       if (!email) throw new Error('Email investisseur manquant.');
-      const { data: token, error } = await supabase.rpc('create_client_invite', { p_dossier_id: dossierId, p_investisseur_id: investor.investisseur_id, p_email: email, p_validity_days: 7 });
+      if (!session?.access_token) throw new Error('Session cabinet expirée. Reconnecte-toi.');
+
+      const { data: token, error } = await supabase.rpc('create_client_invite', {
+        p_dossier_id: dossierId,
+        p_investisseur_id: investor.investisseur_id,
+        p_email: email,
+        p_validity_days: 7,
+      });
       if (error) throw error;
+
       const link = `https://eric-bellaiche.fr/espace-client/invitation?token=${encodeURIComponent(token as string)}`;
       const subject = 'Votre espace client sécurisé — Cabinet Eric Bellaiche';
       const body = invitationBody(investor.investisseurs?.prenom ?? '', link);
-      setInviteDraft({ email, subject, body, link });
-      await navigator.clipboard.writeText(`Objet : ${subject}\n\n${body}`);
-      setMessage('Invitation prête : le texte personnalisé a été copié.');
-    } catch (error) { setErrorMessage(messageFromError(error)); }
+
+      const response = await fetch('/api/send-client-invite', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ to: email, subject, body }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string; sentAt?: string };
+      if (!response.ok) throw new Error(result.error || 'Échec de l’envoi Gmail.');
+
+      setInviteDraft({ email, subject, body, link, sentAt: result.sentAt });
+      setMessage(`Invitation envoyée automatiquement à ${email}.`);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setSendingInviteDossierId(null);
+    }
   };
 
   const listInvestors = async (dossierId: string) => {
@@ -304,7 +328,7 @@ export default function CifAdminPage() {
 
           {(message || errorMessage) && <div className="space-y-3">{message && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}{errorMessage && <p className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}</div>}
 
-          {inviteDraft && <section className="rounded-[28px] border border-emerald-200 bg-emerald-50 p-6"><div className="flex items-start justify-between gap-4"><div><p className="font-semibold">Invitation client prête</p><p className="mt-1 text-sm text-emerald-800">{inviteDraft.email}</p></div><button onClick={() => setInviteDraft(null)} className="rounded-xl p-2 text-emerald-800 hover:bg-white/60"><X className="h-4 w-4" /></button></div><div className="mt-4 max-h-60 overflow-auto rounded-2xl bg-white p-5 text-sm whitespace-pre-wrap"><strong>Objet : {inviteDraft.subject}</strong>{'\n\n'}{inviteDraft.body}</div><div className="mt-4 flex gap-3"><button onClick={() => void navigator.clipboard.writeText(`Objet : ${inviteDraft.subject}\n\n${inviteDraft.body}`)} className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold"><Copy className="h-4 w-4" /> Copier</button><a href={`mailto:${encodeURIComponent(inviteDraft.email)}?subject=${encodeURIComponent(inviteDraft.subject)}&body=${encodeURIComponent(inviteDraft.body)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-4 py-3 text-sm font-semibold text-white"><Mail className="h-4 w-4" /> Messagerie</a></div></section>}
+          {inviteDraft && <section className="rounded-[28px] border border-emerald-200 bg-emerald-50 p-6"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white"><CheckCircle2 className="h-5 w-5" /></div><div><p className="font-semibold">Invitation envoyée</p><p className="mt-1 text-sm text-emerald-800">{inviteDraft.email}</p>{inviteDraft.sentAt && <p className="mt-1 text-xs text-emerald-700">Envoyée le {new Date(inviteDraft.sentAt).toLocaleString('fr-FR')}</p>}</div></div><button onClick={() => setInviteDraft(null)} className="rounded-xl p-2 text-emerald-800 hover:bg-white/60"><X className="h-4 w-4" /></button></div><div className="mt-4 max-h-60 overflow-auto rounded-2xl bg-white p-5 text-sm whitespace-pre-wrap"><strong>Objet : {inviteDraft.subject}</strong>{'\n\n'}{inviteDraft.body}</div></section>}
 
           <section id="dossiers" className="space-y-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Portefeuille clients</p><h2 className="mt-2 text-2xl font-semibold">Dossiers</h2></div><div className="flex flex-col gap-3 sm:flex-row"><div className="relative min-w-[280px]"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D7F97]" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un client, email, référence…" className="w-full rounded-2xl border border-[#D9E5F5] bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#3B82F6]" /></div><div className="flex rounded-2xl border border-[#D9E5F5] bg-white p-1">{([['all','Tous'],['progress','En cours'],['ready','Complets']] as const).map(([value,label]) => <button key={value} onClick={() => setFilter(value)} className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${filter === value ? 'bg-[#0F172A] text-white' : 'text-[#5B6E87] hover:bg-[#F3F7FC]'}`}>{label}</button>)}</div></div></div>
@@ -321,7 +345,7 @@ export default function CifAdminPage() {
 
                     <div className="w-full xl:max-w-[360px]"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold text-[#667991]">Avancement réglementaire</span><span className="font-bold text-[#0F172A]">{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[#EAF1F8]"><div className="h-full rounded-full bg-[#3B82F6] transition-all" style={{ width: `${progress}%` }} /></div></div>
 
-                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button onClick={() => void listInvestors(row.id)} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><Mail className="h-4 w-4" /> Inviter</button><button type="button" disabled={deletingId === row.id} onClick={() => void deleteDossier(row)} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" title="Supprimer définitivement ce dossier"><Trash2 className="h-4 w-4" /> {deletingId === row.id ? 'Suppression…' : 'Supprimer'}</button></div>
+                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button disabled={sendingInviteDossierId === row.id} onClick={() => void listInvestors(row.id)} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"><Mail className="h-4 w-4" /> {sendingInviteDossierId === row.id ? 'Envoi…' : 'Inviter'}</button><button type="button" disabled={deletingId === row.id} onClick={() => void deleteDossier(row)} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" title="Supprimer définitivement ce dossier"><Trash2 className="h-4 w-4" /> {deletingId === row.id ? 'Suppression…' : 'Supprimer'}</button></div>
                   </div>
                 </article>;
               })}
@@ -329,12 +353,12 @@ export default function CifAdminPage() {
             </div>
           </section>
 
-          <section id="integrations" className="rounded-[30px] border border-[#E0EAF6] bg-white p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Architecture extensible</p><h2 className="mt-2 text-2xl font-semibold">Intégrations futures</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#667991]">Ces modules ne sont pas activés automatiquement. Le cockpit est structuré pour les accueillir sans refaire le CRM.</p></div><Sparkles className="hidden h-8 w-8 text-[#C5A059] sm:block" /></div><div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
-            ['Signature électronique','Youtrust / signature'],
-            ['Messagerie','Gmail / suivi client'],
-            ['Agenda','Rendez-vous / relances'],
-            ['Documents','Drive / archivage'],
-          ].map(([title,subtitle]) => <div key={title} className="rounded-2xl border border-[#E0EAF6] bg-[#F9FBFE] p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#3B82F6] shadow-sm"><FileText className="h-4 w-4" /></div><p className="mt-4 font-semibold">{title}</p><p className="mt-1 text-xs text-[#6A7D95]">{subtitle}</p><span className="mt-4 inline-flex rounded-full bg-[#EEF5FF] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#3B82F6]">Disponible plus tard</span></div>)}</div></section>
+          <section id="integrations" className="rounded-[30px] border border-[#E0EAF6] bg-white p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Architecture extensible</p><h2 className="mt-2 text-2xl font-semibold">Intégrations</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#667991]">Gmail est désormais relié au cockpit pour l’envoi automatique des invitations. Les autres modules pourront être ajoutés sans refaire le CRM.</p></div><Sparkles className="hidden h-8 w-8 text-[#C5A059] sm:block" /></div><div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
+            ['Signature électronique','Youtrust / signature','Disponible plus tard'],
+            ['Messagerie','Gmail / envoi automatique','Actif'],
+            ['Agenda','Rendez-vous / relances','Disponible plus tard'],
+            ['Documents','Drive / archivage','Disponible plus tard'],
+          ].map(([title,subtitle,status]) => <div key={title} className="rounded-2xl border border-[#E0EAF6] bg-[#F9FBFE] p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#3B82F6] shadow-sm"><FileText className="h-4 w-4" /></div><p className="mt-4 font-semibold">{title}</p><p className="mt-1 text-xs text-[#6A7D95]">{subtitle}</p><span className={`mt-4 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${status === 'Actif' ? 'bg-emerald-100 text-emerald-700' : 'bg-[#EEF5FF] text-[#3B82F6]'}`}>{status}</span></div>)}</div></section>
         </div>
       </main>
     </div>
