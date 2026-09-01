@@ -14,6 +14,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRound,
   Users,
   X,
@@ -109,6 +110,7 @@ export default function CifAdminPage() {
   const [message, setMessage] = useState('');
   const [inviteDraft, setInviteDraft] = useState<InviteDraft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'progress' | 'ready'>('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -211,6 +213,55 @@ export default function CifAdminPage() {
     if (Number.isInteger(index) && investors[index]) await createInvite(dossierId, investors[index]);
   };
 
+  const deleteDossier = async (row: DossierView) => {
+    const label = clientLabel(row);
+    const confirmed = window.confirm(
+      `Supprimer définitivement le dossier « ${label} » ?\n\nLe recueil, le profil investisseur, l’ESG, les documents et les données rattachées à ce dossier seront supprimés. Cette action est irréversible.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(row.id);
+    setErrorMessage('');
+    setMessage('');
+    try {
+      const [sourcesResult, regulatoryResult] = await Promise.all([
+        supabase.from('documents_sources').select('storage_bucket,storage_path').eq('dossier_id', row.id),
+        supabase.from('documents_reglementaires').select('storage_bucket,storage_path_docx,storage_path_pdf').eq('dossier_id', row.id),
+      ]);
+      if (sourcesResult.error) throw sourcesResult.error;
+      if (regulatoryResult.error) throw regulatoryResult.error;
+
+      const filesByBucket = new Map<string, string[]>();
+      const addFile = (bucket?: string | null, path?: string | null) => {
+        if (!bucket || !path) return;
+        filesByBucket.set(bucket, [...(filesByBucket.get(bucket) ?? []), path]);
+      };
+
+      (sourcesResult.data ?? []).forEach((doc) => addFile(doc.storage_bucket, doc.storage_path));
+      (regulatoryResult.data ?? []).forEach((doc) => {
+        addFile(doc.storage_bucket, doc.storage_path_docx);
+        addFile(doc.storage_bucket, doc.storage_path_pdf);
+      });
+
+      for (const [bucket, paths] of filesByBucket.entries()) {
+        const uniquePaths = [...new Set(paths)];
+        if (!uniquePaths.length) continue;
+        const { error } = await supabase.storage.from(bucket).remove(uniquePaths);
+        if (error) throw error;
+      }
+
+      const { error } = await supabase.from('dossiers').delete().eq('id', row.id);
+      if (error) throw error;
+
+      setRows((current) => current.filter((item) => item.id !== row.id));
+      setMessage(`Dossier supprimé : ${label}.`);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -270,7 +321,7 @@ export default function CifAdminPage() {
 
                     <div className="w-full xl:max-w-[360px]"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold text-[#667991]">Avancement réglementaire</span><span className="font-bold text-[#0F172A]">{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[#EAF1F8]"><div className="h-full rounded-full bg-[#3B82F6] transition-all" style={{ width: `${progress}%` }} /></div></div>
 
-                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button onClick={() => void listInvestors(row.id)} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><Mail className="h-4 w-4" /> Inviter</button></div>
+                    <div className="flex flex-wrap gap-2 xl:justify-end"><a href={`/cabinet/synthese?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-white">Ouvrir le dossier <ChevronRight className="h-4 w-4" /></a><a href={`/cabinet/audit?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><BarChart3 className="h-4 w-4" /> Audit</a><a href={`/cabinet/adequation?dossier=${encodeURIComponent(row.id)}`} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><FileCheck2 className="h-4 w-4" /> Adéquation</a><button onClick={() => void listInvestors(row.id)} className="inline-flex items-center gap-2 rounded-xl border border-[#D9E5F5] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#0F172A]"><Mail className="h-4 w-4" /> Inviter</button><button type="button" disabled={deletingId === row.id} onClick={() => void deleteDossier(row)} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" title="Supprimer définitivement ce dossier"><Trash2 className="h-4 w-4" /> {deletingId === row.id ? 'Suppression…' : 'Supprimer'}</button></div>
                   </div>
                 </article>;
               })}
