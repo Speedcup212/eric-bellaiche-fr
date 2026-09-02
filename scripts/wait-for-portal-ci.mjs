@@ -13,8 +13,8 @@ if (context !== 'production' || !sha) {
 const startedAt = Date.now();
 const endpoint = `https://api.github.com/repos/${repo}/actions/runs?head_sha=${encodeURIComponent(sha)}&event=push&per_page=20`;
 
-async function readPortalRun() {
-  const response = await fetch(endpoint, {
+async function githubJson(url) {
+  const response = await fetch(url, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'eric-bellaiche-netlify-ci-gate',
@@ -27,14 +27,37 @@ async function readPortalRun() {
     throw new Error(`GitHub Actions API ${response.status}: ${body.slice(0, 300)}`);
   }
 
-  const payload = await response.json();
+  return response.json();
+}
+
+async function readPortalRun() {
+  const payload = await githubJson(endpoint);
   return (payload.workflow_runs || []).find((run) => run.path === workflowPath) || null;
 }
 
+async function isGitHubActionsBotCommit() {
+  const commit = await githubJson(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(sha)}`);
+  return commit?.author?.login === 'github-actions[bot]'
+    || commit?.committer?.login === 'github-actions[bot]'
+    || String(commit?.commit?.author?.email || '').includes('github-actions[bot]');
+}
+
+let checkedBotCommit = false;
 while (Date.now() - startedAt < timeoutMs) {
   const run = await readPortalRun();
 
   if (!run) {
+    // Commits pushed by GitHub Actions with GITHUB_TOKEN do not trigger another
+    // push workflow. In that case Portal CI can never appear. Netlify still runs
+    // the full local test/typecheck/build chain immediately after this gate, so
+    // skipping only the remote wait is safe and prevents an artificial timeout.
+    if (!checkedBotCommit) {
+      checkedBotCommit = true;
+      if (await isGitHubActionsBotCommit()) {
+        console.log(`CI deploy gate: trusted GitHub Actions commit ${sha.slice(0, 8)}; remote Portal CI cannot be triggered. Continuing with Netlify local checks.`);
+        process.exit(0);
+      }
+    }
     console.log(`CI deploy gate: Portal CI not visible yet for ${sha.slice(0, 8)}; retrying…`);
   } else if (run.status !== 'completed') {
     console.log(`CI deploy gate: Portal CI ${run.status}; waiting…`);
