@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { restoreAuthSession } from './authSession';
 
 export default function PortalShell() {
   const [session, setSession] = useState<Session | null>(null);
@@ -16,27 +17,26 @@ export default function PortalShell() {
 
   useEffect(() => {
     let active = true;
-    void supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setAuthError(true);
-          return;
-        }
-        setSession(data.session);
-      })
-      .catch(() => { if (active) setAuthError(true); })
-      .finally(() => { if (active) setLoading(false); });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
       setSession(nextSession);
       setAuthError(false);
-      setLoading(false);
+      if (nextSession) setLoading(false);
       if (!nextSession) {
         setAccountRole(null);
         setRoleUserId(null);
       }
     });
+
+    void restoreAuthSession()
+      .then((nextSession) => {
+        if (!active) return;
+        setSession(nextSession);
+      })
+      .catch(() => { if (active) setAuthError(true); })
+      .finally(() => { if (active) setLoading(false); });
+
     return () => {
       active = false;
       listener.subscription.unsubscribe();
