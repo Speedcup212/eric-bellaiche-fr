@@ -34,3 +34,5 @@ jobs:
           name: qa-e2e-report-${{ github.run_id }}
           path: qa-e2e-report.json
           if-no-files-found: warn
+
+# Auth provisioning fallback verified in isolated QA.
