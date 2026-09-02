@@ -3,6 +3,7 @@ import tls from 'node:tls';
 const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
 const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
 const ZOOM_URL = 'https://us06web.zoom.us/j/2254306545';
+const CLIENT_LOGIN_URL = 'https://eric-bellaiche.fr/espace-client/connexion';
 
 function json(status: number, payload: Record<string, unknown>) {
   return new Response(JSON.stringify(payload), {
@@ -51,7 +52,12 @@ Dans le cadre de mon accompagnement, je vous ai ouvert un espace client personne
 Pour commencer, vous pouvez accéder directement à votre espace grâce à votre lien personnel :
 ${link}
 
-Ce lien est personnel, valable 7 jours et ne doit pas être transféré.
+Ce lien est personnel, valable 7 jours et ne doit pas être transféré. Il sert uniquement à votre première activation.
+
+Après cette première activation, vous retrouverez votre espace à tout moment depuis le bouton « Espace client » sur eric-bellaiche.fr, ou directement à cette adresse :
+${CLIENT_LOGIN_URL}
+
+Vous n’aurez plus besoin de rechercher ou de conserver cet e-mail d’invitation pour reprendre votre dossier.
 
 Votre espace vous permettra notamment de :
 - compléter et valider votre recueil d’informations patrimoniales ;
