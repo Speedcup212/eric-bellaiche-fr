@@ -39,12 +39,12 @@ check(
 );
 check(
   'L5-04 invitation page blocks an active cabinet session',
-  includesAll(invitation, ["account.role === 'cif'", "account.role === 'admin'", "navigate('/cabinet'"),
+  includesAll(invitation, ["account.role === 'cif'", "account.role === 'admin'", "navigate('/cabinet'"]),
   'Un CIF/admin connecté ne doit pas pouvoir consommer un lien client.'
 );
 check(
   'L5-05 invite creation/claim/service reject staff addresses',
-  (inviteMigration.match(/email_belongs_to_staff/g) ?? []).length >= 4 && inviteMigration.includes('Compte cabinet') || inviteMigration.includes('compte cabinet'),
+  (inviteMigration.match(/email_belongs_to_staff/g) ?? []).length >= 4 && /compte cabinet/i.test(inviteMigration),
   'La protection doit exister aux trois points d’entrée.'
 );
 check(
