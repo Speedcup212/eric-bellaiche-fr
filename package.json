@@ -22,6 +22,7 @@
     "test:investor-profile": "node scripts/test-investor-profile-engine.mjs",
     "test:document-policy": "node scripts/test-document-policy.mjs",
     "test:final-journey": "node scripts/crash-test-final-journey.mjs",
+    "test:validation-ux": "node scripts/test-validation-ux-policy.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs",
     "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs",
     "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs",
@@ -31,7 +32,7 @@
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.3.0",
     "react-router-dom": "^7.9.5"
   },
   "devDependencies": {
