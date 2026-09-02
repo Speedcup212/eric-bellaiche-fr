@@ -29,8 +29,8 @@ check(
   'Le recueil doit charger l’email de l’investisseur ciblé.'
 );
 check(
-  'L5-02 client identity email is not rendered from auth session email',
-  !/ReadOnlyField[^\n]+value=\{accountEmail\}/.test(recueil) && !recueil.includes("setAccountEmail(data.user?.email"),
+  'L5-02 displayed email comes from selected investor, never auth session',
+  recueil.includes("setAccountEmail(investor?.email ?? '')") && !recueil.includes("setAccountEmail(data.user?.email"),
   'Une session cabinet ne doit jamais devenir l’email affiché du client.'
 );
 check(
