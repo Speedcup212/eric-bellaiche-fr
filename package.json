@@ -21,6 +21,7 @@
     "test:household-consolidation": "node scripts/test-household-consolidation-engine.mjs",
     "test:investor-profile": "node scripts/test-investor-profile-engine.mjs",
     "test:document-policy": "node scripts/test-document-policy.mjs",
+    "test:final-journey": "node scripts/crash-test-final-journey.mjs",
     "test:routes": "node scripts/smoke-built-routes.mjs",
     "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs",
     "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs",
