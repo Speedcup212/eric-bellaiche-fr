@@ -35,4 +35,4 @@ jobs:
           path: qa-e2e-report.json
           if-no-files-found: warn
 
-# Auth provisioning fallback verified in isolated QA.
+# Auth provisioning fallback uses GoTrue-compatible instance id and bcrypt cost.
