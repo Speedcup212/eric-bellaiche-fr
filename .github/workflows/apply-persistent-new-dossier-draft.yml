@@ -1,0 +1,40 @@
+name: Apply persistent new dossier draft
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-persistent-new-dossier-draft.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Persist Nouveau dossier form data across tab changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/portal/CifAdminPage.tsx')
+          s=p.read_text()
+          marker="function StatusPill({ok,label}:{ok:boolean;label:string}){return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ok?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-blue-100 bg-blue-50 text-blue-700'}`}>{label}</span>}\n"
+          insert=marker+"\nconst CREATE_MODAL_SESSION_KEY='cif-admin:new-dossier-open';\nconst CREATE_DRAFT_SESSION_KEY='cif-admin:new-dossier-draft';\nconst EMPTY_CREATE_FORM={reference:'',libelle:'',p1:'',n1:'',e1:'',m1:''};\nfunction restoreCreateDraft(){\n try{const raw=sessionStorage.getItem(CREATE_DRAFT_SESSION_KEY);if(!raw)return EMPTY_CREATE_FORM;const parsed=JSON.parse(raw) as Partial<typeof EMPTY_CREATE_FORM>;return {...EMPTY_CREATE_FORM,...parsed};}catch{return EMPTY_CREATE_FORM;}\n}\n"
+          if 'CREATE_DRAFT_SESSION_KEY' not in s:
+              s=s.replace(marker,insert)
+          s=s.replace("[form,setForm]=useState({reference:'',libelle:'',p1:'',n1:'',e1:'',m1:''})","[form,setForm]=useState(()=>restoreCreateDraft())")
+          s=s.replace(" const CREATE_MODAL_SESSION_KEY='cif-admin:new-dossier-open';\n","")
+          s=s.replace(" const openCreateModal=()=>{sessionStorage.setItem(CREATE_MODAL_SESSION_KEY,'1');setShowCreate(true)};\n const closeCreateModal=()=>{sessionStorage.removeItem(CREATE_MODAL_SESSION_KEY);setShowCreate(false)};",
+                      " const openCreateModal=()=>{sessionStorage.setItem(CREATE_MODAL_SESSION_KEY,'1');setShowCreate(true)};\n const closeCreateModal=()=>{sessionStorage.removeItem(CREATE_MODAL_SESSION_KEY);sessionStorage.removeItem(CREATE_DRAFT_SESSION_KEY);setForm(EMPTY_CREATE_FORM);setShowCreate(false)};\n useEffect(()=>{sessionStorage.setItem(CREATE_DRAFT_SESSION_KEY,JSON.stringify(form));},[form]);")
+          s=s.replace("setForm({reference:'',libelle:'',p1:'',n1:'',e1:'',m1:''});closeCreateModal();","setForm(EMPTY_CREATE_FORM);sessionStorage.removeItem(CREATE_DRAFT_SESSION_KEY);closeCreateModal();")
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/portal/CifAdminPage.tsx
+          git diff --cached --quiet || git commit -m 'Persist Nouveau dossier draft across tab changes'
+          git push
