@@ -1,0 +1,92 @@
+name: Apply multifile document upload
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-multifile-document-upload.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch ClientDocumentsPage
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/pages/portal/ClientDocumentsPage.tsx')
+          s = p.read_text()
+
+          s = s.replace("const [file, setFile] = useState<File | null>(null);", "const [files, setFiles] = useState<File[]>([]);")
+          s = s.replace("setFile(null);", "setFiles([]);")
+
+          start = s.index("  const upload = async (event: React.FormEvent) => {")
+          end = s.index("\n  const deleteSource = async", start)
+          new_upload = '''  const upload = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!progress || files.length === 0 || !category || progress.transmitted_at) return;
+    const identityTargetId = progress.is_couple ? identityOwnerId : progress.investisseur_id;
+    if (category === 'identite' && !identityTargetId) { setErrorMessage('Sélectionnez Identifiant 1 ou Identifiant 2 avant de transmettre la pièce d’identité.'); return; }
+    if (category === 'identite' && !identityType) { setErrorMessage('Sélectionnez le type de pièce d’identité avant de transmettre le fichier.'); return; }
+    const oversized = files.find((item) => item.size > 20 * 1024 * 1024);
+    if (oversized) { setErrorMessage(`Le fichier « ${oversized.name} » dépasse la limite de 20 Mo.`); return; }
+    setBusy(true); setMessage(''); setErrorMessage('');
+    const uploadCategory = category;
+    const identityChoice = identityTypes.find((item) => item.value === identityType);
+    const identityMember = dossierMembers.find((item) => item.investisseur_id === identityTargetId);
+    const identityPrefix = identityMember ? memberLabel(identityMember.role_dossier) : 'Identifiant 1';
+    const uploadedPaths: string[] = [];
+    try {
+      for (const currentFile of files) {
+        const displayedName = uploadCategory === 'identite' && identityChoice ? `${identityPrefix} - ${identityChoice.prefix} - ${currentFile.name}` : currentFile.name;
+        const path = `${progress.dossier_id}/${crypto.randomUUID()}-${safeName(displayedName)}`;
+        const { error: uploadError } = await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).upload(path, currentFile, { upsert: false });
+        if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
+        const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: uploadCategory === 'identite' ? identityTargetId : progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
+        if (registerError) throw registerError;
+      }
+      const uploadedCount = files.length;
+      setFiles([]);
+      setIdentityType('');
+      setIdentityOwnerId('');
+      setMessage(`${uploadedCount} document${uploadedCount > 1 ? 's' : ''} transmis avec succès dans « ${categoryLabel(uploadCategory)} ».`);
+      await loadDocuments(progress);
+      setCategory('');
+      setActiveRequirementIndex((current) => Math.min(current + 1, categories.length - 1));
+    } catch (error) {
+      if (uploadedPaths.length > 0) await loadDocuments(progress).catch(() => undefined);
+      setErrorMessage(messageFromError(error));
+    } finally { setBusy(false); }
+  };
+'''
+          s = s[:start] + new_upload + s[end:]
+
+          old_input = '''<input type="file" required disabled={item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId))} onChange={(event) => setFile(event.target.files?.[0] ?? null)} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />'''
+          new_input = '''<input type="file" multiple required disabled={item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId))} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />'''
+          if old_input not in s:
+            raise SystemExit('input pattern not found')
+          s = s.replace(old_input, new_input)
+          s = s.replace("disabled={busy || !file || (item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId)))}", "disabled={busy || files.length === 0 || (item.category === 'identite' && (!identityType || (progress.is_couple && !identityOwnerId)))}")
+          s = s.replace("{item.category === 'identite' ? 'Fichier complet de la pièce d’identité' : itemDocs.length > 0 ? 'Ajouter un autre fichier' : 'Sélectionner le fichier'}", "{item.category === 'identite' ? 'Fichier complet de la pièce d’identité' : itemDocs.length > 0 ? 'Ajouter un ou plusieurs fichiers' : 'Sélectionner un ou plusieurs fichiers'}")
+          s = s.replace("{itemDocs.length > 0 ? 'Ajouter' : 'Transmettre'}</button>", "{files.length > 1 ? `Transmettre ${files.length} fichiers` : itemDocs.length > 0 ? 'Ajouter' : 'Transmettre'}</button>")
+          s = s.replace("'PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.'", "'Vous pouvez sélectionner plusieurs fichiers à la fois. PDF, DOCX, XLSX, JPG ou PNG — 20 Mo maximum par fichier.'")
+
+          p.write_text(s)
+      - name: Verify typecheck
+        run: |
+          npm ci
+          npm run typecheck:portal
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/ClientDocumentsPage.tsx
+          git commit -m "Enable multi-file uploads in document blocks" || exit 0
+          git push
