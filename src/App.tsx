@@ -68,10 +68,10 @@ function PublicDossierAccess() {
   return (
     <Link
       to="/espace-client/connexion"
-      aria-label="Reprendre mon dossier patrimonial"
+      aria-label="Accéder à mon espace client"
       className="public-dossier-access fixed right-3 top-[62px] z-[100] flex min-h-7 items-center justify-center whitespace-nowrap rounded-md border border-[#C5A059] bg-white/95 px-2 py-1 text-[9px] font-bold uppercase tracking-tight text-[#8A6D2F] shadow-sm backdrop-blur transition hover:bg-[#F7F1E6] sm:right-4 sm:top-3 sm:min-h-0 sm:rounded-lg sm:px-4 sm:py-2 sm:text-xs sm:tracking-wide xl:right-[145px]"
     >
-      Mon dossier
+      Espace client
     </Link>
   );
 }
