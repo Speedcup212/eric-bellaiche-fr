@@ -16,8 +16,8 @@ jobs:
     env:
       QA_SUPABASE_URL: https://nqnmahnkpdiwdfiteops.supabase.co
       QA_SUPABASE_ANON_KEY: sb_publishable_WY4MeGVyB1CMnedTdQcy4Q_VitoPeH5
-      QA_RUN_ID: '20260902095001'
-      QA_EXPECT_PDF: 'false'
+      QA_RUN_ID: '20260902101501'
+      QA_EXPECT_PDF: 'true'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -35,4 +35,4 @@ jobs:
           path: qa-e2e-report.json
           if-no-files-found: warn
 
-# Auth provisioning fallback uses GoTrue-compatible instance id and bcrypt cost.
+# Full isolated journey includes the production PDF generator deployed in QA.
