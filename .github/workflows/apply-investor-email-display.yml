@@ -1,0 +1,27 @@
+name: Apply investor email display fix
+on:
+  push:
+    paths:
+      - 'scripts/patch-investor-email-display.cjs'
+      - '.github/workflows/apply-investor-email-display.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/patch-investor-email-display.cjs
+      - run: npm ci
+      - run: npm run typecheck:portal
+      - run: npm run build
+      - name: Commit application
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/ClientRecueilJourneyBase.tsx
+          git commit -m "Display selected investor email in recueil" || exit 0
+          git push
