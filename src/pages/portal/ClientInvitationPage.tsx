@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { stabilizeAuthSession } from '../../portal/authSession';
 import { messageFromError } from '../../portal/portalHelpers';
 
 async function functionErrorMessage(error: unknown): Promise<string> {
@@ -27,6 +28,7 @@ export default function ClientInvitationPage() {
   const [busy, setBusy] = useState(false);
   const [loadingInvite, setLoadingInvite] = useState(Boolean(token));
   const [errorMessage, setErrorMessage] = useState('');
+  const submitLock = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -63,13 +65,15 @@ export default function ClientInvitationPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token || !email) return;
+    if (!token || !email || submitLock.current) return;
+    submitLock.current = true;
     setBusy(true); setErrorMessage('');
     const cleanEmail = email.trim().toLowerCase();
     localStorage.setItem('cgp_pending_invite_token', token);
     try {
       const { data: existingSession, error: existingLoginError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
       if (!existingLoginError && existingSession.session) {
+        await stabilizeAuthSession(existingSession.session);
         const { error: claimError } = await supabase.rpc('claim_client_invite', { p_token: token });
         if (claimError) throw claimError;
         localStorage.removeItem('cgp_pending_invite_token');
@@ -79,13 +83,15 @@ export default function ClientInvitationPage() {
       await supabase.auth.signOut();
       const { error: activationError } = await supabase.functions.invoke('activate-client', { body: { action: 'activate', token, email: cleanEmail, password } });
       if (activationError) throw new Error(await functionErrorMessage(activationError));
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
       if (loginError) throw loginError;
+      await stabilizeAuthSession(loginData.session);
       localStorage.removeItem('cgp_pending_invite_token');
       navigate('/espace-client', { replace: true });
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
+      submitLock.current = false;
       setBusy(false);
     }
   };
@@ -104,7 +110,7 @@ export default function ClientInvitationPage() {
       <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-5xl items-center gap-10 lg:grid-cols-[1.05fr_.95fr]">
         <div className="hidden text-white lg:block">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cyan-200 backdrop-blur"><Sparkles className="h-3.5 w-3.5" /> Accès personnel sécurisé</div>
-          <h1 className="mt-7 max-w-xl text-5xl font-semibold leading-[1.05] tracking-tight">Votre accompagnement commence ici.</h1>
+          <h1 className="mt-7 max-w-xl text-5xl font-semibold leading-[1.05]">Votre accompagnement commence ici.</h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">Créez votre mot de passe, puis suivez un parcours simple : recueil d’informations, profil investisseur, préférences de durabilité si vous souhaitez en exprimer, puis transmission des documents en fin de parcours.</p>
           <div className="mt-8 space-y-3 text-sm text-slate-300"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-emerald-300"><CheckCircle2 className="h-4 w-4" /></span> Une seule étape affichée à la fois</div><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-cyan-300"><ShieldCheck className="h-4 w-4" /></span> Données enregistrées et protégées</div></div>
         </div>
