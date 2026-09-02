@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { KeyRound, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -9,6 +9,10 @@ export default function PasswordRecoveryPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const isClientRecovery = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return window.location.pathname.startsWith('/espace-client') || params.get('client-recovery') === '1';
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -45,16 +49,22 @@ export default function PasswordRecoveryPage() {
 
     setBusy(true);
     const { error: updateError } = await supabase.auth.updateUser({ password });
-    setBusy(false);
 
     if (updateError) {
+      setBusy(false);
       setError(updateError.message || 'Impossible de modifier le mot de passe.');
       return;
     }
 
+    if (isClientRecovery) {
+      await supabase.auth.signOut();
+    }
+
+    setBusy(false);
     setDone(true);
-    window.history.replaceState({}, document.title, '/cabinet');
-    window.setTimeout(() => window.location.assign('/cabinet'), 900);
+    const destination = isClientRecovery ? '/espace-client/connexion?reset=ok' : '/cabinet';
+    window.history.replaceState({}, document.title, destination);
+    window.setTimeout(() => window.location.assign(destination), 900);
   };
 
   return (
@@ -66,7 +76,9 @@ export default function PasswordRecoveryPage() {
         <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#3B82F6]">Espace sécurisé</p>
         <h1 className="mt-2 text-3xl font-semibold text-[#0F172A]">Nouveau mot de passe</h1>
         <p className="mt-2 text-sm leading-6 text-[#52627A]">
-          Choisis un nouveau mot de passe pour ton accès au cabinet Eric Bellaiche.
+          {isClientRecovery
+            ? 'Choisissez un nouveau mot de passe pour votre espace client sécurisé.'
+            : 'Choisissez un nouveau mot de passe pour votre accès au cabinet Eric Bellaiche.'}
         </p>
 
         {!ready && !done ? (
@@ -75,7 +87,7 @@ export default function PasswordRecoveryPage() {
           </div>
         ) : done ? (
           <div className="mt-7 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-            Mot de passe modifié. Ouverture du cockpit…
+            {isClientRecovery ? 'Mot de passe modifié. Retour à la connexion…' : 'Mot de passe modifié. Ouverture du cockpit…'}
           </div>
         ) : (
           <form onSubmit={submit} className="mt-7 space-y-4">
