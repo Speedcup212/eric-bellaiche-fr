@@ -18,8 +18,9 @@ function includesAll(source, values) {
 const recueil = read('src/pages/portal/ClientRecueilJourneyBase.tsx');
 const portalShell = read('src/portal/PortalShell.tsx');
 const invitation = read('src/pages/portal/ClientInvitationPage.tsx');
-const inviteMigration = read('supabase/migrations/20260902061857_block_staff_email_client_invites.sql');
+const inviteMigration = read('supabase/migrations/20260902082000_block_staff_email_client_invites.sql');
 const identityMigration = read('supabase/migrations/20260902063147_harden_staff_client_identity_boundary.sql');
+const rpcMigration = read('supabase/migrations/20260902063730_tighten_invite_rpc_and_esg_function_security.sql');
 const workflow = read('.github/workflows/portal-ci.yml');
 
 check(
@@ -53,8 +54,8 @@ check(
   'La base doit bloquer la collision même si une future UI oublie le contrôle.'
 );
 check(
-  'L5-07 sensitive staff RPCs are revoked from anon',
-  includesAll(identityMigration, ['revoke execute on function public.get_client_invite_statuses() from anon', 'revoke execute on function public.mark_client_invite_sent']),
+  'L5-07 sensitive staff RPCs are revoked from public/anon',
+  includesAll(rpcMigration, ['get_client_invite_statuses() from public, anon', 'mark_client_invite_sent(uuid, uuid, timestamptz, text) from public, anon']),
   'Réduction de surface RPC anonyme attendue.'
 );
 check(
