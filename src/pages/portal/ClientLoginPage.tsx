@@ -10,8 +10,11 @@ export default function ClientLoginPage() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoverySent, setRecoverySent] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const passwordChanged = searchParams.get('reset') === 'ok';
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -58,6 +61,31 @@ export default function ClientLoginPage() {
     }
   };
 
+  const requestPasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setErrorMessage('');
+    try {
+      const normalizedEmail = email.trim();
+      if (!normalizedEmail) throw new Error('Renseignez votre adresse e-mail.');
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/?client-recovery=1`,
+      });
+      if (error) throw error;
+      setRecoverySent(true);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const backToLogin = () => {
+    setRecoveryMode(false);
+    setRecoverySent(false);
+    setErrorMessage('');
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#07111f] px-4 py-10 sm:py-16">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(6,182,212,0.22),transparent_30%),radial-gradient(circle_at_82%_18%,rgba(79,70,229,0.22),transparent_32%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.12),transparent_35%)]" />
@@ -77,16 +105,37 @@ export default function ClientLoginPage() {
           <div className="mt-8">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/10"><LockKeyhole className="h-6 w-6" /></div>
             <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Cabinet Eric Bellaiche</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Reprendre mon dossier</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-500">Connectez-vous pour retrouver immédiatement la prochaine étape de votre parcours.</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{recoveryMode ? 'Réinitialiser mon mot de passe' : 'Reprendre mon dossier'}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {recoveryMode
+                ? 'Indiquez l’adresse e-mail utilisée pour votre espace client. Vous recevrez un lien sécurisé pour choisir un nouveau mot de passe.'
+                : 'Connectez-vous pour retrouver immédiatement la prochaine étape de votre parcours.'}
+            </p>
           </div>
 
-          <form onSubmit={submit} className="mt-7 space-y-5">
-            <label className="block text-sm font-semibold text-slate-700">Adresse email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" placeholder="vous@exemple.fr" /></label>
-            <label className="block text-sm font-semibold text-slate-700">Mot de passe<input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" /></label>
-            {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
-            <button disabled={busy} className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? 'Connexion…' : 'Reprendre mon dossier'}</button>
-          </form>
+          {passwordChanged && !recoveryMode && (
+            <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">Votre mot de passe a bien été modifié. Vous pouvez vous reconnecter.</p>
+          )}
+
+          {recoveryMode ? (
+            <form onSubmit={requestPasswordReset} className="mt-7 space-y-5">
+              <label className="block text-sm font-semibold text-slate-700">Adresse email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" placeholder="vous@exemple.fr" /></label>
+              {recoverySent && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-5 text-emerald-800">Si cette adresse correspond à votre espace client, un e-mail de réinitialisation vient de vous être envoyé. Vérifiez également vos courriers indésirables.</p>}
+              {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
+              {!recoverySent && <button disabled={busy} className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? 'Envoi…' : 'M’envoyer le lien de réinitialisation'}</button>}
+              <button type="button" onClick={backToLogin} className="w-full text-center text-sm font-semibold text-slate-500 transition hover:text-slate-950">Retour à la connexion</button>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="mt-7 space-y-5">
+              <label className="block text-sm font-semibold text-slate-700">Adresse email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" placeholder="vous@exemple.fr" /></label>
+              <label className="block text-sm font-semibold text-slate-700">
+                <span className="flex items-center justify-between gap-3"><span>Mot de passe</span><button type="button" onClick={() => { setRecoveryMode(true); setRecoverySent(false); setErrorMessage(''); }} className="text-xs font-semibold text-blue-600 transition hover:text-blue-800">Mot de passe oublié ?</button></span>
+                <input type="password" required minLength={8} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" />
+              </label>
+              {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
+              <button disabled={busy} className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? 'Connexion…' : 'Reprendre mon dossier'}</button>
+            </form>
+          )}
           <p className="mt-6 text-center text-xs leading-5 text-slate-400">Le premier accès s’effectue depuis le lien personnel transmis par le cabinet.</p>
         </div>
       </div>
