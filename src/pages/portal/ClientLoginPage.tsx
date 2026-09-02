@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { stabilizeAuthSession } from '../../portal/authSession';
 import { messageFromError } from '../../portal/portalHelpers';
 
 export default function ClientLoginPage() {
@@ -23,8 +24,9 @@ export default function ClientLoginPage() {
     setBusy(true);
     setErrorMessage('');
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
+      await stabilizeAuthSession(data.session);
 
       const explicitToken = searchParams.get('token');
       const pendingToken = localStorage.getItem('cgp_pending_invite_token');
