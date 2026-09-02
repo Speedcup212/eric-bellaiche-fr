@@ -60,6 +60,8 @@ jobs:
         run: npm run test:document-policy
       - name: Final journey cross-layer crash test
         run: npm run test:final-journey
+      - name: Validation UX policy
+        run: npm run test:validation-ux
       - name: Generated document pipeline
         run: npm run test:generated-documents
       - name: Audit document pipeline
