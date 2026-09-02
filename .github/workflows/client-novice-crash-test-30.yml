@@ -2,11 +2,8 @@ name: Client novice crash test 30 scenarios
 
 on:
   push:
-    paths:
-      - 'scripts/crash-test-novice-30.mjs'
-      - 'scripts/patch-novice-ux.cjs'
-      - '.github/workflows/client-novice-crash-test-30.yml'
-      - 'netlify.toml'
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -15,14 +12,13 @@ jobs:
   novice-crash-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
       - name: Install
         run: npm ci
-      - name: Apply production build patches
-        run: |
-          node scripts/patch-numeric-ux.cjs
-          node scripts/patch-recueil-order.cjs
-          node scripts/patch-novice-ux.cjs
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Build
