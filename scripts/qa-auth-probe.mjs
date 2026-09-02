@@ -4,7 +4,9 @@ const url = process.env.QA_SUPABASE_URL;
 const key = process.env.QA_SUPABASE_ANON_KEY;
 if (!url || !key) throw new Error('Missing QA Supabase configuration');
 
-const email = `qa-probe-${Date.now()}@example.com`;
+// Supabase Auth rejects reserved example.* domains. Use a syntactically valid
+// address on a real mail domain; no message is needed unless confirmation is enabled.
+const email = `qa.cgp.${Date.now()}@outlook.com`;
 const password = `QaProbe!${Date.now()}aA9`;
 const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
