@@ -1,0 +1,55 @@
+name: Apply persistent new dossier modal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-persistent-new-dossier-modal.yml'
+      - 'src/pages/portal/CifAdminPage.tsx'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Keep Nouveau dossier modal open across tab visibility changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/portal/CifAdminPage.tsx')
+          text = path.read_text()
+          marker = "cif-admin:new-dossier-open"
+          if marker in text:
+              print('Persistent modal state already installed.')
+              raise SystemExit(0)
+
+          # Route every existing explicit open/close through helpers. This preserves
+          # user-driven close/create semantics while allowing state restoration after
+          # browser tab suspension/remount.
+          text = text.replace('setShowCreate(true)', 'openCreateModal()')
+          text = text.replace('setShowCreate(false)', 'closeCreateModal()')
+
+          anchor = ",[showCreate,setShowCreate]=useState(false),[mobileMenu,setMobileMenu]=useState(false);"
+          if anchor not in text:
+              raise SystemExit('Could not find CifAdminPage modal state declaration.')
+
+          addition = anchor + "\n const CREATE_MODAL_SESSION_KEY='cif-admin:new-dossier-open';\n const openCreateModal=()=>{sessionStorage.setItem(CREATE_MODAL_SESSION_KEY,'1');setShowCreate(true)};\n const closeCreateModal=()=>{sessionStorage.removeItem(CREATE_MODAL_SESSION_KEY);setShowCreate(false)};\n useEffect(()=>{\n  const restoreCreateModal=()=>{if(sessionStorage.getItem(CREATE_MODAL_SESSION_KEY)==='1')setShowCreate(true)};\n  const onVisibility=()=>{if(document.visibilityState==='visible')restoreCreateModal()};\n  restoreCreateModal();\n  window.addEventListener('focus',restoreCreateModal);\n  window.addEventListener('pageshow',restoreCreateModal);\n  document.addEventListener('visibilitychange',onVisibility);\n  return()=>{window.removeEventListener('focus',restoreCreateModal);window.removeEventListener('pageshow',restoreCreateModal);document.removeEventListener('visibilitychange',onVisibility)};\n },[]);"
+          text = text.replace(anchor, addition, 1)
+          path.write_text(text)
+          print('Persistent Nouveau dossier modal state installed.')
+          PY
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/CifAdminPage.tsx
+          git commit -m "Keep Nouveau dossier modal open across Firefox tabs"
+          git push
