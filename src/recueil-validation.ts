@@ -1,40 +1,53 @@
 const ACTION_LABELS = ['Enregistrer et continuer', 'Valider le recueil'];
 
-function textOfRequiredContainer(container: HTMLElement) {
-  const firstLabel = container.matches('label')
-    ? Array.from(container.childNodes).find((node) => node.nodeType === Node.TEXT_NODE)?.textContent
-    : container.querySelector(':scope > p')?.textContent;
-  return (firstLabel || '').replace('*', '').trim();
+function directText(container: HTMLElement) {
+  return Array.from(container.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent || '')
+    .join(' ')
+    .trim();
 }
 
-function getFieldControl(container: HTMLElement) {
-  return container.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea');
+function textOfRequiredContainer(container: HTMLElement) {
+  let raw = '';
+  if (container.matches('label')) raw = directText(container);
+  else if (container.matches('fieldset')) raw = container.querySelector(':scope > legend')?.textContent || '';
+  else raw = container.querySelector(':scope > p')?.textContent || '';
+  return raw.replace(/\s*\*\s*$/, '').replace('*', '').trim();
+}
+
+function controlsOf(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea'));
 }
 
 function hasSelectedChoice(container: HTMLElement) {
   const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button[type="button"]'));
-  return buttons.some((button) => button.className.includes('bg-[#3B82F6]') && button.className.includes('text-white'));
+  return buttons.some((button) => button.getAttribute('aria-pressed') === 'true' || (button.className.includes('bg-[#3B82F6]') && button.className.includes('text-white')));
+}
+
+function isControlValid(control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, label: string) {
+  const value = String(control.value || '').trim();
+  if (!value) return false;
+
+  if (control instanceof HTMLInputElement && control.type === 'date') {
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return false;
+  }
+
+  if (label === 'mobile') {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 10 || /^0+$/.test(digits)) return false;
+  }
+
+  return true;
 }
 
 function isFieldValid(container: HTMLElement) {
   const label = textOfRequiredContainer(container).toLowerCase();
-  const control = getFieldControl(container);
+  const controls = controlsOf(container);
 
-  if (control) {
-    const value = String(control.value || '').trim();
-    if (!value) return false;
-
-    if (control instanceof HTMLInputElement && control.type === 'date') {
-      const parsed = new Date(`${value}T00:00:00`);
-      if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return false;
-    }
-
-    if (label === 'mobile') {
-      const digits = value.replace(/\D/g, '');
-      if (digits.length < 10 || /^0+$/.test(digits)) return false;
-    }
-
-    return true;
+  if (controls.length > 0) {
+    return controls.every((control) => isControlValid(control, label));
   }
 
   return hasSelectedChoice(container);
@@ -42,48 +55,66 @@ function isFieldValid(container: HTMLElement) {
 
 function validationMessage(container: HTMLElement) {
   const label = textOfRequiredContainer(container) || 'Information';
-  if (label.toLowerCase() === 'mobile') return 'Numéro de mobile obligatoire et valide';
-  if (label.toLowerCase() === 'date de naissance') return 'Date de naissance obligatoire et valide';
+  const normalized = label.toLowerCase();
+  if (normalized === 'mobile') return 'Numéro de mobile obligatoire et valide';
+  if (normalized === 'date de naissance') return 'Date de naissance obligatoire et valide';
+  if (normalized.includes('date d’entrée')) return 'Mois et année d’entrée obligatoires';
   return `${label} obligatoire`;
 }
 
+function hasRequiredMarker(container: HTMLElement) {
+  if (container.matches('label')) return directText(container).includes('*');
+  if (container.matches('fieldset')) return Boolean(container.querySelector(':scope > legend')?.textContent?.includes('*'));
+  return Boolean(container.querySelector(':scope > p')?.textContent?.includes('*'));
+}
+
 function requiredContainers(scope: ParentNode = document) {
-  const containers = Array.from(scope.querySelectorAll<HTMLElement>('.recueil-question-grid > label, .recueil-question-grid > div'));
-  return containers.filter((container) => {
-    if (container.matches('label')) {
-      return Array.from(container.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.includes('*'));
-    }
-    return Boolean(container.querySelector(':scope > p')?.textContent?.includes('*'));
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>('label, fieldset, div'));
+  return candidates.filter((container) => {
+    if (container.offsetParent === null) return false;
+    if (!hasRequiredMarker(container)) return false;
+    if (container.closest('#recueil-validation-alert')) return false;
+    if (container.matches('div') && !container.querySelector(':scope > p')) return false;
+    return true;
   });
 }
 
 function refreshField(container: HTMLElement) {
   const valid = isFieldValid(container);
+  const controls = controlsOf(container);
+
   if (valid) {
     container.removeAttribute('data-validation-error');
     container.removeAttribute('data-validation-message');
-    getFieldControl(container)?.removeAttribute('aria-invalid');
+    controls.forEach((control) => control.removeAttribute('aria-invalid'));
     return;
   }
 
   container.setAttribute('data-validation-error', 'true');
   container.setAttribute('data-validation-message', validationMessage(container));
-  getFieldControl(container)?.setAttribute('aria-invalid', 'true');
+  controls.forEach((control) => control.setAttribute('aria-invalid', 'true'));
 }
 
 function markCurrentErrors() {
-  const visibleGrids = Array.from(document.querySelectorAll<HTMLElement>('.recueil-question-grid')).filter((grid) => grid.offsetParent !== null);
-  const scope = visibleGrids.length ? visibleGrids[0].closest('[class*="space-y"]') || document : document;
-  const containers = requiredContainers(scope);
+  document.querySelectorAll<HTMLElement>('[data-validation-error="true"]').forEach((node) => {
+    node.removeAttribute('data-validation-error');
+    node.removeAttribute('data-validation-message');
+  });
+
+  const containers = requiredContainers(document);
   containers.forEach(refreshField);
   return containers.find((container) => container.getAttribute('data-validation-error') === 'true') || null;
+}
+
+function firstFocusable(container: HTMLElement) {
+  return container.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>('input, select, textarea, button[type="button"]');
 }
 
 function scrollToFirstError() {
   const first = document.querySelector<HTMLElement>('[data-validation-error="true"]');
   if (!first) return;
   first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  getFieldControl(first)?.focus({ preventScroll: true });
+  firstFocusable(first)?.focus({ preventScroll: true });
 }
 
 function isValidationAction(target: EventTarget | null) {
