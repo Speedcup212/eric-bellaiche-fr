@@ -1,53 +1,69 @@
 const ACTION_LABELS = ['Enregistrer et continuer', 'Valider le recueil'];
 
-function directText(container: HTMLElement) {
-  return Array.from(container.childNodes)
-    .filter((node) => node.nodeType === Node.TEXT_NODE)
-    .map((node) => node.textContent || '')
-    .join(' ')
-    .trim();
+function isVisible(element: HTMLElement) {
+  return element.offsetParent !== null;
+}
+
+function directRequiredText(container: HTMLElement) {
+  if (container.matches('label')) {
+    return Array.from(container.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent || '')
+      .join(' ')
+      .trim();
+  }
+  return (
+    container.querySelector(':scope > legend')?.textContent ||
+    container.querySelector(':scope > p')?.textContent ||
+    ''
+  ).trim();
 }
 
 function textOfRequiredContainer(container: HTMLElement) {
-  let raw = '';
-  if (container.matches('label')) raw = directText(container);
-  else if (container.matches('fieldset')) raw = container.querySelector(':scope > legend')?.textContent || '';
-  else raw = container.querySelector(':scope > p')?.textContent || '';
-  return raw.replace(/\s*\*\s*$/, '').replace('*', '').trim();
+  return directRequiredText(container).replace('*', '').trim();
 }
 
 function controlsOf(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea'));
 }
 
+function buttonsOf(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLButtonElement>('button[type="button"]'));
+}
+
 function hasSelectedChoice(container: HTMLElement) {
-  const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button[type="button"]'));
+  const buttons = buttonsOf(container);
   return buttons.some((button) => button.getAttribute('aria-pressed') === 'true' || (button.className.includes('bg-[#3B82F6]') && button.className.includes('text-white')));
 }
 
-function isControlValid(control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, label: string) {
-  const value = String(control.value || '').trim();
-  if (!value) return false;
-
-  if (control instanceof HTMLInputElement && control.type === 'date') {
-    const parsed = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return false;
-  }
-
-  if (label === 'mobile') {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length < 10 || /^0+$/.test(digits)) return false;
-  }
-
-  return true;
+function hasAnyControlValue(container: HTMLElement) {
+  const controls = controlsOf(container);
+  if (!controls.length) return false;
+  return controls.every((control) => String(control.value || '').trim() !== '');
 }
 
 function isFieldValid(container: HTMLElement) {
   const label = textOfRequiredContainer(container).toLowerCase();
   const controls = controlsOf(container);
 
-  if (controls.length > 0) {
-    return controls.every((control) => isControlValid(control, label));
+  if (controls.length) {
+    if (!hasAnyControlValue(container)) return false;
+
+    for (const control of controls) {
+      const value = String(control.value || '').trim();
+      if (control instanceof HTMLInputElement && control.type === 'date') {
+        const parsed = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return false;
+      }
+    }
+
+    if (label === 'mobile') {
+      const value = String(controls[0]?.value || '');
+      const digits = value.replace(/\D/g, '');
+      if (digits.length < 10 || /^0+$/.test(digits)) return false;
+    }
+
+    return true;
   }
 
   return hasSelectedChoice(container);
@@ -55,66 +71,72 @@ function isFieldValid(container: HTMLElement) {
 
 function validationMessage(container: HTMLElement) {
   const label = textOfRequiredContainer(container) || 'Information';
-  const normalized = label.toLowerCase();
-  if (normalized === 'mobile') return 'Numéro de mobile obligatoire et valide';
-  if (normalized === 'date de naissance') return 'Date de naissance obligatoire et valide';
-  if (normalized.includes('date d’entrée')) return 'Mois et année d’entrée obligatoires';
+  if (label.toLowerCase() === 'mobile') return 'Numéro de mobile obligatoire et valide';
+  if (label.toLowerCase() === 'date de naissance') return 'Date de naissance obligatoire et valide';
   return `${label} obligatoire`;
 }
 
-function hasRequiredMarker(container: HTMLElement) {
-  if (container.matches('label')) return directText(container).includes('*');
-  if (container.matches('fieldset')) return Boolean(container.querySelector(':scope > legend')?.textContent?.includes('*'));
-  return Boolean(container.querySelector(':scope > p')?.textContent?.includes('*'));
+function candidateRequiredContainers() {
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>('label, fieldset, div'))
+    .filter(isVisible)
+    .filter((container) => directRequiredText(container).includes('*'))
+    .filter((container) => controlsOf(container).length > 0 || buttonsOf(container).length > 0);
+
+  return candidates.filter((candidate) => !candidates.some((other) => other !== candidate && candidate.contains(other)));
 }
 
-function requiredContainers(scope: ParentNode = document) {
-  const candidates = Array.from(scope.querySelectorAll<HTMLElement>('label, fieldset, div'));
-  return candidates.filter((container) => {
-    if (container.offsetParent === null) return false;
-    if (!hasRequiredMarker(container)) return false;
-    if (container.closest('#recueil-validation-alert')) return false;
-    if (container.matches('div') && !container.querySelector(':scope > p')) return false;
-    return true;
+function clearErrors() {
+  document.querySelectorAll<HTMLElement>('[data-validation-error="true"], [data-validation-group-error="true"]').forEach((element) => {
+    element.removeAttribute('data-validation-error');
+    element.removeAttribute('data-validation-group-error');
+    element.removeAttribute('data-validation-message');
+    controlsOf(element).forEach((control) => control.removeAttribute('aria-invalid'));
   });
 }
 
 function refreshField(container: HTMLElement) {
   const valid = isFieldValid(container);
-  const controls = controlsOf(container);
-
   if (valid) {
     container.removeAttribute('data-validation-error');
     container.removeAttribute('data-validation-message');
-    controls.forEach((control) => control.removeAttribute('aria-invalid'));
+    controlsOf(container).forEach((control) => control.removeAttribute('aria-invalid'));
     return;
   }
 
   container.setAttribute('data-validation-error', 'true');
   container.setAttribute('data-validation-message', validationMessage(container));
-  controls.forEach((control) => control.setAttribute('aria-invalid', 'true'));
+  controlsOf(container).forEach((control) => control.setAttribute('aria-invalid', 'true'));
+}
+
+function markObjectiveGroupIfNeeded() {
+  const alert = document.getElementById('recueil-validation-alert');
+  const errorText = alert?.textContent || '';
+  if (!errorText.includes('Sélectionnez au moins un objectif')) return null;
+
+  const section = document.querySelector<HTMLElement>('section[aria-labelledby="available-objectives-title"]');
+  if (!section || !isVisible(section)) return null;
+  section.setAttribute('data-validation-group-error', 'true');
+  section.setAttribute('data-validation-message', 'Sélectionnez au moins un objectif');
+  return section;
 }
 
 function markCurrentErrors() {
-  document.querySelectorAll<HTMLElement>('[data-validation-error="true"]').forEach((node) => {
-    node.removeAttribute('data-validation-error');
-    node.removeAttribute('data-validation-message');
-  });
-
-  const containers = requiredContainers(document);
+  clearErrors();
+  const containers = candidateRequiredContainers();
   containers.forEach(refreshField);
-  return containers.find((container) => container.getAttribute('data-validation-error') === 'true') || null;
+  const objectiveGroup = markObjectiveGroupIfNeeded();
+  return containers.find((container) => container.getAttribute('data-validation-error') === 'true') || objectiveGroup || null;
 }
 
-function firstFocusable(container: HTMLElement) {
-  return container.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>('input, select, textarea, button[type="button"]');
+function firstErrorElement() {
+  return document.querySelector<HTMLElement>('[data-validation-error="true"], [data-validation-group-error="true"]');
 }
 
 function scrollToFirstError() {
-  const first = document.querySelector<HTMLElement>('[data-validation-error="true"]');
+  const first = firstErrorElement();
   if (!first) return;
   first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  firstFocusable(first)?.focus({ preventScroll: true });
+  controlsOf(first)[0]?.focus({ preventScroll: true });
 }
 
 function isValidationAction(target: EventTarget | null) {
@@ -128,7 +150,10 @@ document.addEventListener('click', (event) => {
   const first = markCurrentErrors();
   if (!first) return;
   window.setTimeout(scrollToFirstError, 80);
-  window.setTimeout(scrollToFirstError, 180);
+  window.setTimeout(() => {
+    markCurrentErrors();
+    scrollToFirstError();
+  }, 220);
 });
 
 document.addEventListener('input', (event) => {
@@ -150,6 +175,16 @@ document.addEventListener('click', (event) => {
   if (!(target instanceof Element)) return;
   const container = target.closest<HTMLElement>('[data-validation-error="true"]');
   if (container) window.setTimeout(() => refreshField(container), 0);
+
+  const objectiveGroup = target.closest<HTMLElement>('[data-validation-group-error="true"]');
+  if (objectiveGroup) {
+    window.setTimeout(() => {
+      if (objectiveGroup.querySelector('button[aria-pressed="true"]')) {
+        objectiveGroup.removeAttribute('data-validation-group-error');
+        objectiveGroup.removeAttribute('data-validation-message');
+      }
+    }, 0);
+  }
 });
 
 const observer = new MutationObserver(() => {
