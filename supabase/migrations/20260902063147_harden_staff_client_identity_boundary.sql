@@ -1,3 +1,15 @@
+update public.investisseurs i
+set auth_user_id = null,
+    updated_at = now()
+where i.auth_user_id is not null
+  and exists (
+    select 1
+    from public.app_users au
+    where au.auth_user_id = i.auth_user_id
+      and au.actif = true
+      and au.role in ('cif','admin')
+  );
+
 create or replace function private.guard_investor_staff_identity()
 returns trigger
 language plpgsql
