@@ -18,6 +18,8 @@ function includesAll(source, values) {
 const recueil = read('src/pages/portal/ClientRecueilJourneyBase.tsx');
 const portalShell = read('src/portal/PortalShell.tsx');
 const invitation = read('src/pages/portal/ClientInvitationPage.tsx');
+const clientLogin = read('src/pages/portal/ClientLoginPage.tsx');
+const passwordRecovery = read('src/pages/portal/PasswordRecoveryPage.tsx');
 const inviteMigration = read('supabase/migrations/20260902082000_block_staff_email_client_invites.sql');
 const identityMigration = read('supabase/migrations/20260902063147_harden_staff_client_identity_boundary.sql');
 const rpcMigration = read('supabase/migrations/20260902063730_tighten_invite_rpc_and_esg_function_security.sql');
@@ -62,6 +64,16 @@ check(
   'L5-08 dependency audit cannot suppress quality tests',
   /jobs:\s*[\s\S]*dependency-audit:/.test(workflow) && /\n\s{2}quality:/.test(workflow),
   'Audit dépendances et tests fonctionnels doivent être dans des jobs indépendants.'
+);
+check(
+  'L5-09 client login exposes secure password recovery',
+  includesAll(clientLogin, ['Mot de passe oublié ?', 'resetPasswordForEmail', 'client-recovery=1']),
+  'Le client doit pouvoir demander un lien de réinitialisation depuis la page de connexion.'
+);
+check(
+  'L5-10 client recovery returns to client login, not cabinet',
+  includesAll(passwordRecovery, ["params.get('client-recovery') === '1'", "'/espace-client/connexion?reset=ok'", 'await supabase.auth.signOut()']),
+  'Une récupération client ne doit jamais ouvrir le cockpit cabinet.'
 );
 
 const baseUrl = process.env.LEVEL5_BASE_URL || 'https://eric-bellaiche.fr';
