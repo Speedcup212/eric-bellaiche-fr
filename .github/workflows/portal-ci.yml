@@ -58,6 +58,8 @@ jobs:
         run: npm run test:investor-profile
       - name: Document requirements policy
         run: npm run test:document-policy
+      - name: Final journey cross-layer crash test
+        run: npm run test:final-journey
       - name: Generated document pipeline
         run: npm run test:generated-documents
       - name: Audit document pipeline
