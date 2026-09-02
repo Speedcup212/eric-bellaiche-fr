@@ -35,6 +35,17 @@ export default function ClientInvitationPage() {
     const initialize = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData.session) {
+        const { data: account } = await supabase
+          .from('app_users')
+          .select('role,actif')
+          .eq('auth_user_id', sessionData.session.user.id)
+          .maybeSingle();
+        if (account?.actif && (account.role === 'cif' || account.role === 'admin')) {
+          localStorage.removeItem('cgp_pending_invite_token');
+          navigate('/cabinet', { replace: true });
+          return;
+        }
+
         const { error } = await supabase.rpc('claim_client_invite', { p_token: token });
         if (!error) {
           localStorage.removeItem('cgp_pending_invite_token');
