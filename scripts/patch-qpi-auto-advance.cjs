@@ -13,19 +13,28 @@ if (source.includes(beforeAutoAdvance)) {
   changed = true;
 }
 
+// Finish automatically when the final single-choice question is answered.
+const oldSingleTail = `    if (!needsDetails && currentIndex < totalSteps - 1) {\n      window.setTimeout(() => {\n        setCurrentIndex((index) => Math.min(index + 1, totalSteps - 1));\n        setNoteOpen(false);\n        window.scrollTo({ top: 0, behavior: 'smooth' });\n      }, 160);\n    }`;
+const newSingleTail = `    if (!needsDetails && currentIndex < totalSteps - 1) {\n      window.setTimeout(() => {\n        setCurrentIndex((index) => Math.min(index + 1, totalSteps - 1));\n        setNoteOpen(false);\n        window.scrollTo({ top: 0, behavior: 'smooth' });\n      }, 160);\n    } else if (!needsDetails && currentIndex === totalSteps - 1) {\n      await finish();\n    }`;
+if (source.includes(oldSingleTail) && !source.includes("await finish();\n    }\n  };\n\n  if (!progress)")) {
+  source = source.replace(oldSingleTail, newSingleTail);
+  changed = true;
+}
+
+// Remove the generic “Suivant” CTA from single-choice questions.
+// Multiple-choice ESG questions keep an explicit validation because several answers can be selected.
+const oldFooter = `      <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Suivant'} nextDisabled={!currentComplete} busy={busy} />`;
+const newFooter = `      {currentQuestion?.type_reponse === 'single' ? (\n        <div className=\"flex items-center border-t border-[#e7edf5] bg-[#f7f9fc] px-6 py-5 sm:px-9\">\n          <button type=\"button\" onClick={previous} className=\"inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#5b6b82] transition hover:bg-white hover:text-[#0b1f3a]\">← Précédent</button>\n        </div>\n      ) : (\n        <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentQuestion?.type_reponse === 'multiple' ? 'Valider mes choix' : currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Continuer'} nextDisabled={!currentComplete} busy={busy} />\n      )}`;
+if (source.includes(oldFooter)) {
+  source = source.replace(oldFooter, newFooter);
+  changed = true;
+}
+
 // Reset the wizard index as soon as the questionnaire mode/dossier changes.
 const effectStart = `  useEffect(() => {\n    void fetchPortalProgress().then(async (rows) => {`;
 const effectStartFixed = `  useEffect(() => {\n    // QPI and ESG share this component. Reset navigation immediately so a QPI\n    // position can never leak into the ESG questionnaire during route changes.\n    setCurrentIndex(0);\n    setValidationAttempted(false);\n    setErrorMessage('');\n    setNoteOpen(false);\n    void fetchPortalProgress().then(async (rows) => {`;
 if (source.includes(effectStart) && !source.includes('position can never leak into the ESG questionnaire')) {
   source = source.replace(effectStart, effectStartFixed);
-  changed = true;
-}
-
-// On ESG load/resume, open the first visible unanswered mandatory question.
-const loadAnchor = `      setAnswers(answerMap);\n      setMulti(multiMap);\n      if (mode === 'QPI') {`;
-const loadFixed = `      setAnswers(answerMap);\n      setMulti(multiMap);\n\n      if (mode === 'ESG') {\n        const loadedSelectedCodes = {};\n        for (const question of normalized) {\n          const selected = question.options?.find((option) => option.id === answerMap[question.id]?.option_id);\n          if (selected) loadedSelectedCodes[question.code] = selected.code;\n        }\n        const loadedVisibleQuestions = normalized.filter((question) => visible(question, loadedSelectedCodes));\n        const loadedQuestionComplete = (question) => {\n          const answer = answerMap[question.id];\n          if (question.type_reponse === 'single') {\n            if (!answer?.option_id) return false;\n            const selected = question.options?.find((option) => option.id === answer.option_id);\n            if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') {\n              return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;\n            }\n            return true;\n          }\n          if (question.type_reponse === 'multiple') {\n            const values = multiMap[question.id] ?? [];\n            if (question.code === 'ESG_EXCLUSIONS' && values.includes('AUTRE') && !answer?.answer_text?.trim()) return false;\n            if (question.obligatoire || question.code === 'ESG_PAI_PRIORITIES' || question.code === 'ESG_PAI_MODALITIES') return values.length > 0;\n            return true;\n          }\n          if (question.type_reponse === 'text') return !question.obligatoire || Boolean(answer?.answer_text?.trim());\n          return true;\n        };\n        const firstIncompleteIndex = loadedVisibleQuestions.findIndex((question) => !loadedQuestionComplete(question));\n        setCurrentIndex(firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0);\n      }\n\n      if (mode === 'QPI') {`;
-if (source.includes(loadAnchor) && !source.includes('const loadedVisibleQuestions = normalized.filter')) {
-  source = source.replace(loadAnchor, loadFixed);
   changed = true;
 }
 
@@ -35,4 +44,4 @@ if (!changed) {
 }
 
 fs.writeFileSync(path, source);
-console.log('QPI auto-advance kept and ESG entry/resume navigation corrected.');
+console.log('QPI/ESG automatic advance applied and generic next button removed for single-choice questions.');
