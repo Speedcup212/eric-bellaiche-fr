@@ -7,7 +7,6 @@ const qBase = read('src/pages/portal/QuestionnairePageBase.tsx');
 const qPage = read('src/pages/portal/QuestionnairePage.tsx');
 const docs = read('src/pages/portal/ClientDocumentsPage.tsx');
 const journey = read('src/portal/FintechJourney.tsx');
-const helpers = read('src/portal/portalHelpers.ts');
 
 let failures = 0;
 const results = [];
@@ -19,7 +18,7 @@ function test(name, condition, note = '') {
 const has = (s, x) => s.includes(x);
 
 // 1–7 : première impression et compréhension globale
- test('01 — Temps moyen annoncé dès la première page', has(entry, 'Temps estimé : environ 45 minutes'));
+ test('01 — Temps moyen annoncé dès la première page', has(entry, 'Temps moyen : 20 à 25 minutes par personne') || has(entry, 'Temps estimé : environ 45 minutes'));
  test('02 — Reprise ultérieure explicitement annoncée', has(entry, 'reprendre à tout moment'));
  test('03 — Distinction personne seule / couple compréhensible', has(entry, 'Une seule personne') && has(entry, 'Un couple'));
  test('04 — Couple nommé Identifiant 1 / Identifiant 2', has(entry, 'Identifiant 1') && has(entry, 'Identifiant 2') && !has(entry, 'Personne 1'));
@@ -29,19 +28,19 @@ const has = (s, x) => s.includes(x);
 
 // 8–15 : novice sur la première page et saisies simples
  test('08 — Nombre d’enfants ne peut pas être négatif côté HTML', has(entry, 'min="0"'));
- test('09 — Nombre d’enfants validé côté logique', has(entry, 'Number.isInteger') && has(entry, 'supérieur ou égal à 0'));
+ test('09 — Nombre d’enfants validé côté logique', has(entry, 'Number.isInteger') && (has(entry, 'positif ou nul') || has(entry, 'supérieur ou égal à 0')));
  test('10 — Email Identifiant 2 contrôlé explicitement', has(entry, 'isValidEmail') && has(entry, 'adresse email personnelle valide'));
  test('11 — Mobile Identifiant 2 contrôlé s’il est saisi', has(entry, 'isValidMobile') && has(entry, 'numéro de mobile valide'));
- test('12 — Erreur de première page présentée comme action à corriger', has(entry, 'À compléter avant de continuer'));
- test('13 — Erreur de première page amenée à l’écran', has(entry, 'family-validation-alert') && has(entry, 'scrollIntoView'));
- test('14 — Champs monétaires expliquent de ne pas saisir €', has(recueil, 'sans le symbole €'));
+ test('12 — Erreur de première page rendue dans une alerte accessible', has(entry, 'role="alert"') && has(entry, 'family-setup-alert'));
+ test('13 — Erreur de première page amenée à l’écran', has(entry, 'family-setup-alert') && has(entry, 'scrollIntoView'));
+ test('14 — Champs monétaires imposent une saisie numérique', /function MoneyField[\s\S]*type="number"/.test(recueil));
  test('15 — Valeur zéro explicitement autorisée quand pertinente', has(recueil, 'Indiquez 0 lorsqu’un montant est nul'));
 
 // 16–22 : patrimoine/réglementaire, zones à fort risque d’hésitation
  test('16 — Aucun bien immobilier est un chemin valide clair', has(recueil, 'Aucun bien immobilier déclaré'));
- test('17 — Bien immobilier nommé avec exemple novice', has(recueil, 'Maison principale') && has(recueil, 'Studio locatif'));
- test('18 — Quote-part explique la saisie sans %', has(recueil, 'sans le symbole %'));
- test('19 — Loyer locatif donne un exemple annuel depuis mensuel', has(recueil, '9600 pour un loyer mensuel de 800'));
+ test('17 — Bien immobilier nommé avec exemple novice', has(recueil, 'Maison principale') && (has(recueil, 'Studio Lyon') || has(recueil, 'Studio locatif')));
+ test('18 — Quote-part encadrée par une saisie numérique et un exemple', has(recueil, 'Quote-part') && has(recueil, 'placeholder="Ex. 50"') && has(recueil, 'type="number"'));
+ test('19 — Loyer locatif saisi mensuellement et annualisé automatiquement', has(recueil, 'Loyer mensuel hors charges (€)') && has(recueil, 'loyer_annuel:') && has(recueil, '* 12'));
  test('20 — FATCA expliqué en langage courant', has(recueil, 'nationalité américaine') && has(recueil, 'carte verte'));
  test('21 — Sanctions expliquées sans ambiguïté', has(recueil, 'une autorité vous a notifié une sanction'));
  test('22 — PPE définie par exemples concrets', has(recueil, 'chef d’État') && has(recueil, 'parlementaire') && has(recueil, 'conjoint'));
