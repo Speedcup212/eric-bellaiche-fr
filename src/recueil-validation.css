@@ -8,25 +8,44 @@
 [data-validation-error="true"] select,
 [data-validation-error="true"] input,
 [data-validation-error="true"] textarea {
-  border-color: #ef4444 !important;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14) !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18) !important;
+  background-color: #fff7f7 !important;
 }
 
 [data-validation-error="true"] > span > select {
-  border-color: #ef4444 !important;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14) !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18) !important;
+  background-color: #fff7f7 !important;
+}
+
+[data-validation-error="true"] > p:first-child,
+[data-validation-error="true"]:is(label) {
+  color: #dc2626 !important;
 }
 
 [data-validation-error="true"]::after {
-  content: "Information obligatoire à renseigner";
+  content: attr(data-validation-message);
   display: block;
-  margin-top: 0.4rem;
-  color: #ef4444;
-  font-size: 0.75rem;
-  font-weight: 600;
+  margin-top: 0.45rem;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 700;
   line-height: 1.15rem;
+}
+
+[data-validation-error="true"] button {
+  border-color: #dc2626 !important;
 }
 
 #recueil-validation-alert {
   scroll-margin-top: 7rem;
+  border-color: rgba(220, 38, 38, 0.65) !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+#recueil-validation-alert > p:first-child::after {
+  content: " — les champs concernés sont indiqués en rouge";
+  font-weight: 600;
 }
