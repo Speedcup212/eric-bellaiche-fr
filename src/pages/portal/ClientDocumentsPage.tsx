@@ -83,6 +83,7 @@ export default function ClientDocumentsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [contextBusy, setContextBusy] = useState(false);
+  const [contextValidationAttempted, setContextValidationAttempted] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [documentView, setDocumentView] = useState<'auto' | 'situation' | 'uploads'>('auto');
@@ -317,15 +318,19 @@ export default function ClientDocumentsPage() {
       : 'bg-slate-50 text-slate-600 border-slate-200';
   const badgeLabel = (status: RequirementStatus) => status === 'required' ? 'Obligatoire' : status === 'conditional' ? 'Selon votre situation' : 'Facultatif';
 
-  const boolChoice = (label: string, key: keyof Pick<DocumentContext, 'has_liquidities' | 'has_financial_assets' | 'has_real_estate' | 'has_credits' | 'has_sci_company'>, value: boolean | null | undefined) => (
-    <div className="document-question-card rounded-2xl border border-slate-200 bg-white p-4">
+  const boolChoice = (label: string, key: keyof Pick<DocumentContext, 'has_liquidities' | 'has_financial_assets' | 'has_real_estate' | 'has_credits' | 'has_sci_company'>, value: boolean | null | undefined) => {
+    const missing = contextValidationAttempted && value == null;
+    return (
+    <div className={`document-question-card rounded-2xl border p-4 transition ${missing ? 'border-2 border-red-400 bg-red-50/70 ring-2 ring-red-100' : 'border-slate-200 bg-white'}`}>
       <p className="text-sm font-semibold text-slate-800">{label}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button type="button" disabled={contextBusy || transmitted} onClick={() => void saveContext({ [key]: true })} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${value === true ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Oui</button>
         <button type="button" disabled={contextBusy || transmitted} onClick={() => void saveContext({ [key]: false })} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${value === false ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Non</button>
       </div>
+      {missing && <p className="mt-2 text-xs font-semibold text-red-700">Réponse obligatoire.</p>}
     </div>
-  );
+    );
+  };
 
   return (
     <div className="documents-dark">
@@ -353,8 +358,9 @@ export default function ClientDocumentsPage() {
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">{completeContexts}/{progress.dossier_members_total} personne{progress.dossier_members_total > 1 ? 's' : ''}</span>
           </div>
           {isStudent && <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900"><strong>Vous avez indiqué être étudiant.</strong> Si vous êtes rattaché au foyer fiscal de vos parents, vous n’avez pas besoin d’un avis d’imposition personnel. Vous pouvez l’indiquer ci-dessous.</div>}
-          <div className="document-question-card mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+          <div className={`document-question-card mt-6 rounded-2xl border p-5 transition ${contextValidationAttempted && currentContext?.tax_status == null ? 'border-2 border-red-400 bg-red-50/70 ring-2 ring-red-100' : 'border-slate-200 bg-white'}`}>
             <p className="text-sm font-semibold text-slate-900">Quelle est votre situation concernant l’avis d’imposition ? *</p>
+            {contextValidationAttempted && currentContext?.tax_status == null && <p className="mt-1 text-xs font-semibold text-red-700">Réponse obligatoire.</p>}
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {[
                 ['personal_notice', 'J’ai un avis personnel ou commun'],
@@ -363,8 +369,9 @@ export default function ClientDocumentsPage() {
               ].map(([value, label]) => <button key={value} type="button" disabled={contextBusy} onClick={() => void saveContext({ tax_status: value as DocumentContext['tax_status'] })} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${currentContext?.tax_status === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{label}</button>)}
             </div>
             {currentContext?.tax_status === 'attached_parents' && <p className="mt-3 text-sm leading-6 text-slate-500">L’avis d’imposition des parents pourra être transmis s’il est utile au dossier, mais il n’est pas considéré comme une pièce personnelle obligatoire.</p>}
-            {currentContext?.tax_status === 'no_personal_notice' && <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
+            {currentContext?.tax_status === 'no_personal_notice' && <div className={`mt-4 rounded-2xl border p-4 ${contextValidationAttempted && !currentContext.tax_absence_reason ? 'border-2 border-red-400 bg-red-50/70 ring-2 ring-red-100' : 'border-blue-200 bg-blue-50/60'}`}>
               <p className="text-sm font-semibold text-slate-900">Pour quelle raison ne disposez-vous pas encore d’un avis d’imposition ? *</p>
+              {contextValidationAttempted && !currentContext.tax_absence_reason && <p className="mt-1 text-xs font-semibold text-red-700">Réponse obligatoire.</p>}
               <p className="mt-1 text-xs leading-5 text-slate-600">Cette situation peut notamment concerner une première déclaration, une arrivée récente en France, un ancien non-résident ou un avis qui n’a pas encore été émis.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {taxAbsenceReasons.map((reason) => <button key={reason.value} type="button" disabled={contextBusy} onClick={() => void saveContext({ tax_absence_reason: reason.value, tax_absence_other: reason.value === 'other' ? currentContext?.tax_absence_other ?? '' : null })} className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold ${currentContext?.tax_absence_reason === reason.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{reason.label}</button>)}
@@ -448,8 +455,18 @@ export default function ClientDocumentsPage() {
         </div>}
 
         {!transmitted && activeDocumentView === 'situation' && <div>
-          {!currentContextComplete && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">Répondez aux questions obligatoires pour obtenir la liste exacte de vos justificatifs.</div>}
-          <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => setDocumentView('uploads')} previousLabel="Précédent" nextLabel="Voir mes justificatifs" nextDisabled={!currentContextComplete} busy={contextBusy} />
+          {contextValidationAttempted && !currentContextComplete && <div className="border-t border-red-200 bg-red-50 px-6 py-4 text-sm font-semibold leading-6 text-red-800 sm:px-9">Certaines réponses obligatoires sont manquantes. Elles sont signalées en rouge ci-dessus.</div>}
+          {!contextValidationAttempted && !currentContextComplete && <div className="border-t border-amber-200 bg-amber-50 px-6 py-4 text-sm leading-6 text-amber-900 sm:px-9">Répondez aux questions obligatoires pour obtenir la liste exacte de vos justificatifs.</div>}
+          <WizardFooter onPrevious={() => navigate(dossierHref(previousPath, progress.dossier_id))} onNext={() => {
+            if (!currentContextComplete) {
+              setContextValidationAttempted(true);
+              setErrorMessage('');
+              window.setTimeout(() => document.querySelector('.document-question-card.border-red-400')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+              return;
+            }
+            setContextValidationAttempted(false);
+            setDocumentView('uploads');
+          }} previousLabel="Précédent" nextLabel="Voir mes justificatifs" nextDisabled={false} busy={contextBusy} />
         </div>}
 
         {!transmitted && activeDocumentView === 'uploads' && <div>
