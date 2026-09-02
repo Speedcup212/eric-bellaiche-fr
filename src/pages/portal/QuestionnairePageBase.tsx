@@ -385,6 +385,8 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         setNoteOpen(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 160);
+    } else if (!needsDetails && currentIndex === totalSteps - 1) {
+      await finish();
     }
   };
 
@@ -555,7 +557,13 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         <div className="mt-6"><SecureNote>Vos réponses sont confidentielles et utilisées exclusivement pour l’analyse et la traçabilité de votre dossier patrimonial.</SecureNote></div>
         {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
       </div>
-      <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Suivant'} nextDisabled={!currentComplete} busy={busy} />
+      {currentQuestion?.type_reponse === 'single' ? (
+        <div className="flex items-center border-t border-[#e7edf5] bg-[#f7f9fc] px-6 py-5 sm:px-9">
+          <button type="button" onClick={previous} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#5b6b82] transition hover:bg-white hover:text-[#0b1f3a]">← Précédent</button>
+        </div>
+      ) : (
+        <WizardFooter onPrevious={previous} onNext={() => void next()} nextLabel={currentQuestion?.type_reponse === 'multiple' ? 'Valider mes choix' : currentIndex === totalSteps - 1 ? 'Valider le questionnaire' : 'Continuer'} nextDisabled={!currentComplete} busy={busy} />
+      )}
     </WizardCard>
   </div>;
 }
