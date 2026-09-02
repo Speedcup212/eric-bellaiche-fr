@@ -5,10 +5,11 @@ const edgePath = 'supabase/functions/generate-cif-pdfs/index.ts';
 const edge = fs.readFileSync(edgePath, 'utf8');
 const checks = [
   ['portal invokes PDF generator', page.includes("functions.invoke('generate-cif-pdfs'")],
-  ['recueil PDF readiness', page.includes("types.push('recueil')")],
-  ['qpi PDF readiness', page.includes("types.push('qpi')")],
-  ['esg PDF readiness', page.includes("types.push('esg')")],
-  ['PDF download links exposed', page.includes('generatedDocumentLabel[document.type]')],
+  ['recueil PDF readiness', page.includes("recueil: investors.length > 0") && page.includes("recueil_status")],
+  ['qpi PDF readiness', page.includes("qpi: investors.length > 0") && page.includes("qpi_status")],
+  ['esg PDF readiness', page.includes("esg: investors.length > 0") && page.includes("esg_status")],
+  ['ready document types derived from completion map', page.includes('readyDocumentTypes') && page.includes('Object.entries(questionnaireCompletion)')],
+  ['PDF download links exposed only from signed URL', page.includes('document?.signed_url') && page.includes('href={document.signed_url}') && page.includes('generatedDocumentLabel[type]')],
   ['PDF generator versioned', /PDF_VERSION\s*=\s*'2026-MAITRE-PDF-\d+\.\d+'/.test(edge)],
   ['private regulatory storage used', edge.includes("BUCKET = 'regulatory-docs'")],
   ['PDF path archived', edge.includes('storage_path_pdf') && !edge.includes('storage_path_docx: storagePath')],
