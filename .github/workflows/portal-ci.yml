@@ -7,7 +7,7 @@ on:
     branches: [main, feature/portail-client-cgp]
 
 jobs:
-  quality:
+  dependency-audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,11 +23,26 @@ jobs:
         run: |
           npm audit --audit-level=low
           npm audit --omit=dev --audit-level=low
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Level 5 cross-layer crash test
+        run: npm run test:level5
       - name: Portal runtime safety
         run: npm run test:portal-safety
-      - name: Recueil crash test (100 dossiers)
+      - name: Recueil crash test (100 synthetic dossiers)
         run: npm run test:recueil-100
-      - name: Real-client preflight (10 scenarios)
+      - name: Client preflight (10 synthetic scenarios)
         run: npm run test:preflight-clients
       - name: Métier consistency engine
         run: npm run test:consistency
