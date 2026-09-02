@@ -1,0 +1,36 @@
+name: QA isolated couple E2E
+
+on:
+  push:
+    paths:
+      - 'scripts/qa-e2e-couple.mjs'
+      - '.github/workflows/qa-e2e-couple.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QA_SUPABASE_URL: https://nqnmahnkpdiwdfiteops.supabase.co
+      QA_SUPABASE_ANON_KEY: sb_publishable_WY4MeGVyB1CMnedTdQcy4Q_VitoPeH5
+      QA_RUN_ID: '20260902095001'
+      QA_EXPECT_PDF: 'false'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Execute real isolated couple journey
+        run: node scripts/qa-e2e-couple.mjs
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-e2e-report-${{ github.run_id }}
+          path: qa-e2e-report.json
+          if-no-files-found: warn
