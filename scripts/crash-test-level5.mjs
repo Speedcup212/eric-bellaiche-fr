@@ -15,11 +15,14 @@ function includesAll(source, values) {
   return values.every((value) => source.includes(value));
 }
 
+const app = read('src/App.tsx');
 const recueil = read('src/pages/portal/ClientRecueilJourneyBase.tsx');
 const portalShell = read('src/portal/PortalShell.tsx');
 const invitation = read('src/pages/portal/ClientInvitationPage.tsx');
 const clientLogin = read('src/pages/portal/ClientLoginPage.tsx');
 const passwordRecovery = read('src/pages/portal/PasswordRecoveryPage.tsx');
+const invitationMailer = read('netlify/functions/send-client-invite.mts');
+const activateClient = read('supabase/functions/activate-client/index.ts');
 const inviteMigration = read('supabase/migrations/20260902082000_block_staff_email_client_invites.sql');
 const identityMigration = read('supabase/migrations/20260902063147_harden_staff_client_identity_boundary.sql');
 const rpcMigration = read('supabase/migrations/20260902063730_tighten_invite_rpc_and_esg_function_security.sql');
@@ -75,6 +78,26 @@ check(
   includesAll(passwordRecovery, ["params.get('client-recovery') === '1'", "'/espace-client/connexion?reset=ok'", 'await supabase.auth.signOut()']),
   'Une récupération client ne doit jamais ouvrir le cockpit cabinet.'
 );
+check(
+  'L5-11 public site exposes a permanent Espace client entry point',
+  includesAll(app, ['Espace client', 'to="/espace-client/connexion"', 'aria-label="Accéder à mon espace client"']),
+  'Le client doit savoir où revenir sans retrouver son email d’invitation.'
+);
+check(
+  'L5-12 used invitation explains that the client space is already active',
+  includesAll(invitation, ['Votre espace client est déjà activé', 'Accéder à mon espace client', "status === 'used'", "localStorage.removeItem('cgp_pending_invite_token')"]),
+  'Un second clic sur le lien ne doit jamais être présenté comme une invitation simplement invalide.'
+);
+check(
+  'L5-13 invitation email documents the permanent login URL',
+  includesAll(invitationMailer, ["const CLIENT_LOGIN_URL = 'https://eric-bellaiche.fr/espace-client/connexion'", 'bouton « Espace client »', '${CLIENT_LOGIN_URL}']),
+  'L’email initial doit indiquer où reprendre le dossier après activation.'
+);
+check(
+  'L5-14 activate-client distinguishes used, expired and invalid invitations',
+  includesAll(activateClient, ["status: 'used'", "status: 'expired'", "status: 'invalid'", "code: 'INVITE_USED'", "code: 'INVITE_EXPIRED'"]),
+  'Le backend doit exposer un statut explicite au lieu de fusionner tous les cas.'
+);
 
 const baseUrl = process.env.LEVEL5_BASE_URL || 'https://eric-bellaiche.fr';
 const supabaseUrl = process.env.LEVEL5_SUPABASE_URL || 'https://xeloauyhlnhrvqojdudr.supabase.co';
@@ -117,6 +140,18 @@ async function productionChecks() {
     'content-type': 'application/json',
   };
 
+  try {
+    const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/activate-client`, {
+      method: 'POST',
+      headers: anonHeaders,
+      body: JSON.stringify({ action: 'lookup', token: '0'.repeat(64) }),
+    });
+    const body = await response.json().catch(() => ({}));
+    check('L5-EDGE activate-client returns explicit invalid lookup status', response.status === 200 && body?.status === 'invalid', `HTTP ${response.status}; status ${body?.status ?? 'none'}`);
+  } catch (error) {
+    failures.push(`L5-EDGE activate-client — ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   for (const table of ['investisseurs', 'dossiers', 'client_invites']) {
     try {
       const response = await fetchWithTimeout(`${supabaseUrl}/rest/v1/${table}?select=*&limit=1`, { headers: anonHeaders });
@@ -152,4 +187,4 @@ if (failures.length) {
   for (const item of failures) console.error(`FAIL  ${item}`);
   process.exit(1);
 }
-console.log('\nPASS GLOBAL — frontières identité/roles, surface publique et RLS anonyme contrôlées.');
+console.log('\nPASS GLOBAL — frontières identité/roles, accès client permanent, invitations, surface publique et RLS anonyme contrôlés.');
