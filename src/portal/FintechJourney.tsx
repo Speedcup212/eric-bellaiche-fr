@@ -184,7 +184,7 @@ export function WizardFooter({ onPrevious, onNext, previousLabel = 'Précédent'
           </button>
         ) : <span />}
       </div>
-      <button type="button" disabled={nextDisabled || busy} onClick={onNext} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#0b1f3a]/15 transition hover:-translate-y-0.5 hover:bg-[#173967] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40">
+      <button type="button" disabled={busy} aria-invalid={nextDisabled || undefined} data-validation-pending={nextDisabled ? 'true' : undefined} onClick={onNext} className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#0b1f3a]/15 transition hover:-translate-y-0.5 hover:bg-[#173967] disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60">
         {busy ? 'Enregistrement…' : nextLabel} <ArrowRight className="h-4 w-4" />
       </button>
     </div>
