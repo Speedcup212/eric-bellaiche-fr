@@ -8,6 +8,8 @@ export default function PortalShell() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
+  const [accountRole, setAccountRole] = useState<string | null>(null);
+  const [roleUserId, setRoleUserId] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const isRecueil = location.pathname === '/espace-client/recueil';
@@ -30,6 +32,10 @@ export default function PortalShell() {
       setSession(nextSession);
       setAuthError(false);
       setLoading(false);
+      if (!nextSession) {
+        setAccountRole(null);
+        setRoleUserId(null);
+      }
     });
     return () => {
       active = false;
@@ -37,7 +43,31 @@ export default function PortalShell() {
     };
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    let active = true;
+    void supabase
+      .from('app_users')
+      .select('role,actif')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setAuthError(true);
+          return;
+        }
+        setAccountRole(data?.actif ? String(data.role ?? '') : null);
+      })
+      .catch(() => { if (active) setAuthError(true); })
+      .finally(() => { if (active) setRoleUserId(userId); });
+    return () => { active = false; };
+  }, [session?.user.id]);
+
+  const roleLoading = Boolean(session && roleUserId !== session.user.id);
+
+  if (loading || roleLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-white text-[#5b6b82]">Ouverture de votre espace sécurisé…</div>;
   }
 
@@ -56,6 +86,14 @@ export default function PortalShell() {
   if (!session) {
     const next = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/espace-client/connexion?next=${next}`} replace />;
+  }
+
+  if (accountRole === 'cif' || accountRole === 'admin') {
+    return <Navigate to="/cabinet" replace />;
+  }
+
+  if (accountRole !== 'client') {
+    return <Navigate to="/espace-client/connexion" replace />;
   }
 
   const signOut = async () => {
