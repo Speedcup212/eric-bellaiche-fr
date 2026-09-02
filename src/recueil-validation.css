@@ -1,4 +1,5 @@
-[data-validation-error="true"] {
+[data-validation-error="true"],
+[data-validation-group-error="true"] {
   position: relative;
 }
 
@@ -20,11 +21,13 @@
 }
 
 [data-validation-error="true"] > p:first-child,
+[data-validation-error="true"] > legend:first-child,
 [data-validation-error="true"]:is(label) {
   color: #dc2626 !important;
 }
 
-[data-validation-error="true"]::after {
+[data-validation-error="true"]::after,
+[data-validation-group-error="true"]::after {
   content: attr(data-validation-message);
   display: block;
   margin-top: 0.45rem;
@@ -35,6 +38,23 @@
 }
 
 [data-validation-error="true"] button {
+  border-color: #dc2626 !important;
+}
+
+[data-validation-group-error="true"] {
+  border: 2px solid #dc2626 !important;
+  border-radius: 1rem;
+  padding: 0.85rem;
+  background: rgba(220, 38, 38, 0.04);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.10);
+}
+
+[data-validation-group-error="true"] > div:first-child h3,
+[data-validation-group-error="true"] > div:first-child h2 {
+  color: #fca5a5 !important;
+}
+
+[data-validation-group-error="true"] button {
   border-color: #dc2626 !important;
 }
 
