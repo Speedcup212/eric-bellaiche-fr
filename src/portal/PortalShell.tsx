@@ -47,21 +47,26 @@ export default function PortalShell() {
     const userId = session?.user.id;
     if (!userId) return;
     let active = true;
-    void supabase
-      .from('app_users')
-      .select('role,actif')
-      .eq('auth_user_id', userId)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    const loadRole = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_users')
+          .select('role,actif')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
         if (!active) return;
         if (error) {
           setAuthError(true);
           return;
         }
         setAccountRole(data?.actif ? String(data.role ?? '') : null);
-      })
-      .catch(() => { if (active) setAuthError(true); })
-      .finally(() => { if (active) setRoleUserId(userId); });
+      } catch {
+        if (active) setAuthError(true);
+      } finally {
+        if (active) setRoleUserId(userId);
+      }
+    };
+    void loadRole();
     return () => { active = false; };
   }, [session?.user.id]);
 
