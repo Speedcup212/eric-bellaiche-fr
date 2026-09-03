@@ -24,6 +24,14 @@ async function githubJson(url) {
 
   if (!response.ok) {
     const body = await response.text();
+    if (response.status === 403 || response.status === 429) {
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const rateLimited = remaining === '0' || /rate limit/i.test(body);
+      if (rateLimited) {
+        console.warn(`CI deploy gate: GitHub API rate limit reached (${response.status}). Continuing with Netlify local tests, typecheck and build.`);
+        process.exit(0);
+      }
+    }
     throw new Error(`GitHub Actions API ${response.status}: ${body.slice(0, 300)}`);
   }
 
