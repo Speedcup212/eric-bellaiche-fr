@@ -95,7 +95,7 @@ const initial: Record<SectionCode, AnyPayload> = {
   identity: { civilite: '', prenom: '', nom: '', nom_naissance: '', date_naissance: '', lieu_naissance: '', pays_naissance: 'France', nationalite: 'Française', mesure_protection: false, type_protection: '', date_protection: '', mobile: '', telephone_bureau: '', telephone_domicile: '', numero_fiscal: '', address: { numero_voie: '', complement: '', code_postal: '', ville: '', pays: 'France', type_logement: '' } },
   family: { situation: '', date_evenement: '', regime_convention: '', avantage_matrimonial: '', evolution_prevue: '', notaire_nom_ville: '', expert_comptable_nom_ville: '', nombre_enfants: '0', enfants: [], commentaires: '' },
   professional: { profession_actuelle: '', societe: '', secteur_activite: '', statut: '', anciennete_annees: '', date_entree: '', origine_revenus_sans_activite: '', changement_professionnel_prevu: '', changement_professionnel_details: '', precisions: '' },
-  objectives: { items: [] },
+  objectives: { items: [], autres_besoins_projets: '' },
   capacity: { estimation_revenus_travail_annuels: '', estimation_revenus_fonciers_annuels: '', epargne_precaution_cible: '', capacite_epargne_mensuelle: '', apport_immobilier_possible: '' },
   tax: { annee_imposition: new Date().getFullYear().toString(), salaires_assimiles: '', pensions_retraites_rentes: '', revenus_lmnp: '', revenus_bnc_pro: '', revenus_capitaux_mobiliers: '', revenus_fonciers_nets: '', revenu_imposable: '', impot_revenu_net: '', prelevements_sociaux_nets: '', taux_imposition: '', tmi: '', revenu_fiscal_reference: '', nombre_parts: '', deficit_foncier_reportable: '', evolution_revenus_commentaire: '', plafond_disponible_avis: '', versements_a_deduire: '', plafond_non_utilise_calcule: '', ifi_concerne: false, ifi_base_imposable: '', ifi_tmi: '', ifi_net_a_payer: '' },
   regulatory: { pays_residence_fiscale: 'France', citoyen_ou_resident_us: '', code_tin: '', fatca_crs_concerne: '', sanctions_declarees: '', ppe_declaree: '', ppe_entourage: '', ppe_personne_exposee: '', ppe_motif: '', ppe_pays_exercice: '', ppe_anciennete: '', commentaire_fiscal: '', commentaire_lcbft: '', esg_opt_in: '' },
@@ -710,6 +710,21 @@ export default function ClientRecueilJourneyPage() {
               </div>;
             })}</div>
           </section>}
+
+          <section aria-labelledby="other-needs-title" className="overflow-hidden rounded-2xl border border-blue-300/25 bg-gradient-to-br from-[#172B49] to-[#10243E] shadow-inner shadow-black/10">
+            <div className="flex items-start gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-400/15 text-[#86B7FF]"><CalendarDays className="h-5 w-5" /></span>
+              <div>
+                <h3 id="other-needs-title" className="font-semibold text-white">Autres besoins ou projets à connaître</h3>
+                <p className="mt-1 text-sm leading-5 text-[#CBD5E1]">Décrivez ici ce que vous attendez du cabinet, même si cela ne correspond pas exactement aux objectifs proposés ci-dessus.</p>
+              </div>
+            </div>
+            <label className="block px-4 py-4 sm:px-5">
+              <span className="text-sm font-semibold text-[#F1F5F9]">Votre besoin, vos projets ou toute information utile <span className="font-normal text-[#94A3B8]">— facultatif</span></span>
+              <textarea value={form.autres_besoins_projets ?? ''} onChange={(event) => patchCurrent({ autres_besoins_projets: event.target.value })} rows={4} className="mt-2 w-full resize-y rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-normal leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#3B82F6] focus:ring-2 focus:ring-blue-500/30" placeholder="Ex. achat d’une résidence principale, financement des études des enfants, cession d’entreprise, départ à l’étranger, donation à organiser, besoin de revenus dans quelques années…" />
+              <span className="mt-2 block text-xs leading-5 text-[#94A3B8]">Précisez si possible le contexte, l’échéance et le montant envisagé.</span>
+            </label>
+          </section>
         </div>}
 
         {current.code === 'capacity' && <div className="recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><MoneyField label="À combien estimez-vous vos revenus professionnels nets pour l’année en cours ? (€)" required value={form.estimation_revenus_travail_annuels} onChange={(v) => patchCurrent({ estimation_revenus_travail_annuels: v })} /><MoneyField label="À combien estimez-vous vos revenus provenant de biens immobiliers pour l’année en cours ? (€)" required value={form.estimation_revenus_fonciers_annuels} onChange={(v) => patchCurrent({ estimation_revenus_fonciers_annuels: v })} /><MoneyField label="Quelle somme souhaitez-vous conserver disponible pour faire face aux imprévus ? (€)" required value={form.epargne_precaution_cible} onChange={(v) => patchCurrent({ epargne_precaution_cible: v })} /><MoneyField label="Combien pouvez-vous mettre de côté chaque mois sans déséquilibrer votre budget ? (€)" required value={form.capacite_epargne_mensuelle} onChange={(v) => patchCurrent({ capacite_epargne_mensuelle: v })} /><MoneyField label="Quelle somme pourriez-vous utiliser comme apport pour un projet immobilier ? (€)" value={form.apport_immobilier_possible} onChange={(v) => patchCurrent({ apport_immobilier_possible: v })} /></div>}
