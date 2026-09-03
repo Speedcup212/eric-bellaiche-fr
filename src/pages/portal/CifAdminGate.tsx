@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import CifAdminPage from './CifAdminPage';
 import CifCabinetLogin from './CifCabinetLogin';
+import CifQuestionnairesPage from './CifQuestionnairesPage';
 import { supabase } from '../../lib/supabase';
 
-export default function CifAdminGate() {
+export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard' | 'questionnaires' }) {
   const [checking, setChecking] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
@@ -90,5 +91,5 @@ export default function CifAdminGate() {
   }
 
   if (!authorized) return <CifCabinetLogin onAuthenticated={() => { void verify(); }} />;
-  return <CifAdminPage />;
+  return view === 'questionnaires' ? <CifQuestionnairesPage /> : <CifAdminPage />;
 }
