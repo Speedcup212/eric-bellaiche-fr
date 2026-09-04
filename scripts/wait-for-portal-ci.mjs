@@ -43,6 +43,12 @@ async function readPortalRun() {
   return (payload.workflow_runs || []).find((run) => run.path === workflowPath) || null;
 }
 
+async function readQualityJob(run) {
+  if (!run?.jobs_url) return null;
+  const payload = await githubJson(`${run.jobs_url}?per_page=100`);
+  return (payload.jobs || []).find((job) => job.name === 'quality') || null;
+}
+
 async function isGitHubActionsBotCommit() {
   const commit = await githubJson(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(sha)}`);
   return commit?.author?.login === 'github-actions[bot]'
@@ -68,7 +74,19 @@ while (Date.now() - startedAt < timeoutMs) {
     }
     console.log(`CI deploy gate: Portal CI not visible yet for ${sha.slice(0, 8)}; retrying…`);
   } else if (run.status !== 'completed') {
-    console.log(`CI deploy gate: Portal CI ${run.status}; waiting…`);
+    // The independent dependency audit may take longer or become stuck on the
+    // npm registry. Production safety is carried by the quality job (all portal
+    // tests, typecheck, lint, build and browser smoke test), followed by the
+    // same local test/typecheck/build chain on Netlify.
+    const quality = await readQualityJob(run);
+    if (quality?.status === 'completed' && quality.conclusion === 'success') {
+      console.log(`CI deploy gate: Portal CI quality job passed for ${sha.slice(0, 8)}. Production build authorized.`);
+      process.exit(0);
+    }
+    if (quality?.status === 'completed' && quality.conclusion !== 'success') {
+      throw new Error(`Production deployment blocked: Portal CI quality job concluded ${quality.conclusion || 'unknown'} for ${sha}.`);
+    }
+    console.log(`CI deploy gate: Portal CI quality job ${quality?.status || run.status}; waiting…`);
   } else if (run.conclusion === 'success') {
     console.log(`CI deploy gate: Portal CI passed for ${sha.slice(0, 8)}. Production build authorized.`);
     process.exit(0);
