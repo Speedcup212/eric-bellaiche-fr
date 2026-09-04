@@ -261,7 +261,15 @@ function accountToPlacement(item: AnyPayload): AnyPayload {
   return { type_contrat: 'Compte courant', organisme: item.banque ?? '', libelle_contrat: item.titulaire ?? '', valeur_acquisition: '', montant_actuel: item.solde_actuel ?? '', date_valorisation: '', annee_ouverture: '', versements_programmes_annuels: '', montant_reemploi_possible: item.montant_mobilisable ?? '', numero_contrat: '', commentaire: item.commentaire ?? '' };
 }
 
-export default function ClientRecueilJourneyPage() {
+const cabinetPreviewProgress: PortalProgress = {
+  dossier_id: 'cabinet-preview', investisseur_id: 'cabinet-preview', role_dossier: 'investisseur_1',
+  reference: 'APERÇU', libelle: 'Mode test cabinet', recueil_status: 'in_progress', dossier_recueil_status: 'in_progress',
+  qpi_status: 'pending', esg_opt_in: true, esg_status: 'pending', qpi_session_id: null, esg_session_id: null,
+  documents_status: 'pending', documents_completed_at: null, transmitted_at: null, dossier_members_total: 1,
+  dossier_members_ready: 0, dossier_ready_for_documents: false, is_couple: false, partner_activated: false, next_step: 'RECUEIL',
+};
+
+export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { cabinetPreview?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dossierId = searchParams.get('dossier');
@@ -272,7 +280,7 @@ export default function ClientRecueilJourneyPage() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
-  const progress = useMemo(() => selectedProgress(rows, dossierId), [rows, dossierId]);
+  const progress = useMemo(() => cabinetPreview ? cabinetPreviewProgress : selectedProgress(rows, dossierId), [cabinetPreview, rows, dossierId]);
   const current = sections[step];
   const form = forms[current.code];
   const identityNeedsBirthName = String(forms.identity.civilite ?? '').trim().toLowerCase() === 'mme';
@@ -319,6 +327,11 @@ export default function ClientRecueilJourneyPage() {
   }, [familyNeedsConvention, familyNeedsMatrimonialAdvantage, forms.family.regime_convention, forms.family.avantage_matrimonial]);
 
   useEffect(() => {
+    if (cabinetPreview) {
+      setRows([cabinetPreviewProgress]);
+      setAccountEmail('apercu@cabinet.fr');
+      return;
+    }
     void fetchPortalProgress().then(async (progressRows) => {
       setRows(progressRows);
       const row = selectedProgress(progressRows, dossierId);
@@ -362,7 +375,7 @@ export default function ClientRecueilJourneyPage() {
       const firstIncomplete = sections.findIndex((s) => !(row.role_dossier === 'investisseur_2' && s.code === 'family') && !completed.has(s.code));
       if (firstIncomplete >= 0) setStep(firstIncomplete);
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId]);
+  }, [cabinetPreview, dossierId]);
 
   const validateSection = () => {
     if (current.code === 'identity') {
@@ -462,6 +475,10 @@ export default function ClientRecueilJourneyPage() {
   const saveCurrent = async () => {
     if (!progress) return;
     validateSection();
+    if (cabinetPreview) {
+      setDoneSections((state) => new Set([...state, current.code]));
+      return;
+    }
     let payloadToSave = form;
     if (current.code === 'family') {
       const children: AnyPayload[] = Array.isArray(form.enfants) ? form.enfants : [];
@@ -497,6 +514,10 @@ export default function ClientRecueilJourneyPage() {
       await saveCurrent();
       const nextIncomplete = sections.findIndex((section, index) => index !== step && !(progress.role_dossier === 'investisseur_2' && section.code === 'family') && !doneSections.has(section.code));
       if (nextIncomplete >= 0) { setStep(nextIncomplete); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      if (cabinetPreview) {
+        navigate('/cabinet/questionnaires?vue=qpi');
+        return;
+      }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
       const refreshed = await fetchPortalProgress();
@@ -516,7 +537,7 @@ export default function ClientRecueilJourneyPage() {
   const previous = () => {
     setErrorMessage('');
     if (!progress) return;
-    if (step === 0) navigate(dossierHref('/espace-client', progress.dossier_id)); else { setStep(progress.role_dossier === 'investisseur_2' && step === 2 ? 0 : step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (step === 0) navigate(cabinetPreview ? '/cabinet/questionnaires' : dossierHref('/espace-client', progress.dossier_id)); else { setStep(progress.role_dossier === 'investisseur_2' && step === 2 ? 0 : step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;

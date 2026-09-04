@@ -96,7 +96,15 @@ export function QpiResultSummary({ result }: { result: QpiResultRow | null }) {
   </div>;
 }
 
-export default function QuestionnairePage({ mode }: { mode: Mode }) {
+const cabinetPreviewProgress: PortalProgress = {
+  dossier_id: 'cabinet-preview', investisseur_id: 'cabinet-preview', role_dossier: 'investisseur_1',
+  reference: 'APERÇU', libelle: 'Mode test cabinet', recueil_status: 'completed', dossier_recueil_status: 'completed',
+  qpi_status: 'in_progress', esg_opt_in: true, esg_status: 'in_progress', qpi_session_id: null, esg_session_id: null,
+  documents_status: 'pending', documents_completed_at: null, transmitted_at: null, dossier_members_total: 1,
+  dossier_members_ready: 0, dossier_ready_for_documents: false, is_couple: false, partner_activated: false, next_step: 'QPI',
+};
+
+export default function QuestionnairePage({ mode, cabinetPreview = false }: { mode: Mode; cabinetPreview?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [progressRows, setProgressRows] = useState<PortalProgress[]>([]);
@@ -113,7 +121,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [qpiResult, setQpiResult] = useState<QpiResultRow | null>(null);
   const dossierId = searchParams.get('dossier');
-  const progress = useMemo(() => selectedProgress(progressRows, dossierId), [progressRows, dossierId]);
+  const progress = useMemo(() => cabinetPreview ? cabinetPreviewProgress : selectedProgress(progressRows, dossierId), [cabinetPreview, progressRows, dossierId]);
   const sessionId = mode === 'QPI' ? progress?.qpi_session_id : progress?.esg_session_id;
 
   useEffect(() => {
@@ -123,6 +131,18 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     setValidationAttempted(false);
     setErrorMessage('');
     setNoteOpen(false);
+    if (cabinetPreview) {
+      setProgressRows([cabinetPreviewProgress]);
+      void (async () => {
+        const { data: template, error: templateError } = await supabase.from('questionnaire_templates').select('id').eq('type_questionnaire', mode).eq('actif', true).order('version', { ascending: false }).limit(1).maybeSingle();
+        if (templateError) throw templateError;
+        if (!template?.id) throw new Error('Aucun questionnaire actif trouvé.');
+        const { data: qData, error: qError } = await supabase.from('questionnaire_questions').select('id,code,libelle,ordre,type_reponse,obligatoire,metadata,questionnaire_options(id,code,libelle,ordre,metadata)').eq('template_id', template.id).order('ordre');
+        if (qError) throw qError;
+        setQuestions((qData ?? []).map((q) => ({ ...q, options: [...(q.questionnaire_options ?? [])].sort((a, b) => a.ordre - b.ordre) })) as unknown as QuestionRow[]);
+      })().catch((error) => setErrorMessage(messageFromError(error)));
+      return;
+    }
     void fetchPortalProgress().then(async (rows) => {
       setProgressRows(rows);
       const row = selectedProgress(rows, dossierId);
@@ -196,7 +216,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
         if (resultData) setQpiResult(resultData as QpiResultRow);
       }
     }).catch((error) => setErrorMessage(messageFromError(error)));
-  }, [dossierId, mode]);
+  }, [cabinetPreview, dossierId, mode]);
 
   const optionCodeByQuestion = useMemo(() => {
     const result: Record<string, string> = {};
@@ -230,10 +250,12 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   useEffect(() => { if (totalSteps > 0 && currentIndex > totalSteps - 1) setCurrentIndex(totalSteps - 1); }, [currentIndex, totalSteps]);
 
   const upsertQuestionAnswer = async (question: QuestionRow, patch: Partial<AnswerRow>) => {
-    if (!sessionId || done) return;
+    if (done) return;
     const current = answers[question.id] ?? { question_id: question.id, option_id: null, answer_text: null, answer_numeric: null, answer_json: null };
     const next: AnswerRow = { ...current, ...patch, question_id: question.id };
     setAnswers((state) => ({ ...state, [question.id]: next }));
+    if (cabinetPreview) return;
+    if (!sessionId) return;
     const { data, error } = await supabase.from('questionnaire_answers').upsert({ session_id: sessionId, question_id: question.id, option_id: next.option_id, answer_text: next.answer_text, answer_numeric: next.answer_numeric, answer_json: next.answer_json }, { onConflict: 'session_id,question_id' }).select('question_id,option_id,answer_text,answer_numeric,answer_json').single();
     if (error) throw error;
     setAnswers((state) => ({ ...state, [question.id]: data as AnswerRow }));
@@ -242,7 +264,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const updateLocal = (question: QuestionRow, patch: Partial<AnswerRow>) => setAnswers((state) => ({ ...state, [question.id]: { ...(state[question.id] ?? { question_id: question.id, option_id: null, answer_text: null, answer_numeric: null, answer_json: null }), ...patch } }));
 
   const saveMulti = async (question: QuestionRow, option: OptionRow) => {
-    if (!sessionId || done) return;
+    if (done) return;
     const current = multi[question.id] ?? [];
     const exclusive = Boolean(option.metadata?.exclusive);
     const next = exclusive ? [option.code] : current.includes(option.code) ? current.filter((value) => value !== option.code) : [...current.filter((code) => code !== 'AUCUNE'), option.code];
@@ -251,14 +273,17 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   };
 
   const saveExperience = async (family: string, level: string) => {
-    if (!sessionId || done) return;
+    if (done) return;
+    if (cabinetPreview) { setExperiences((state) => ({ ...state, [family]: level })); return; }
+    if (!sessionId) return;
     const { error } = await supabase.from('qpi_product_experience').upsert({ session_id: sessionId, famille_produit: family, niveau_experience: level }, { onConflict: 'session_id,famille_produit' });
     if (error) throw error;
     setExperiences((state) => ({ ...state, [family]: level }));
   };
 
   const saveExperienceDetails = async (state: ExpState = expDetails) => {
-    if (!sessionId || done) return;
+    if (done || cabinetPreview) return;
+    if (!sessionId) return;
     const knowledge = state.connaissance === 'true' ? true : state.connaissance === 'false' ? false : null;
     const { error } = await supabase.from('qpi_experience_details').upsert({ session_id: sessionId, connaissance_par_formation_ou_profession: knowledge, sources_pertinentes: state.sources, precisions_formation_profession: state.precision.trim() || null, anciennete_experience: state.anciennete || null, montant_habituel_operation: state.montant || null, mode_gestion: state.mode || null }, { onConflict: 'session_id' });
     if (error) throw error;
@@ -318,7 +343,13 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
   const persistCurrentQuestion = async () => { if (!currentQuestion) return; const answer = answers[currentQuestion.id]; if (answer) await upsertQuestionAnswer(currentQuestion, answer); };
 
   const finish = async (experienceState?: ExpState) => {
-    if (!sessionId || !progress) return;
+    if (!progress) return;
+    if (cabinetPreview) {
+      setDone(true);
+      if (mode === 'QPI') setQpiResult({ profil_indicatif: 'Aperçu', profil_operationnel_final: 'Simulation terminée', ecart_declared_objective: false, synthese_dimensions: {} });
+      return;
+    }
+    if (!sessionId) return;
     if (mode === 'QPI') await saveExperienceDetails(experienceState ?? expDetails);
     const { error } = await supabase.rpc('complete_questionnaire_session', { p_session_id: sessionId });
     if (error) throw error;
@@ -368,7 +399,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
     if (currentIndex > 0) {
       setCurrentIndex((index) => index - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else navigate(dossierHref(mode === 'QPI' ? '/espace-client/recueil' : '/espace-client/profil-investisseur', progress.dossier_id));
+    } else navigate(cabinetPreview ? `/cabinet/questionnaires?vue=${mode === 'QPI' ? 'recueil' : 'qpi'}` : dossierHref(mode === 'QPI' ? '/espace-client/recueil' : '/espace-client/profil-investisseur', progress.dossier_id));
   };
 
   const selectSingleAnswer = async (question: QuestionRow, option: OptionRow) => {
@@ -394,7 +425,7 @@ export default function QuestionnairePage({ mode }: { mode: Mode }) {
 
   if (done) {
     const qpiNextIsEsg = mode === 'QPI' && progress.esg_opt_in === true;
-    const nextPath = mode === 'QPI' && qpiNextIsEsg
+    const nextPath = cabinetPreview ? `/cabinet/questionnaires?vue=${mode === 'QPI' ? 'esg' : 'recueil'}` : mode === 'QPI' && qpiNextIsEsg
       ? dossierHref('/espace-client/esg', progress.dossier_id)
       : dossierHref('/espace-client/documents', progress.dossier_id);
     const title = mode === 'QPI' ? 'Profil investisseur terminé' : 'Préférences de durabilité terminées';
