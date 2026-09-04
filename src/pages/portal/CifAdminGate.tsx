@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import CifAdminPage from './CifAdminPage';
 import CifCabinetLogin from './CifCabinetLogin';
 import CifQuestionnairesPage from './CifQuestionnairesPage';
+import CifProspectsPage from './CifProspectsPage';
 import { supabase } from '../../lib/supabase';
 
-export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard' | 'questionnaires' }) {
+export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard' | 'questionnaires' | 'prospects' }) {
   const [checking, setChecking] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
@@ -40,7 +41,6 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
     setAuthorized(true);
     setChecking(false);
 
-    // Supabase may leave an empty hash after consuming a magic-link token.
     if (window.location.hash) {
       window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}`);
     }
@@ -71,8 +71,6 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
         return;
       }
 
-      // Do not call Supabase again synchronously inside onAuthStateChange:
-      // defer the staff lookup until the auth callback has fully completed.
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         window.setTimeout(() => {
           if (active) void run();
@@ -91,5 +89,7 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
   }
 
   if (!authorized) return <CifCabinetLogin onAuthenticated={() => { void verify(); }} />;
-  return view === 'questionnaires' ? <CifQuestionnairesPage /> : <CifAdminPage />;
+  if (view === 'questionnaires') return <CifQuestionnairesPage />;
+  if (view === 'prospects') return <CifProspectsPage />;
+  return <CifAdminPage />;
 }
