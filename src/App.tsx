@@ -98,6 +98,7 @@ export default function App() {
     <Route path="/cabinet/audit" element={<PortalErrorBoundary><CifAuditPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/adequation" element={<PortalErrorBoundary><CifAdequationPage /></PortalErrorBoundary>} />
     <Route path="/cabinet/questionnaires" element={<PortalErrorBoundary><CifAdminPage view="questionnaires" /></PortalErrorBoundary>} />
+    <Route path="/cabinet/prospects" element={<PortalErrorBoundary><CifAdminPage view="prospects" /></PortalErrorBoundary>} />
     <Route path="*" element={<HomePage />} />
   </Routes></Suspense></BrowserRouter>;
 }
