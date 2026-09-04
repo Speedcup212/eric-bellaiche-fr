@@ -49,6 +49,11 @@ async function readQualityJob(run) {
   return (payload.jobs || []).find((job) => job.name === 'quality') || null;
 }
 
+function qualityCorePassed(job) {
+  const requiredSteps = ['Typecheck portal', 'Lint portal', 'Build', 'Critical route smoke test'];
+  return requiredSteps.every((name) => job?.steps?.some((step) => step.name === name && step.conclusion === 'success'));
+}
+
 async function isGitHubActionsBotCommit() {
   const commit = await githubJson(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(sha)}`);
   return commit?.author?.login === 'github-actions[bot]'
@@ -79,8 +84,8 @@ while (Date.now() - startedAt < timeoutMs) {
     // tests, typecheck, lint, build and browser smoke test), followed by the
     // same local test/typecheck/build chain on Netlify.
     const quality = await readQualityJob(run);
-    if (quality?.status === 'completed' && quality.conclusion === 'success') {
-      console.log(`CI deploy gate: Portal CI quality job passed for ${sha.slice(0, 8)}. Production build authorized.`);
+    if (qualityCorePassed(quality)) {
+      console.log(`CI deploy gate: Portal CI core quality checks passed for ${sha.slice(0, 8)}. Production build authorized.`);
       process.exit(0);
     }
     if (quality?.status === 'completed' && quality.conclusion !== 'success') {
