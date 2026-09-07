@@ -1,5 +1,8 @@
 import tls from 'node:tls';
 
+const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
+const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
+
 function json(status:number,payload:Record<string,unknown>){return new Response(JSON.stringify(payload),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}})}
 function clean(v:string){return v.replace(/[\r\n]+/g,' ').trim()}
 function validEmail(v:string){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)&&v.length<=254}
@@ -11,40 +14,88 @@ function readReply(socket:tls.TLSSocket):Promise<{code:number;text:string}>{retu
 async function command(socket:tls.TLSSocket,value:string,expected:number|number[]){socket.write(`${value}\r\n`);const r=await readReply(socket);const ok=Array.isArray(expected)?expected:[expected];if(!ok.includes(r.code))throw new Error(`SMTP ${r.code}`);return r}
 async function sendMail(user:string,password:string,to:string,subject:string,body:string){const socket=tls.connect({host:'smtp.gmail.com',port:465,servername:'smtp.gmail.com',rejectUnauthorized:true});socket.setTimeout(15000,()=>socket.destroy(new Error('Délai SMTP dépassé')));await new Promise<void>((resolve,reject)=>{socket.once('secureConnect',resolve);socket.once('error',reject)});try{const hello=await readReply(socket);if(hello.code!==220)throw new Error('SMTP indisponible');await command(socket,'EHLO eric-bellaiche.fr',250);await command(socket,'AUTH LOGIN',334);await command(socket,Buffer.from(user).toString('base64'),334);await command(socket,Buffer.from(password).toString('base64'),235);await command(socket,`MAIL FROM:<${user}>`,250);await command(socket,`RCPT TO:<${to}>`,[250,251]);await command(socket,'DATA',354);const mime=[`From: "Eric Bellaiche" <${user}>`,`To: <${to}>`,`Subject: ${encoded(subject)}`,'MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64',`Date: ${new Date().toUTCString()}`,'',wrapBase64(body)].join('\r\n');socket.write(`${dotStuff(mime)}\r\n.\r\n`);const sent=await readReply(socket);if(sent.code!==250)throw new Error('Envoi SMTP refusé');await command(socket,'QUIT',221).catch(()=>undefined);return sent.text}finally{socket.end()}}
 
+type Lead = {
+  first_name:string;
+  email:string;
+  qualification:string;
+  financial_assets_band:string;
+  real_estate_band:string;
+  savings_band:string;
+  primary_goal:string;
+  horizon:string;
+  income_tax_band:string|null;
+  event_12m:string;
+};
+
+const financialLabels:Record<string,string>={lt20:'Moins de 20 000 €','20_50':'20 000 à 50 000 €','50_100':'50 000 à 100 000 €','100_250':'100 000 à 250 000 €','250_500':'250 000 à 500 000 €',500plus:'Plus de 500 000 €'};
+const realEstateLabels:Record<string,string>={none:'Aucun',lt200:'Moins de 200 000 €','200_400':'200 000 à 400 000 €','400_700':'400 000 à 700 000 €','700_1200':'700 000 à 1,2 M€',1200plus:'Plus de 1,2 M€'};
+const savingsLabels:Record<string,string>={lt300:'Moins de 300 €/mois','300_700':'300 à 700 €/mois','700_1500':'700 à 1 500 €/mois','1500_3000':'1 500 à 3 000 €/mois',3000plus:'Plus de 3 000 €/mois'};
+const goalLabels:Record<string,string>={placements:'Mieux placer votre épargne',revenus:'Créer des revenus complémentaires',retraite:'Préparer votre retraite',fiscalite:'Réduire votre fiscalité',immobilier:'Investir dans l’immobilier',transmission:'Préparer une transmission',tresorerie:'Optimiser une trésorerie',autre:'Autre objectif'};
+const horizonLabels:Record<string,string>={'12m':'Dans les 12 mois','1_3y':'Dans 1 à 3 ans',later:'À plus long terme'};
+const taxLabels:Record<string,string>={lt1500:'Moins de 1 500 €','1500_3000':'1 500 à 3 000 €','3000_6000':'3 000 à 6 000 €','6000_12000':'6 000 à 12 000 €','12000plus':'Plus de 12 000 €',unknown:'Non précisé'};
+const eventLabels:Record<string,string>={vente:'Vente immobilière',succession:'Succession',cession:'Cession d’entreprise',retraite:'Départ en retraite',capital:'Réception d’un capital',none:'Aucun événement particulier'};
+
+function supabaseConfig(){
+  const url=(Netlify.env.get('VITE_SUPABASE_URL')||FALLBACK_SUPABASE_URL).trim();
+  const key=(Netlify.env.get('VITE_SUPABASE_PUBLISHABLE_KEY')||FALLBACK_SUPABASE_KEY).trim();
+  return {url,key,headers:{apikey:key,Authorization:`Bearer ${key}`,'content-type':'application/json'}};
+}
+
+async function authorizeLead(leadId:string,email:string){
+  const {url,headers}=supabaseConfig();
+  const r=await fetch(`${url}/rest/v1/rpc/authorize_prospect_result`,{method:'POST',headers,body:JSON.stringify({p_lead_id:leadId,p_email:email})});
+  if(!r.ok)throw new Error(`Autorisation résultat ${r.status}`);
+  const rows=await r.json() as Lead[];
+  return rows[0]??null;
+}
+
+async function completeLead(leadId:string,email:string){
+  const {url,headers}=supabaseConfig();
+  const r=await fetch(`${url}/rest/v1/rpc/complete_prospect_result`,{method:'POST',headers,body:JSON.stringify({p_lead_id:leadId,p_email:email})});
+  if(!r.ok)throw new Error(`Traçabilité résultat ${r.status}`);
+  return Boolean(await r.json());
+}
+
 export default async(req:Request)=>{
  if(req.method!=='POST')return json(405,{error:'Méthode non autorisée.'});
  try{
   const origin=req.headers.get('origin')??'';
   if(origin && !/^https:\/\/(www\.)?eric-bellaiche\.fr$/i.test(origin))return json(403,{error:'Origine non autorisée.'});
-  const p=await req.json() as {leadId?:string;firstName?:string;email?:string;qualification?:string;financial?:string;realEstate?:string;savings?:string;annualSavings?:string;goal?:string;horizon?:string;tax?:string;event?:string;insights?:string[]};
-  const leadId=clean(String(p.leadId??'')),firstName=clean(String(p.firstName??'')).slice(0,100),email=clean(String(p.email??'')).toLowerCase();
-  if(!validUuid(leadId)||!firstName||!validEmail(email))return json(400,{error:'Données invalides.'});
-  const insights=Array.isArray(p.insights)?p.insights.map(x=>clean(String(x)).slice(0,500)).filter(Boolean).slice(0,4):[];
-  const safe=(v:unknown)=>clean(String(v??'')).slice(0,300);
-  const qualification=['A','B','C'].includes(String(p.qualification))?String(p.qualification):'C';
+  const p=await req.json() as {leadId?:string;email?:string};
+  const leadId=clean(String(p.leadId??'')),email=clean(String(p.email??'')).toLowerCase();
+  if(!validUuid(leadId)||!validEmail(email))return json(400,{error:'Données invalides.'});
+
+  const lead=await authorizeLead(leadId,email);
+  if(!lead)return json(409,{error:'Résultat déjà envoyé, demande expirée ou non autorisée.'});
+
   const lines=[
-   `Bonjour ${firstName},`,'',
+   `Bonjour ${clean(lead.first_name).slice(0,100)},`,'',
    'Voici la synthèse de votre photographie patrimoniale réalisée sur eric-bellaiche.fr.','',
-   `Placements financiers déclarés : ${safe(p.financial)}`,
-   `Patrimoine immobilier déclaré : ${safe(p.realEstate)}`,
-   `Capacité d’épargne : ${safe(p.savings)} (${safe(p.annualSavings)})`,
-   `Objectif principal : ${safe(p.goal)}`,
-   `Horizon : ${safe(p.horizon)}`,
-   safe(p.tax)?`Impôt sur le revenu déclaré : ${safe(p.tax)}`:'',
-   safe(p.event)?`Événement à 12 mois : ${safe(p.event)}`:'','',
-   'Ce que vos réponses font ressortir :',
-   ...insights.map((x,i)=>`${i+1}. ${x}`),'',
-  ].filter(x=>x!==undefined);
-  if(qualification==='A'||qualification==='B'){
+   `Placements financiers déclarés : ${financialLabels[lead.financial_assets_band]??'Non précisé'}`,
+   `Patrimoine immobilier déclaré : ${realEstateLabels[lead.real_estate_band]??'Non précisé'}`,
+   `Capacité d’épargne : ${savingsLabels[lead.savings_band]??'Non précisé'}`,
+   `Objectif principal : ${goalLabels[lead.primary_goal]??'Autre objectif'}`,
+   `Horizon : ${horizonLabels[lead.horizon]??'Non précisé'}`,
+   lead.income_tax_band?`Impôt sur le revenu déclaré : ${taxLabels[lead.income_tax_band]??'Non précisé'}`:'',
+   `Événement à 12 mois : ${eventLabels[lead.event_12m]??'Non précisé'}`,'',
+  ].filter(Boolean);
+
+  if(lead.qualification==='A'||lead.qualification==='B'){
    lines.push('Votre situation présente des éléments qui méritent d’être approfondis lors d’un échange individuel.','Vous pouvez réserver votre visio de 30 minutes ici :','https://calendly.com/eric-bellaiche/gp-rendez-vous-conseil-avec-eric-bellaiche-clone','');
   }else{
    lines.push('Au regard des seules informations déclarées, votre situation ne ressort pas aujourd’hui comme prioritaire pour un rendez-vous individuel selon les critères actuels du cabinet. Cette conclusion ne constitue pas une recommandation patrimoniale.','');
   }
   lines.push('Cette restitution est indicative et ne constitue ni un conseil en investissement ni une recommandation personnalisée.','','Bien cordialement,','Eric Bellaiche','Conseiller en gestion de patrimoine — CIF','ORIAS n°13001580 — membre CNCEF Patrimoine','https://eric-bellaiche.fr');
-  const gmailUser=Netlify.env.get('GMAIL_USER')?.trim()??'';const gmailPassword=Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g,'')??'';
+
+  const gmailUser=Netlify.env.get('GMAIL_USER')?.trim()??'';
+  const gmailPassword=Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g,'')??'';
   if(!gmailUser||!gmailPassword)return json(500,{error:'Configuration Gmail incomplète.'});
-  const smtpReply=await sendMail(gmailUser,gmailPassword,email,'Votre photographie patrimoniale',lines.join('\n'));
+
+  const smtpReply=await sendMail(gmailUser,gmailPassword,lead.email,'Votre photographie patrimoniale',lines.join('\n'));
+  const completed=await completeLead(leadId,lead.email);
+  if(!completed)throw new Error('Traçabilité de l’envoi impossible.');
   return json(200,{ok:true,sentAt:new Date().toISOString(),smtpReply});
  }catch(error){console.error('send-prospect-result failed',error);return json(500,{error:error instanceof Error?error.message:'Échec de l’envoi.'})}
 };
+
 export const config={path:'/api/send-prospect-result'};
