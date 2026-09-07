@@ -22,8 +22,6 @@ async function functionErrorMessage(error: unknown): Promise<string> {
   return messageFromError(error);
 }
 
-const STRONG_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}$/;
-
 export default function ClientInvitationPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || localStorage.getItem('cgp_pending_invite_token') || '';
@@ -101,8 +99,8 @@ export default function ClientInvitationPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!token || !email || submitLock.current) return;
-    if (!STRONG_PASSWORD.test(password)) {
-      setErrorMessage('Le mot de passe doit contenir au moins 12 caractères, avec une majuscule, une minuscule, un chiffre et un symbole.');
+    if (password.length < 10) {
+      setErrorMessage('Le mot de passe doit contenir au moins 10 caractères.');
       return;
     }
     submitLock.current = true;
@@ -184,8 +182,8 @@ export default function ClientInvitationPage() {
 
           <form onSubmit={submit} className="mt-7 space-y-5">
             <label className="block text-sm font-semibold text-slate-700">Adresse email<input type="email" required readOnly autoComplete="username" value={email} placeholder={loadingInvite ? 'Vérification de l’invitation…' : ''} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5 text-slate-500 outline-none" /></label>
-            <label className="block text-sm font-semibold text-slate-700">Créer votre mot de passe<input type="password" required minLength={12} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" placeholder="12 caractères minimum" /></label>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un symbole. La double authentification sera ensuite activée avant l’accès aux données patrimoniales.</div>
+            <label className="block text-sm font-semibold text-slate-700">Créer votre mot de passe<input type="password" required minLength={10} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-slate-400 focus:bg-white" placeholder="10 caractères minimum" /></label>
+            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">Utilisez au moins 10 caractères. Les mots de passe connus comme compromis sont refusés et la double authentification protège ensuite l’accès aux données patrimoniales.</div>
             {errorMessage && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
             <button disabled={busy || loadingInvite || !email || inviteState === 'expired' || inviteState === 'invalid'} className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? 'Activation…' : loadingInvite ? 'Vérification…' : 'Commencer mon dossier'}</button>
           </form>
