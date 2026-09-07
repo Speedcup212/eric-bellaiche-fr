@@ -27,9 +27,9 @@ type Lead = {
   event_12m:string;
 };
 
-const financialLabels:Record<string,string>={lt20:'Moins de 20 000 €','20_50':'20 000 à 50 000 €','50_100':'50 000 à 100 000 €','100_250':'100 000 à 250 000 €','250_500':'250 000 à 500 000 €',500plus:'Plus de 500 000 €'};
-const realEstateLabels:Record<string,string>={none:'Aucun',lt200:'Moins de 200 000 €','200_400':'200 000 à 400 000 €','400_700':'400 000 à 700 000 €','700_1200':'700 000 à 1,2 M€',1200plus:'Plus de 1,2 M€'};
-const savingsLabels:Record<string,string>={lt300:'Moins de 300 €/mois','300_700':'300 à 700 €/mois','700_1500':'700 à 1 500 €/mois','1500_3000':'1 500 à 3 000 €/mois',3000plus:'Plus de 3 000 €/mois'};
+const financialLabels:Record<string,string>={lt20:'Moins de 20 000 €','20_50':'20 000 à 50 000 €','50_100':'50 000 à 100 000 €','100_250':'100 000 à 250 000 €','250_500':'250 000 à 500 000 €','500plus':'Plus de 500 000 €'};
+const realEstateLabels:Record<string,string>={none:'Aucun',lt200:'Moins de 200 000 €','200_400':'200 000 à 400 000 €','400_700':'400 000 à 700 000 €','700_1200':'700 000 à 1,2 M€','1200plus':'Plus de 1,2 M€'};
+const savingsLabels:Record<string,string>={lt300:'Moins de 300 €/mois','300_700':'300 à 700 €/mois','700_1500':'700 à 1 500 €/mois','1500_3000':'1 500 à 3 000 €/mois','3000plus':'Plus de 3 000 €/mois'};
 const goalLabels:Record<string,string>={placements:'Mieux placer votre épargne',revenus:'Créer des revenus complémentaires',retraite:'Préparer votre retraite',fiscalite:'Réduire votre fiscalité',immobilier:'Investir dans l’immobilier',transmission:'Préparer une transmission',tresorerie:'Optimiser une trésorerie',autre:'Autre objectif'};
 const horizonLabels:Record<string,string>={'12m':'Dans les 12 mois','1_3y':'Dans 1 à 3 ans',later:'À plus long terme'};
 const taxLabels:Record<string,string>={lt1500:'Moins de 1 500 €','1500_3000':'1 500 à 3 000 €','3000_6000':'3 000 à 6 000 €','6000_12000':'6 000 à 12 000 €','12000plus':'Plus de 12 000 €',unknown:'Non précisé'};
@@ -78,24 +78,14 @@ export default async(req:Request)=>{
    `Horizon : ${horizonLabels[lead.horizon]??'Non précisé'}`,
    lead.income_tax_band?`Impôt sur le revenu déclaré : ${taxLabels[lead.income_tax_band]??'Non précisé'}`:'',
    `Événement à 12 mois : ${eventLabels[lead.event_12m]??'Non précisé'}`,'',
+   'Cette photographie est indicative et ne constitue pas une recommandation personnalisée.','',
+   'Bien cordialement,','Eric Bellaiche'
   ].filter(Boolean);
 
-  if(lead.qualification==='A'||lead.qualification==='B'){
-   lines.push('Votre situation présente des éléments qui méritent d’être approfondis lors d’un échange individuel.','Vous pouvez réserver votre visio de 30 minutes ici :','https://calendly.com/eric-bellaiche/gp-rendez-vous-conseil-avec-eric-bellaiche-clone','');
-  }else{
-   lines.push('Au regard des seules informations déclarées, votre situation ne ressort pas aujourd’hui comme prioritaire pour un rendez-vous individuel selon les critères actuels du cabinet. Cette conclusion ne constitue pas une recommandation patrimoniale.','');
-  }
-  lines.push('Cette restitution est indicative et ne constitue ni un conseil en investissement ni une recommandation personnalisée.','','Bien cordialement,','Eric Bellaiche','Conseiller en gestion de patrimoine — CIF','ORIAS n°13001580 — membre CNCEF Patrimoine','https://eric-bellaiche.fr');
-
-  const gmailUser=Netlify.env.get('GMAIL_USER')?.trim()??'';
-  const gmailPassword=Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g,'')??'';
-  if(!gmailUser||!gmailPassword)return json(500,{error:'Configuration Gmail incomplète.'});
-
-  const smtpReply=await sendMail(gmailUser,gmailPassword,lead.email,'Votre photographie patrimoniale',lines.join('\n'));
-  const completed=await completeLead(leadId,lead.email);
-  if(!completed)throw new Error('Traçabilité de l’envoi impossible.');
-  return json(200,{ok:true,sentAt:new Date().toISOString(),smtpReply});
- }catch(error){console.error('send-prospect-result failed',error);return json(500,{error:error instanceof Error?error.message:'Échec de l’envoi.'})}
+  const user=(Netlify.env.get('GMAIL_USER')||'').trim(),password=(Netlify.env.get('GMAIL_APP_PASSWORD')||'').trim();
+  if(!user||!password)return json(503,{error:'Service de messagerie indisponible.'});
+  await sendMail(user,password,lead.email,'Votre photographie patrimoniale',lines.join('\r\n'));
+  await completeLead(leadId,email);
+  return json(200,{ok:true});
+ }catch(e){console.error('send-prospect-result',e);return json(500,{error:'Impossible d’envoyer le résultat pour le moment.'})}
 };
-
-export const config={path:'/api/send-prospect-result'};
