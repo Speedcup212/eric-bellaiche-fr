@@ -8,7 +8,7 @@ const CLIENT_LOGIN_URL = 'https://eric-bellaiche.fr/espace-client/connexion';
 function json(status: number, payload: Record<string, unknown>) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
 }
 
@@ -36,6 +36,20 @@ function dotStuff(value: string) {
   return value.replace(/(^|\r\n)\./g, '$1..');
 }
 
+function jwtHasAal2(authorization: string) {
+  try {
+    const token = authorization.replace(/^Bearer\s+/i, '');
+    const payload = token.split('.')[1];
+    if (!payload) return false;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as { aal?: string };
+    return claims.aal === 'aal2';
+  } catch {
+    return false;
+  }
+}
+
 function canonicalInvitationBody(value: string) {
   const source = value.trim();
   const greetingMatch = source.match(/^Bonjour\s+([^,\r\n]+),/i);
@@ -43,7 +57,7 @@ function canonicalInvitationBody(value: string) {
   const linkMatch = source.match(/https:\/\/eric-bellaiche\.fr\/espace-client\/invitation\?token=[^\s]+/i);
   const link = linkMatch?.[0] ?? '';
 
-  if (!link) return source;
+  if (!link) return '';
 
   return `Bonjour ${firstName},
 
@@ -100,7 +114,7 @@ function supabaseConfig(req: Request) {
 
 async function verifyCabinetUser(req: Request) {
   const { authorization, supabaseUrl, headers } = supabaseConfig(req);
-  if (!authorization.startsWith('Bearer ')) return false;
+  if (!authorization.startsWith('Bearer ') || !jwtHasAal2(authorization)) return false;
 
   const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, { headers });
   if (!userResponse.ok) return false;
@@ -109,6 +123,21 @@ async function verifyCabinetUser(req: Request) {
   if (!roleResponse.ok) return false;
   const rows = await roleResponse.json() as Array<{ role?: string; actif?: boolean }>;
   return Boolean(rows[0]?.actif && ['cif', 'admin'].includes(rows[0]?.role ?? ''));
+}
+
+async function recipientMatchesInvite(req: Request, dossierId: string, investisseurId: string, email: string) {
+  const { supabaseUrl, headers } = supabaseConfig(req);
+  const query = new URLSearchParams({
+    select: 'email',
+    dossier_id: `eq.${dossierId}`,
+    investisseur_id: `eq.${investisseurId}`,
+    order: 'created_at.desc',
+    limit: '1',
+  });
+  const response = await fetch(`${supabaseUrl}/rest/v1/client_invites?${query.toString()}`, { headers });
+  if (!response.ok) return false;
+  const rows = await response.json() as Array<{ email?: string }>;
+  return rows[0]?.email?.trim().toLowerCase() === email.trim().toLowerCase();
 }
 
 async function markInviteSent(req: Request, dossierId: string, investisseurId: string, sentAt: string, smtpReply: string) {
@@ -205,11 +234,7 @@ export default async (req: Request) => {
   if (req.method !== 'POST') return json(405, { error: 'Méthode non autorisée.' });
 
   try {
-    if (!(await verifyCabinetUser(req))) return json(401, { error: 'Accès cabinet requis.' });
-
-    const gmailUser = Netlify.env.get('GMAIL_USER')?.trim() ?? '';
-    const gmailPassword = Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g, '') ?? '';
-    if (!gmailUser || !gmailPassword) return json(500, { error: 'Configuration Gmail incomplète.' });
+    if (!(await verifyCabinetUser(req))) return json(401, { error: 'Accès cabinet avec double authentification requis.' });
 
     const payload = await req.json() as { to?: string; subject?: string; body?: string; dossierId?: string; investisseurId?: string };
     const to = cleanHeader(payload.to ?? '').toLowerCase();
@@ -220,8 +245,13 @@ export default async (req: Request) => {
 
     if (!validEmail(to)) return json(400, { error: 'Adresse email destinataire invalide.' });
     if (!subject || subject.length > 180) return json(400, { error: 'Objet du mail invalide.' });
-    if (!body || body.length > 20_000) return json(400, { error: 'Contenu du mail invalide.' });
+    if (!body || body.length > 20_000) return json(400, { error: 'Contenu du mail ou lien d’activation invalide.' });
     if (!validUuid(dossierId) || !validUuid(investisseurId)) return json(400, { error: 'Référence dossier/investisseur invalide.' });
+    if (!(await recipientMatchesInvite(req, dossierId, investisseurId, to))) return json(403, { error: 'Le destinataire ne correspond pas à l’invitation active.' });
+
+    const gmailUser = Netlify.env.get('GMAIL_USER')?.trim() ?? '';
+    const gmailPassword = Netlify.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g, '') ?? '';
+    if (!gmailUser || !gmailPassword) return json(500, { error: 'Configuration Gmail incomplète.' });
 
     const smtpReply = await sendWithGmail({ user: gmailUser, password: gmailPassword, to, subject, body });
     const sentAt = new Date().toISOString();
