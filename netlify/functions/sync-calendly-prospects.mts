@@ -50,7 +50,7 @@ async function calendlyFetch<T>(path: string, token: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncSecret: string) {
+async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, calendlyToken: string) {
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
   const { firstName, lastName } = splitName(invitee);
   const mobile = normalize(invitee.text_reminder_number) || answerFor(invitee, [/t[ée]l[ée]phone/i, /mobile/i, /phone/i]);
@@ -67,7 +67,7 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncS
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       operation: 'sync',
-      secret: syncSecret,
+      secret: calendlyToken,
       params: {
         p_event_uri: event.uri,
         p_invitee_uri: invitee.uri,
@@ -88,10 +88,9 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncS
 
 export default async () => {
   const token = normalize(Netlify.env.get('CALENDLY_API_TOKEN'));
-  const syncSecret = normalize(Netlify.env.get('CALENDLY_SYNC_SECRET'));
   const syncFromRaw = normalize(Netlify.env.get('CALENDLY_SYNC_FROM'));
-  if (!token || !syncSecret) {
-    console.log('Calendly sync inactive: CALENDLY_API_TOKEN or CALENDLY_SYNC_SECRET missing.');
+  if (!token) {
+    console.log('Calendly sync inactive: CALENDLY_API_TOKEN missing.');
     return;
   }
 
@@ -115,7 +114,7 @@ export default async () => {
     for (const invitee of invitees.collection ?? []) {
       const createdAt = invitee.created_at ? new Date(invitee.created_at) : null;
       if (createdAt && createdAt < syncFrom) { skipped += 1; continue; }
-      const result = await syncInvitee(event, invitee, syncSecret);
+      const result = await syncInvitee(event, invitee, token);
       if (result.action === 'created') created += 1;
       else if (result.action === 'existing_client' || result.action === 'already_synced') existing += 1;
       else skipped += 1;
