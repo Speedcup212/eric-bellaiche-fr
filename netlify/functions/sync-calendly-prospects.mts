@@ -1,5 +1,4 @@
 const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
-const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
 const CALENDLY_USER_URI = 'https://api.calendly.com/users/HDEFNCQFDM5IQRHX';
 
 interface CalendlyEvent {
@@ -53,7 +52,6 @@ async function calendlyFetch<T>(path: string, token: string): Promise<T> {
 
 async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncSecret: string) {
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
-  const supabaseKey = Netlify.env.get('VITE_SUPABASE_PUBLISHABLE_KEY') || FALLBACK_SUPABASE_KEY;
   const { firstName, lastName } = splitName(invitee);
   const mobile = normalize(invitee.text_reminder_number) || answerFor(invitee, [/t[ée]l[ée]phone/i, /mobile/i, /phone/i]);
   const city = answerFor(invitee, [/ville/i, /city/i]);
@@ -64,25 +62,24 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, syncS
     return { action: 'ignored_incomplete_identity' };
   }
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/sync_calendly_prospect`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/calendly-db-bridge`, {
     method: 'POST',
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'content-type': 'application/json',
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      p_secret: syncSecret,
-      p_event_uri: event.uri,
-      p_invitee_uri: invitee.uri,
-      p_event_name: event.name,
-      p_event_start_at: event.start_time,
-      p_first_name: firstName,
-      p_last_name: lastName,
-      p_email: normalize(invitee.email).toLowerCase(),
-      p_mobile: mobile || null,
-      p_city: city || null,
-      p_needs: needs || null,
+      operation: 'sync',
+      secret: syncSecret,
+      params: {
+        p_event_uri: event.uri,
+        p_invitee_uri: invitee.uri,
+        p_event_name: event.name,
+        p_event_start_at: event.start_time,
+        p_first_name: firstName,
+        p_last_name: lastName,
+        p_email: normalize(invitee.email).toLowerCase(),
+        p_mobile: mobile || null,
+        p_city: city || null,
+        p_needs: needs || null,
+      },
     }),
   });
   if (!response.ok) throw new Error(`Supabase sync ${response.status}: ${(await response.text()).slice(0, 500)}`);
