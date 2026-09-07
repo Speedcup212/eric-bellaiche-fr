@@ -49,22 +49,40 @@ Ce document consigne les contrôles techniques exécutés sur la plateforme Cabi
 
 ## Sauvegarde et restauration
 
-### État vérifié
+### Sauvegarde base de données
 - Le projet est sur un plan Supabase payant.
-- Supabase indique que les projets Pro disposent de sauvegardes quotidiennes avec 7 jours de rétention.
-- Les sauvegardes de base de données ne couvrent pas les objets Storage ; seule leur métadonnée se trouve dans PostgreSQL.
+- Les sauvegardes quotidiennes Supabase sont actives et visibles dans le Dashboard.
+- La restauration du backup du 7 septembre 2026 vers un nouveau projet isolé `Cabinet-CGP-PRA-TEST` a été exécutée avec succès.
+- Le projet restauré a atteint l'état `ACTIVE_HEALTHY`.
+- Contrôle post-restauration : 56 tables publiques, 56/56 avec RLS, 5 utilisateurs Auth, 122 policies publiques, 2 buckets et 18 entrées d'objets Storage restaurées dans les métadonnées PostgreSQL.
+- La restauration correspond correctement au point de sauvegarde : elle ne contient pas les migrations de durcissement réalisées plus tard dans la journée du 7 septembre, ce qui confirme le retour à l'état temporel du backup et non à l'état courant de production.
+
+### Sauvegarde Storage
+- Les sauvegardes de base de données Supabase ne restaurent pas les octets des objets Storage ; une sauvegarde indépendante est donc maintenue.
+- Sauvegarde automatique quotidienne des buckets privés vers Google Drive via l'API S3 compatible Supabase.
+- Tâche Windows `CabinetCGP-Sauvegarde-Supabase` validée avec un résultat d'exécution 0.
+- Snapshot vérifié : 6 objets `client-source-docs` + 12 objets `regulatory-docs`, soit 18 fichiers.
+- Contrôle distant/local et manifeste SHA-256 générés à chaque snapshot.
+- Test de restauration local isolé exécuté : 6/6 + 12/12 fichiers restaurés, 18/18 empreintes SHA-256 validées, résultat `PASS`.
+- Aucune écriture de test n'a été effectuée vers le projet de production.
+
+### Portée du test PRA
+Le plan de reprise a été testé sur ses deux composants de sauvegarde :
+1. restauration de la base/Auth vers un nouveau projet Supabase isolé ;
+2. restauration des objets Storage depuis la sauvegarde externe avec vérification cryptographique.
+
+La réinjection physique des 18 objets dans un projet Supabase de test n'a pas été exécutée dans ce test. Les métadonnées Storage ont bien été restaurées avec la base, et les octets des 18 objets ont été restaurés et vérifiés séparément. Cette limite doit être conservée dans toute communication de preuve.
 
 ### RPO / RTO cibles internes
 - RPO base de données : 24 heures au maximum en mode sauvegarde quotidienne.
 - RTO cible interne : 8 heures.
-
-### Test de restauration
-Non encore exécuté. Le test attendu est une restauration vers un nouveau projet isolé, jamais une restauration destructive sur la production. Le temps de restauration et les contrôles post-restauration devront être consignés pour constituer la preuve RTO/RPO.
+- Le test démontre la restaurabilité des sauvegardes, mais ne constitue pas encore une mesure formelle d'un RTO complet de remise en service applicative, car les réglages Auth, API keys, Edge Functions, paramètres Storage et le redéploiement applicatif doivent être reconfigurés hors restauration de base.
 
 ## Limites explicites
 - Aucun pentest externe indépendant réalisé à cette date.
 - La journalisation applicative prouve les demandes d'accès via l'application ; elle ne constitue pas une journalisation universelle de chaque octet effectivement téléchargé par un navigateur après émission d'une URL signée.
-- Les fichiers Storage nécessitent une stratégie de sauvegarde séparée si une protection contre leur suppression doit être démontrée.
+- La réinjection physique des objets Storage dans un projet Supabase restauré n'a pas encore été testée de bout en bout.
+- Les paramètres hors base — notamment Edge Functions, réglages Auth, API keys et certaines configurations de projet — nécessitent une reconfiguration lors d'un sinistre complet.
 
 ## Conclusion
-L'état actuel fournit des preuves techniques reproductibles sur le cloisonnement, le MFA, les accès documentaires, les mutations sensibles et le durcissement de l'authentification. Les deux chantiers restant pour augmenter le niveau de preuve sont le test de restauration isolé et le pentest externe indépendant.
+Les contrôles techniques reproductibles couvrent désormais le cloisonnement, le MFA, les accès documentaires, les mutations sensibles, le durcissement de l'authentification, la sauvegarde automatique du Storage et la restauration isolée de la base et des fichiers. Le principal chantier externe restant pour augmenter le niveau de preuve est un pentest indépendant. La restauration applicative complète, incluant la réinjection physique des objets Storage et la reconfiguration des services hors base, reste un exercice PRA de niveau supérieur à programmer périodiquement.
