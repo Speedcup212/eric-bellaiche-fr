@@ -1,5 +1,4 @@
 const FALLBACK_SUPABASE_URL = 'https://xeloauyhlnhrvqojdudr.supabase.co';
-const FALLBACK_SUPABASE_KEY = 'sb_publishable_cbSjZNq4I5l_JlAobFUDVA_3UHkFaBA';
 const EVENT_TYPE_URI = 'https://api.calendly.com/event_types/1fe0220e-9d29-4cec-aa90-1ed35f88239f';
 const MAX_BOOKING_TIME_SECONDS = 14 * 24 * 60 * 60;
 
@@ -20,19 +19,17 @@ function validEmail(value: string) {
 
 async function prospectRpc(params: { secret: string; leadId: string; email: string; bookingUrl?: string | null }) {
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
-  const supabaseKey = Netlify.env.get('VITE_SUPABASE_PUBLISHABLE_KEY') || FALLBACK_SUPABASE_KEY;
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/manage_prospect_booking_link`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/calendly-db-bridge`, {
     method: 'POST',
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'content-type': 'application/json',
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      p_secret: params.secret,
-      p_lead_id: params.leadId,
-      p_email: params.email,
-      p_booking_url: params.bookingUrl ?? null,
+      operation: 'booking',
+      secret: params.secret,
+      params: {
+        p_lead_id: params.leadId,
+        p_email: params.email,
+        p_booking_url: params.bookingUrl ?? null,
+      },
     }),
   });
   if (!response.ok) throw new Error(`Prospect authorization ${response.status}: ${(await response.text()).slice(0, 400)}`);
