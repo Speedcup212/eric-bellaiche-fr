@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type MfaMode = 'enroll' | 'resume' | 'challenge';
+type MfaMode = 'enroll' | 'challenge';
 
 type PendingEnrollment = {
   userId: string;
@@ -12,8 +12,8 @@ type PendingEnrollment = {
 };
 
 // Conservé uniquement en mémoire tant que l'application reste ouverte.
-// Cela permet de retrouver le même QR code après une navigation interne,
-// sans stocker le secret MFA dans localStorage/sessionStorage.
+// Un simple changement d'onglet ou une navigation sans rechargement conserve
+// donc le QR code en cours, sans stocker le secret MFA dans le navigateur.
 let pendingEnrollment: PendingEnrollment | null = null;
 
 function friendlyError(error: unknown) {
@@ -21,13 +21,22 @@ function friendlyError(error: unknown) {
   if (/invalid.*totp|totp.*invalid|invalid.*code|code.*invalid/i.test(message)) {
     return 'Le code est incorrect ou a expiré. Saisissez le nouveau code à 6 chiffres affiché dans votre application.';
   }
-  if (/factor.*already exists|already exists.*factor/i.test(message)) {
-    return 'Une activation est déjà en cours. Vous pouvez la reprendre ci-dessous.';
+  if (/factor.*not found|not found.*factor|mfa_factor_not_found/i.test(message)) {
+    return 'Cette activation n’est plus disponible. Un nouveau QR code va être généré.';
   }
-  if (/factor.*not found|not found.*factor/i.test(message)) {
-    return 'Cette activation n’est plus disponible. Recommencez l’activation pour obtenir un nouveau QR code.';
+  if (/ip.*mismatch|mfa_ip_address_mismatch/i.test(message)) {
+    return 'Pour votre sécurité, l’activation doit être terminée depuis la même connexion internet. Recommencez l’activation.';
   }
   return message || 'Impossible de préparer la double authentification.';
+}
+
+function enrollmentFriendlyName() {
+  // Supabase exige un nom distinct pour chaque facteur, y compris lorsqu'une
+  // activation précédente a été interrompue avant validation.
+  const suffix = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID().slice(0, 8)
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `Cabinet Eric Bellaiche ${suffix}`;
 }
 
 export default function MandatoryMfa({ onVerified }: { onVerified: () => void }) {
@@ -53,34 +62,28 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
   };
 
   const enrollFresh = async (userId: string) => {
-    const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
-      factorType: 'totp',
-      friendlyName: 'Cabinet Eric Bellaiche',
-    });
+    // On utilise toujours un nom unique : un ancien facteur non vérifié n'est
+    // pas renvoyé par listFactors(), mais peut encore provoquer un conflit de nom.
+    // Un nom unique évite donc le blocage après une activation interrompue.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+        friendlyName: enrollmentFriendlyName(),
+      });
 
-    if (!enrollError && enrolled) {
-      applyEnrollment(userId, enrolled);
-      return;
-    }
-
-    // En cas de course entre deux préparations, on reprend le facteur existant
-    // plutôt que d'afficher une erreur technique au client.
-    const message = enrollError?.message || '';
-    if (/factor.*already exists|already exists.*factor/i.test(message)) {
-      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-      if (listError) throw listError;
-      const existing = factors.totp.find((factor) => factor.status === 'unverified');
-      if (existing) {
-        setFactorId(existing.id);
-        setQrCode(null);
-        setSecret(null);
-        setMode('resume');
+      if (!enrollError && enrolled) {
+        applyEnrollment(userId, enrolled);
         return;
       }
-    }
 
-    if (enrollError) throw enrollError;
-    throw new Error('Impossible de démarrer la double authentification.');
+      const message = enrollError?.message || '';
+      const code = (enrollError as { code?: string } | null)?.code || '';
+      const isNameConflict = /factor.*already exists|already exists.*factor|mfa_factor_name_conflict/i.test(`${code} ${message}`);
+      if (!isNameConflict || attempt === 1) {
+        if (enrollError) throw enrollError;
+        throw new Error('Impossible de démarrer la double authentification.');
+      }
+    }
   };
 
   useEffect(() => {
@@ -117,14 +120,9 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        const unverified = factors.totp.filter((factor) => factor.status === 'unverified');
-
-        // Après une simple navigation dans l'application, on réutilise exactement
-        // le QR code déjà affiché au lieu de recréer un facteur MFA.
-        if (
-          pendingEnrollment?.userId === auth.user.id &&
-          unverified.some((factor) => factor.id === pendingEnrollment?.factorId)
-        ) {
+        // Si l'activation vient d'être démarrée dans cette même session de page,
+        // on conserve exactement le QR code déjà affiché.
+        if (pendingEnrollment?.userId === auth.user.id) {
           if (active) {
             setFactorId(pendingEnrollment.factorId);
             setQrCode(pendingEnrollment.qrCode);
@@ -134,22 +132,9 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        // Après un rechargement complet, le QR secret n'est volontairement pas
-        // conservé dans le navigateur. On permet donc de reprendre si le QR avait
-        // déjà été scanné, ou de recommencer proprement avec un bouton dédié.
-        if (unverified.length > 0) {
-          const latest = [...unverified].sort((a, b) =>
-            String(b.created_at || '').localeCompare(String(a.created_at || '')),
-          )[0];
-          if (active) {
-            setFactorId(latest.id);
-            setQrCode(null);
-            setSecret(null);
-            setMode('resume');
-          }
-          return;
-        }
-
+        // Après un rechargement complet, le secret du QR code précédent n'est
+        // volontairement pas conservé. On génère simplement une nouvelle activation
+        // avec un nom unique, sans exposer le client à un message technique bloquant.
         await enrollFresh(auth.user.id);
       } catch (e) {
         if (active) setError(friendlyError(e));
@@ -168,25 +153,15 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
     setBusy(true);
     setError('');
     setCode('');
+    pendingEnrollment = null;
+    setFactorId(null);
+    setQrCode(null);
+    setSecret(null);
 
     try {
       const { data: auth, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!auth.user) throw new Error('Votre session a expiré. Reconnectez-vous.');
-
-      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-      if (listError) throw listError;
-
-      const unverified = factors.totp.filter((factor) => factor.status === 'unverified');
-      for (const factor of unverified) {
-        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-        if (unenrollError) throw unenrollError;
-      }
-
-      pendingEnrollment = null;
-      setFactorId(null);
-      setQrCode(null);
-      setSecret(null);
       await enrollFresh(auth.user.id);
     } catch (e) {
       setError(friendlyError(e));
@@ -217,6 +192,13 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
       pendingEnrollment = null;
       onVerified();
     } catch (e) {
+      const message = e instanceof Error ? e.message : '';
+      const codeValue = (e as { code?: string } | null)?.code || '';
+      if (/factor.*not found|not found.*factor|mfa_factor_not_found/i.test(`${codeValue} ${message}`)) {
+        setError('Cette activation a expiré. Un nouveau QR code va être généré.');
+        await restartEnrollment();
+        return;
+      }
       setError(friendlyError(e));
     } finally {
       setBusy(false);
@@ -228,8 +210,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
     await supabase.auth.signOut();
     window.location.reload();
   };
-
-  const isFirstActivation = mode === 'enroll' || mode === 'resume';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#081426] px-4 py-10">
@@ -275,26 +255,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           </div>
         )}
 
-        {mode === 'resume' && (
-          <div className="mt-6 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] p-4">
-            <p className="text-sm font-semibold text-[#0F172A]">Activation déjà commencée</p>
-            <p className="mt-1 text-xs leading-5 text-[#64748B]">
-              Si vous avez déjà scanné le QR code, saisissez simplement le code à 6 chiffres ci-dessous.
-            </p>
-            <p className="mt-2 text-xs leading-5 text-[#64748B]">
-              Sinon, recommencez l’activation pour afficher un nouveau QR code.
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void restartEnrollment()}
-              className="mt-3 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-50"
-            >
-              Afficher un nouveau QR code
-            </button>
-          </div>
-        )}
-
         {factorId && (
           <form onSubmit={verify} className="mt-6 space-y-4">
             <label className="block text-sm font-semibold text-[#0F172A]">
@@ -321,13 +281,34 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
               disabled={busy}
               className="w-full rounded-2xl bg-[#0F172A] px-5 py-3.5 font-semibold text-white disabled:opacity-50"
             >
-              {busy ? 'Vérification…' : isFirstActivation ? 'Activer et continuer' : 'Vérifier et continuer'}
+              {busy ? 'Vérification…' : mode === 'enroll' ? 'Activer et continuer' : 'Vérifier et continuer'}
             </button>
+
+            {mode === 'enroll' && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void restartEnrollment()}
+                className="w-full text-center text-sm font-semibold text-[#64748B] hover:text-[#0F172A] disabled:opacity-50"
+              >
+                Générer un nouveau QR code
+              </button>
+            )}
           </form>
         )}
 
         {!factorId && error && (
-          <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+          <div className="mt-5">
+            <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void restartEnrollment()}
+              className="mt-3 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-50"
+            >
+              Recommencer l’activation
+            </button>
+          </div>
         )}
 
         <button
