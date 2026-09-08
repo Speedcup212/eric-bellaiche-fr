@@ -158,7 +158,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        // Même session SPA : on conserve le QR et le secret déjà affichés.
         if (pendingEnrollment?.userId === auth.user.id) {
           if (active) {
             setFactorId(pendingEnrollment.factorId);
@@ -170,9 +169,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        // Rechargement complet : listFactors() ne renvoie pas toujours le facteur
-        // TOTP non vérifié. On réutilise donc son factorId conservé dans sessionStorage
-        // au lieu d'en créer un nouveau et de désynchroniser Google Authenticator.
         const stored = loadPendingFactorRef(auth.user.id);
         if (stored) {
           if (active) {
@@ -211,7 +207,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
 
       const currentFactorId = factorId || pendingEnrollment?.factorId || loadPendingFactorRef(auth.user.id)?.factorId;
       if (currentFactorId) {
-        // Nettoyage best-effort de l'activation interrompue avant d'en créer une autre.
         await supabase.auth.mfa.unenroll({ factorId: currentFactorId }).catch(() => undefined);
       }
 
@@ -311,10 +306,10 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           <div className="mt-6 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] p-4">
             <p className="text-sm font-semibold text-[#0F172A]">Première activation</p>
             <p className="mt-1 text-xs leading-5 text-[#64748B]">
-              Si vous n’avez pas encore d’application d’authentification, vous pouvez installer gratuitement Google Authenticator ou Microsoft Authenticator sur votre téléphone.
+              Si vous n’avez pas encore d’application d’authentification, vous pouvez installer gratuitement <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong> ou <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong> sur votre téléphone.
             </p>
             <p className="mt-2 text-xs leading-5 text-[#64748B]">
-              Scannez ensuite ce QR code avec l’application, puis saisissez le code à 6 chiffres généré.
+              Ajoutez ensuite votre compte en scannant le QR code ou en saisissant la clé manuellement, puis saisissez le code à 6 chiffres généré.
             </p>
             <img
               src={qrCode}
@@ -371,6 +366,38 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
             )}
           </form>
         )}
+
+        <details className="mt-5 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#52627A]">
+          <summary className="cursor-pointer font-semibold text-[#0F172A]">
+            Besoin d’aide pour activer la double authentification ?
+          </summary>
+          <div className="mt-4 space-y-4 text-xs leading-5 text-[#64748B]">
+            <div>
+              <p className="font-semibold text-[#0F172A]">Quelle application dois-je utiliser ?</p>
+              <p className="mt-1">
+                Vous pouvez utiliser <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong> ou <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, disponibles gratuitement sur smartphone.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-[#0F172A]">Mon appareil photo ne fonctionne pas.</p>
+              <p className="mt-1">
+                Cliquez sur <strong className="font-semibold text-[#0F172A]">Afficher la clé manuelle</strong>, puis choisissez dans votre application l’option permettant de saisir une clé de configuration.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-[#0F172A]">Mon code est refusé.</p>
+              <p className="mt-1">
+                Attendez l’apparition du prochain code à 6 chiffres et saisissez-le immédiatement. Vérifiez également que la date, l’heure et le fuseau horaire automatiques sont activés sur votre téléphone.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-[#0F172A]">Dois-je refaire cette activation à chaque connexion ?</p>
+              <p className="mt-1">
+                Non. L’activation de l’application se fait une seule fois. Lors des connexions suivantes nécessitant une vérification, saisissez simplement le code à 6 chiffres généré par votre application.
+              </p>
+            </div>
+          </div>
+        </details>
 
         {!factorId && error && (
           <div className="mt-5">
