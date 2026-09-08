@@ -11,10 +11,49 @@ type PendingEnrollment = {
   secret: string;
 };
 
-// Conservé uniquement en mémoire tant que l'application reste ouverte.
-// Un simple changement d'onglet ou une navigation sans rechargement conserve
-// donc le QR code en cours, sans stocker le secret MFA dans le navigateur.
+type PendingEnrollmentRef = {
+  userId: string;
+  factorId: string;
+};
+
+const PENDING_MFA_STORAGE_KEY = 'cabinet_mfa_pending_factor_v1';
+
+// Le secret TOTP et le QR code restent uniquement en mémoire.
+// Seuls userId + factorId sont conservés dans sessionStorage afin qu'un simple
+// rechargement de page ne crée PAS un nouveau facteur Supabase.
 let pendingEnrollment: PendingEnrollment | null = null;
+
+function savePendingFactorRef(ref: PendingEnrollmentRef) {
+  try {
+    sessionStorage.setItem(PENDING_MFA_STORAGE_KEY, JSON.stringify(ref));
+  } catch {
+    // Le flux continue même si le navigateur refuse sessionStorage.
+  }
+}
+
+function loadPendingFactorRef(userId: string): PendingEnrollmentRef | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_MFA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingEnrollmentRef>;
+    if (parsed.userId !== userId || typeof parsed.factorId !== 'string' || !parsed.factorId) {
+      sessionStorage.removeItem(PENDING_MFA_STORAGE_KEY);
+      return null;
+    }
+    return { userId, factorId: parsed.factorId };
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingEnrollment() {
+  pendingEnrollment = null;
+  try {
+    sessionStorage.removeItem(PENDING_MFA_STORAGE_KEY);
+  } catch {
+    // Rien à faire.
+  }
+}
 
 function friendlyError(error: unknown) {
   const message = error instanceof Error ? error.message : '';
@@ -22,7 +61,7 @@ function friendlyError(error: unknown) {
     return 'Le code est incorrect ou a expiré. Saisissez le nouveau code à 6 chiffres affiché dans votre application.';
   }
   if (/factor.*not found|not found.*factor|mfa_factor_not_found/i.test(message)) {
-    return 'Cette activation n’est plus disponible. Un nouveau QR code va être généré.';
+    return 'Cette activation n’est plus disponible. Recommencez l’activation.';
   }
   if (/ip.*mismatch|mfa_ip_address_mismatch/i.test(message)) {
     return 'Pour votre sécurité, l’activation doit être terminée depuis la même connexion internet. Recommencez l’activation.';
@@ -45,6 +84,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [resumedAfterReload, setResumedAfterReload] = useState(false);
 
   const applyEnrollment = (userId: string, enrolled: { id: string; totp: { qr_code: string; secret: string } }) => {
     pendingEnrollment = {
@@ -53,10 +93,12 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
       qrCode: enrolled.totp.qr_code,
       secret: enrolled.totp.secret,
     };
+    savePendingFactorRef({ userId, factorId: enrolled.id });
     setFactorId(enrolled.id);
     setQrCode(enrolled.totp.qr_code);
     setSecret(enrolled.totp.secret);
     setMode('enroll');
+    setResumedAfterReload(false);
   };
 
   const enrollFresh = async (userId: string) => {
@@ -72,8 +114,8 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
       }
 
       const message = enrollError?.message || '';
-      const code = (enrollError as { code?: string } | null)?.code || '';
-      const isNameConflict = /factor.*already exists|already exists.*factor|mfa_factor_name_conflict/i.test(`${code} ${message}`);
+      const codeValue = (enrollError as { code?: string } | null)?.code || '';
+      const isNameConflict = /factor.*already exists|already exists.*factor|mfa_factor_name_conflict/i.test(`${codeValue} ${message}`);
       if (!isNameConflict || attempt === 1) {
         if (enrollError) throw enrollError;
         throw new Error('Impossible de démarrer la double authentification.');
@@ -95,7 +137,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
         if (aalError) throw aalError;
         if (aal.currentLevel === 'aal2') {
-          pendingEnrollment = null;
+          clearPendingEnrollment();
           if (active) onVerified();
           return;
         }
@@ -105,22 +147,40 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
 
         const verified = factors.totp.find((factor) => factor.status === 'verified');
         if (verified) {
-          pendingEnrollment = null;
+          clearPendingEnrollment();
           if (active) {
             setFactorId(verified.id);
             setQrCode(null);
             setSecret(null);
             setMode('challenge');
+            setResumedAfterReload(false);
           }
           return;
         }
 
+        // Même session SPA : on conserve le QR et le secret déjà affichés.
         if (pendingEnrollment?.userId === auth.user.id) {
           if (active) {
             setFactorId(pendingEnrollment.factorId);
             setQrCode(pendingEnrollment.qrCode);
             setSecret(pendingEnrollment.secret);
             setMode('enroll');
+            setResumedAfterReload(false);
+          }
+          return;
+        }
+
+        // Rechargement complet : listFactors() ne renvoie pas toujours le facteur
+        // TOTP non vérifié. On réutilise donc son factorId conservé dans sessionStorage
+        // au lieu d'en créer un nouveau et de désynchroniser Google Authenticator.
+        const stored = loadPendingFactorRef(auth.user.id);
+        if (stored) {
+          if (active) {
+            setFactorId(stored.factorId);
+            setQrCode(null);
+            setSecret(null);
+            setMode('enroll');
+            setResumedAfterReload(true);
           }
           return;
         }
@@ -143,15 +203,23 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
     setBusy(true);
     setError('');
     setCode('');
-    pendingEnrollment = null;
-    setFactorId(null);
-    setQrCode(null);
-    setSecret(null);
 
     try {
       const { data: auth, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!auth.user) throw new Error('Votre session a expiré. Reconnectez-vous.');
+
+      const currentFactorId = factorId || pendingEnrollment?.factorId || loadPendingFactorRef(auth.user.id)?.factorId;
+      if (currentFactorId) {
+        // Nettoyage best-effort de l'activation interrompue avant d'en créer une autre.
+        await supabase.auth.mfa.unenroll({ factorId: currentFactorId }).catch(() => undefined);
+      }
+
+      clearPendingEnrollment();
+      setFactorId(null);
+      setQrCode(null);
+      setSecret(null);
+      setResumedAfterReload(false);
       await enrollFresh(auth.user.id);
     } catch (e) {
       setError(friendlyError(e));
@@ -173,8 +241,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         throw new Error('Saisissez le code à 6 chiffres de votre application d’authentification.');
       }
 
-      // Flux explicite recommandé par Supabase pour l'enrôlement TOTP :
-      // 1) création du challenge ; 2) vérification de CE challenge avec le même facteur.
       const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
         factorId,
       });
@@ -188,14 +254,18 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
       });
       if (verifyError) throw verifyError;
 
-      pendingEnrollment = null;
+      clearPendingEnrollment();
       onVerified();
     } catch (e) {
       const message = e instanceof Error ? e.message : '';
       const codeValue = (e as { code?: string } | null)?.code || '';
       if (/factor.*not found|not found.*factor|mfa_factor_not_found/i.test(`${codeValue} ${message}`)) {
-        setError('Cette activation a expiré. Un nouveau QR code va être généré.');
-        await restartEnrollment();
+        clearPendingEnrollment();
+        setFactorId(null);
+        setQrCode(null);
+        setSecret(null);
+        setResumedAfterReload(false);
+        setError('Cette activation n’est plus disponible. Cliquez sur « Recommencer l’activation ».');
         return;
       }
       setError(friendlyError(e));
@@ -205,7 +275,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
   };
 
   const signOut = async () => {
-    pendingEnrollment = null;
+    clearPendingEnrollment();
     await supabase.auth.signOut();
     window.location.reload();
   };
@@ -229,6 +299,12 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           <p className="mt-6 rounded-2xl bg-[#F8FBFF] p-4 text-sm text-[#52627A]">
             Préparation de la vérification sécurisée…
           </p>
+        )}
+
+        {resumedAfterReload && factorId && !qrCode && mode === 'enroll' && (
+          <div className="mt-6 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] p-4 text-sm leading-6 text-[#52627A]">
+            L’activation en cours a été conservée. Utilisez le code à 6 chiffres de l’entrée déjà créée dans votre application d’authentification. Si vous ne l’avez pas encore configurée, recommencez l’activation pour obtenir un nouveau QR code.
+          </div>
         )}
 
         {qrCode && (
@@ -290,7 +366,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
                 onClick={() => void restartEnrollment()}
                 className="w-full text-center text-sm font-semibold text-[#64748B] hover:text-[#0F172A] disabled:opacity-50"
               >
-                Générer un nouveau QR code
+                Recommencer l’activation
               </button>
             )}
           </form>
