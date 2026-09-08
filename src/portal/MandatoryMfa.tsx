@@ -31,8 +31,6 @@ function friendlyError(error: unknown) {
 }
 
 function enrollmentFriendlyName() {
-  // Supabase exige un nom distinct pour chaque facteur, y compris lorsqu'une
-  // activation précédente a été interrompue avant validation.
   const suffix = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID().slice(0, 8)
     : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -62,9 +60,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
   };
 
   const enrollFresh = async (userId: string) => {
-    // On utilise toujours un nom unique : un ancien facteur non vérifié n'est
-    // pas renvoyé par listFactors(), mais peut encore provoquer un conflit de nom.
-    // Un nom unique évite donc le blocage après une activation interrompue.
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
@@ -120,8 +115,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        // Si l'activation vient d'être démarrée dans cette même session de page,
-        // on conserve exactement le QR code déjà affiché.
         if (pendingEnrollment?.userId === auth.user.id) {
           if (active) {
             setFactorId(pendingEnrollment.factorId);
@@ -132,9 +125,6 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
-        // Après un rechargement complet, le secret du QR code précédent n'est
-        // volontairement pas conservé. On génère simplement une nouvelle activation
-        // avec un nom unique, sans exposer le client à un message technique bloquant.
         await enrollFresh(auth.user.id);
       } catch (e) {
         if (active) setError(friendlyError(e));
@@ -183,8 +173,17 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         throw new Error('Saisissez le code à 6 chiffres de votre application d’authentification.');
       }
 
-      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+      // Flux explicite recommandé par Supabase pour l'enrôlement TOTP :
+      // 1) création du challenge ; 2) vérification de CE challenge avec le même facteur.
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
         factorId,
+      });
+      if (challengeError) throw challengeError;
+      if (!challenge?.id) throw new Error('Impossible de créer le challenge MFA.');
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challenge.id,
         code: cleanCode,
       });
       if (verifyError) throw verifyError;
