@@ -37,7 +37,13 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           setSecret(enrolled.totp.secret);
         }
       } catch (e) {
-        if (active) setError(e instanceof Error ? e.message : 'Impossible de préparer la double authentification.');
+        if (!active) return;
+        const message = e instanceof Error ? e.message : '';
+        if (/factor.*already exists|already exists.*factor/i.test(message)) {
+          setError('Une méthode de double authentification est déjà associée à ce compte.');
+        } else {
+          setError(message || 'Impossible de préparer la double authentification.');
+        }
       } finally {
         if (active) setBusy(false);
       }
@@ -75,7 +81,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0F172A] text-white"><ShieldCheck className="h-6 w-6" /></div>
         <p className="mt-6 text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Sécurité renforcée</p>
         <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">Double authentification obligatoire</h1>
-        <p className="mt-3 text-sm leading-6 text-[#52627A]">Votre mot de passe ne suffit plus pour accéder aux données patrimoniales. Utilisez une application TOTP comme Google Authenticator, Microsoft Authenticator, 1Password ou Authy.</p>
+        <p className="mt-3 text-sm leading-6 text-[#52627A]">Pour sécuriser l’accès à vos données personnelles et patrimoniales, une seconde vérification est nécessaire après votre mot de passe. Utilisez une application d’authentification telle que Google Authenticator, Microsoft Authenticator, 1Password ou Authy pour finaliser votre connexion.</p>
 
         {busy && !factorId && <p className="mt-6 rounded-2xl bg-[#F8FBFF] p-4 text-sm text-[#52627A]">Préparation de la vérification sécurisée…</p>}
 
