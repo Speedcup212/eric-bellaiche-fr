@@ -81,14 +81,14 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0F172A] text-white"><ShieldCheck className="h-6 w-6" /></div>
         <p className="mt-6 text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Sécurité renforcée</p>
         <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">Double authentification obligatoire</h1>
-        <p className="mt-3 text-sm leading-6 text-[#52627A]">Pour sécuriser l’accès à vos données personnelles et patrimoniales, une seconde vérification est nécessaire après votre mot de passe. Utilisez une application d’authentification telle que Google Authenticator, Microsoft Authenticator, 1Password ou Authy pour finaliser votre connexion.</p>
+        <p className="mt-3 text-sm leading-6 text-[#52627A]">Pour protéger vos données personnelles et patrimoniales, une seconde vérification est nécessaire après votre mot de passe. Ouvrez votre application d’authentification et saisissez le code à 6 chiffres affiché.</p>
 
         {busy && !factorId && <p className="mt-6 rounded-2xl bg-[#F8FBFF] p-4 text-sm text-[#52627A]">Préparation de la vérification sécurisée…</p>}
 
         {qrCode && (
           <div className="mt-6 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] p-4">
             <p className="text-sm font-semibold text-[#0F172A]">Première activation</p>
-            <p className="mt-1 text-xs leading-5 text-[#64748B]">Scannez ce QR code avec votre application d’authentification, puis saisissez le code à 6 chiffres.</p>
+            <p className="mt-1 text-xs leading-5 text-[#64748B]">Scannez ce QR code avec votre application d’authentification, puis saisissez le code à 6 chiffres généré.</p>
             <img src={qrCode} alt="QR code pour activer la double authentification" className="mx-auto mt-4 h-48 w-48 rounded-xl bg-white p-2" />
             {secret && <details className="mt-3 text-xs text-[#64748B]"><summary className="cursor-pointer font-semibold">Afficher la clé manuelle</summary><code className="mt-2 block break-all rounded-lg bg-white p-2">{secret}</code></details>}
           </div>
