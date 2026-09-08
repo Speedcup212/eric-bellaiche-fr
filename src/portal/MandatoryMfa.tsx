@@ -29,6 +29,12 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
           return;
         }
 
+        const unverified = factors.totp.filter((factor) => factor.status === 'unverified');
+        for (const factor of unverified) {
+          const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+          if (unenrollError) throw unenrollError;
+        }
+
         const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Cabinet Eric Bellaiche' });
         if (enrollError) throw enrollError;
         if (active) {
@@ -39,11 +45,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
       } catch (e) {
         if (!active) return;
         const message = e instanceof Error ? e.message : '';
-        if (/factor.*already exists|already exists.*factor/i.test(message)) {
-          setError('Une méthode de double authentification est déjà associée à ce compte.');
-        } else {
-          setError(message || 'Impossible de préparer la double authentification.');
-        }
+        setError(message || 'Impossible de préparer la double authentification.');
       } finally {
         if (active) setBusy(false);
       }
