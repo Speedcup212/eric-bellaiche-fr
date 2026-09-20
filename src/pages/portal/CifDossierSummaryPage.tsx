@@ -34,7 +34,6 @@ const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
 const sectionLabel: Record<string, string> = { identity: 'Identité', family: 'Situation familiale', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus & capacité', tax: 'Fiscalité', patrimony: 'Immobilier', financial: 'Patrimoine financier', credits: 'Crédits', regulatory: 'Réglementaire' };
 const sectionOrder = ['identity', 'family', 'professional', 'capacity', 'tax', 'patrimony', 'financial', 'credits', 'objectives', 'regulatory'];
 const financialCategoryLabel: Record<string, string> = { savings: 'Livrets / épargne bancaire', life_insurance: 'Assurance-vie', retirement: 'PER / retraite', securities: 'PEA / compte-titres', paper_real_estate: 'SCPI / OPCI', employee_savings: 'Épargne salariale', other: 'Autres placements' };
-const generatedDocumentLabel: Record<GeneratedDocument['type'], string> = { recueil: 'Recueil d’informations', qpi: 'Profil investisseur', esg: 'Préférences de durabilité' };
 const sourceDocumentCategoryLabel: Record<string,string> = {
   avis_imposition: 'Avis d’imposition',
   patrimoine_financier: 'Patrimoine financier',
