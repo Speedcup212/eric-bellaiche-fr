@@ -601,6 +601,7 @@ function parseCredit(
   const referenceMatch = all.match(/(?:Votre r[ée]f[ée]rence [àa] rappeler pour tout [ée]change|R[ée]f\.? [àa] rappeler)\s*:\s*([^\n]+)/i);
   const loanDateMatch = all.match(/Date de pr[êe]t\s*:\s*([^\n]+)/i);
   const taDateMatch = all.match(/Date de constitution du TA\s*:\s*([^\n]+)/i);
+  const currencyMatch = all.match(/Devise de gestion du contrat\s*:\s*([A-Z]{3})/i);
   const originalDurationMatch = all.match(/sur une dur[ée]e de\s*(\d{1,4})\s*mois/i);
   const remainingDurationMatch = all.match(/Dur[ée]e actualis[ée]e restante\s*:\s*(\d{1,4})/i);
   const paymentDayMatch = all.match(/Date des r[èe]glements\s*:\s*le\s*(\d{1,2})\b/i);
@@ -650,6 +651,7 @@ function parseCredit(
   if (initial) { fact.montant_initial = Math.round(initial.value * 100) / 100; sourcePages.__merge_credit_items ??= String(initial.page); }
   if (loanDateMatch?.[1]) { const d=toIso(loanDateMatch[1]); if (d) { fact.date_pret=d; fact.date_ouverture=d; } }
   if (taDateMatch?.[1]) { const d=toIso(taDateMatch[1]); if (d) fact.date_constitution_tableau=d; }
+  if (currencyMatch?.[1]) fact.devise=currencyMatch[1].toUpperCase();
   if (crdDateMatch?.[1]) { const d=toIso(crdDateMatch[1]); if (d) fact.date_derniere_echeance_prelevee=d; }
   if (originalDurationMatch?.[1]) { fact.duree_initiale_mois=Number(originalDurationMatch[1]); fact.duree_mois=Number(originalDurationMatch[1]); }
   if (remainingDurationMatch?.[1]) fact.duree_actualisee_restante_mois=Number(remainingDurationMatch[1]);
