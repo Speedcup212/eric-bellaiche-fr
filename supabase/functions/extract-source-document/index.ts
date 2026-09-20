@@ -441,6 +441,88 @@ async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fil
     sourcePages[key] = String(item.page);
   }
 
+  const putTax = (key: string, value: unknown, page?: number) => {
+    if (value === null || value === undefined || String(value).trim() === '') return;
+    fields[key] = typeof value === 'number' ? String(Math.round(value * 100) / 100) : String(value).trim();
+    if (page) sourcePages[key] = String(page);
+  };
+  const at = (row: { values:number[]; page:number } | null, index: number) => row && row.values.length > index ? row.values[index] : null;
+  const last = (row: { values:number[]; page:number } | null) => row?.values?.length ? row.values[row.values.length - 1] : null;
+
+  const fiscal1 = await findPdfRowTextRight(pdf, /D[ée]clarant 1 \(C\)/i);
+  const fiscal2 = await findPdfRowTextRight(pdf, /D[ée]clarant 2 \(C\)/i);
+  if (fiscal1 && /^\d{2}(?:\s+\d{2}){1,}\s+\d{3}$/.test(fiscal1.value)) putTax('numero_fiscal_declarant_1', fiscal1.value, fiscal1.page);
+  if (fiscal2 && /^\d{2}(?:\s+\d{2}){1,}\s+\d{3}$/.test(fiscal2.value)) putTax('numero_fiscal_declarant_2', fiscal2.value, fiscal2.page);
+  const name1 = all.match(/D[ée]clarant 1\s*-\s*Nom de naissance\s*:\s*([^\n]+)/i);
+  const name2 = all.match(/D[ée]clarant 2\s*-\s*Nom de naissance\s*:\s*([^\n]+)/i);
+  if (name1?.[1]) putTax('nom_declarant_1', name1[1], 2);
+  if (name2?.[1]) putTax('nom_declarant_2', name2[1], 2);
+
+  const salaries = await findPdfRowValues(pdf, /^\s*Salaires\.{2,}/i, { min: 0, max: 10000000 });
+  putTax('salaires_declarant_1', at(salaries,0), salaries?.page);
+  putTax('salaires_declarant_2', at(salaries,1), salaries?.page);
+  const totalSalaires = await findPdfRowValues(pdf, /Total des salaires et assimil[ée]s/i, { min: 0, max: 10000000 });
+  putTax('total_salaires_declarant_1', at(totalSalaires,0), totalSalaires?.page);
+  putTax('total_salaires_declarant_2', at(totalSalaires,1), totalSalaires?.page);
+  const deduction = await findPdfRowValues(pdf, /D[ée]duction 10%|D[ée]duction 10 %|frais r[ée]els/i, { min: 0, max: 10000000 });
+  putTax('deduction_10_declarant_1', at(deduction,0), deduction?.page);
+  putTax('deduction_10_declarant_2', at(deduction,1), deduction?.page);
+  const salairesNets = await findPdfRowValues(pdf, /Salaires, pensions, rentes nets/i, { min: 0, max: 10000000 });
+  putTax('salaires_nets_declarant_1', at(salairesNets,0), salairesNets?.page);
+  putTax('salaires_nets_declarant_2', at(salairesNets,1), salairesNets?.page);
+
+  const extraSingles: Array<[string, RegExp, number, number]> = [
+    ['revenu_brut_global', /Revenu brut global/i, 0, 10000000],
+    ['csg_deductible_revenu_global', /^\s*CSG d[ée]ductible/i, 0, 10000000],
+    ['revenus_taux_forfaitaire', /Revenus au taux forfaitaire/i, 0, 10000000],
+    ['impot_revenus_bareme', /Imp[oô]t sur les revenus soumis au bar[èe]me/i, 0, 1000000],
+    ['decote', /^\s*D[ée]cote/i, 0, 1000000],
+    ['impot_proportionnel', /Imp[oô]t proportionnel/i, 0, 1000000],
+    ['impot_total_avant_credits', /Imp[oô]t total avant cr[ée]dits d['’]imp[oô]t/i, 0, 1000000],
+    ['credit_impot_calcule', /Montant du cr[ée]dit d['’]imp[oô]t calcul[ée]/i, 0, 1000000],
+    ['rcm_deja_soumis_ps_csg_deductible', /RCM d[ée]j[àa] soumis aux pr[ée]l[èe]vements sociaux/i, 0, 10000000],
+  ];
+  for (const [key,label,min,max] of extraSingles) {
+    const item = await findPdfRowNumber(pdf, label, { min, max });
+    if (item) putTax(key,item.value,item.page);
+  }
+
+  const foreignTax = await findPdfRowValues(pdf, /Imp[oô]t [ée]tranger imput[ée] sur l['’]IR/i, { min: 0, max: 1000000 });
+  putTax('impot_etranger_declare', at(foreignTax,0), foreignTax?.page);
+  putTax('impot_etranger_impute', at(foreignTax,1), foreignTax?.page);
+  const forfait = await findPdfRowValues(pdf, /Pr[ée]l[èe]vement forfaitaire d[ée]j[àa] vers[ée]/i, { min: 0, max: 1000000 });
+  putTax('prelevement_forfaitaire_deja_verse', last(forfait), forfait?.page);
+  const garde = await findPdfRowValues(pdf, /Frais de garde des jeunes enfants/i, { min: 0, max: 1000000 });
+  putTax('frais_garde_declares', at(garde,0), garde?.page);
+  putTax('frais_garde_retenus', at(garde,1), garde?.page);
+
+  const psRcm = await findPdfRowValues(pdf, /Revenus de capitaux mobiliers/i, { min: 0, max: 10000000 });
+  putTax('revenus_capitaux_mobiliers_ps', at(psRcm,0), psRcm?.page);
+  const psPv = await findPdfRowValues(pdf, /Plus-values et gains divers/i, { min: 0, max: 10000000 });
+  putTax('plus_values_gains_divers_ps', at(psPv,0), psPv?.page);
+  const psBase = await findPdfRowValues(pdf, /BASE IMPOSABLE/i, { min: 0, max: 10000000 });
+  putTax('base_prelevements_sociaux', at(psBase,0), psBase?.page);
+  const psRates = await findPdfRowValues(pdf, /Taux de l['’]imposition/i, { min: 0, max: 100 });
+  putTax('taux_csg_crds', at(psRates,0), psRates?.page);
+  putTax('taux_prelevement_solidarite', at(psRates,1), psRates?.page);
+  const psAmounts = await findPdfRowValues(pdf, /Montant de l['’]imposition/i, { min: 0, max: 1000000 });
+  putTax('montant_csg_crds', at(psAmounts,0), psAmounts?.page);
+  putTax('montant_prelevement_solidarite', at(psAmounts,1), psAmounts?.page);
+
+  const perRows: Array<[string,string,RegExp]> = [
+    ['plafond_total_2024_declarant_1','plafond_total_2024_declarant_2',/Plafond total de 2024/i],
+    ['plafond_non_utilise_2023_declarant_1','plafond_non_utilise_2023_declarant_2',/Plafond non utilis[ée] pour les revenus de 2023/i],
+    ['plafond_non_utilise_2024_declarant_1','plafond_non_utilise_2024_declarant_2',/Plafond non utilis[ée] pour les revenus de 2024/i],
+    ['plafond_non_utilise_2025_declarant_1','plafond_non_utilise_2025_declarant_2',/Plafond non utilis[ée] pour les revenus de 2025/i],
+    ['plafond_calcule_revenus_2025_declarant_1','plafond_calcule_revenus_2025_declarant_2',/Plafond calcul[ée] sur les revenus de 2025/i],
+    ['plafond_per_2026_declarant_1','plafond_per_2026_declarant_2',/Plafond pour les cotisations vers[ée]es en 2026/i],
+  ];
+  for (const [key1,key2,label] of perRows) {
+    const values = await findPdfRowValues(pdf,label,{min:0,max:1000000});
+    putTax(key1,at(values,0),values?.page);
+    putTax(key2,at(values,1),values?.page);
+  }
+
   const required = ['annee_imposition','revenu_imposable','revenu_fiscal_reference','nombre_parts','tmi','impot_revenu_net'];
   const missingRequired = required.filter((key) => fields[key] === undefined || fields[key] === '');
 
@@ -452,9 +534,10 @@ async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fil
       source_pages: sourcePages,
     }] : [],
     summary: {
-      parser: 'avis_imposition_fr_v2',
+      parser: 'avis_imposition_fr_v3',
       file_name: fileName,
       extracted_fields: Object.keys(fields),
+      extracted_field_count: Object.keys(fields).length,
       missing_required_tax_fields: missingRequired,
       direct_completion_possible: missingRequired.length === 0,
       source_document_id: documentId,
