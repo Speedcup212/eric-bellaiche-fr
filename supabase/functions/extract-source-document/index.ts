@@ -204,20 +204,21 @@ async function findPdfRowNumber(
 }
 
 async function ocrImage(bytes: Uint8Array) {
-  const mod: any = await import('npm:tesseract.js@6.0.1');
-  const api: any = mod.default ?? mod;
-  const createWorker = api.createWorker ?? mod.createWorker;
-  if (typeof createWorker !== 'function') throw new Error('OCR engine unavailable');
-  const worker = await createWorker('fra+eng', 1, { logger: () => undefined });
-  try {
-    const result = await worker.recognize(bytes);
-    return {
-      text: normalizeText(String(result?.data?.text ?? '')),
-      confidence: Number(result?.data?.confidence ?? 0),
-    };
-  } finally {
-    await worker.terminate();
-  }
+  const { Buffer } = await import('node:buffer');
+  const mod: any = await import('npm:nocr@1.2.0');
+  const nocr: any = mod.default ?? mod;
+  if (typeof nocr.decodeBuffer !== 'function') throw new Error('OCR engine unavailable');
+  const text = await new Promise<string>((resolve, reject) => {
+    nocr.decodeBuffer(Buffer.from(bytes), (error: unknown, value: unknown) => {
+      if (error) reject(error);
+      else resolve(String(value ?? ''));
+    });
+  });
+  const normalized = normalizeText(text);
+  return {
+    text: normalized,
+    confidence: normalized.replace(/\s/g,'').length >= 8 ? 80 : 0,
+  };
 }
 
 function financialInstrument(fileName: string, text: string) {
