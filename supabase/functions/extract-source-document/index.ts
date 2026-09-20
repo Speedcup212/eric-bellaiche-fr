@@ -204,12 +204,20 @@ async function findPdfRowNumber(
 }
 
 async function ocrImage(bytes: Uint8Array) {
-  const Tesseract = await import('npm:tesseract.js@6.0.1');
-  const result = await Tesseract.recognize(bytes, 'fra+eng', { logger: () => undefined });
-  return {
-    text: normalizeText(String(result?.data?.text ?? '')),
-    confidence: Number(result?.data?.confidence ?? 0),
-  };
+  const mod: any = await import('npm:tesseract.js@6.0.1');
+  const api: any = mod.default ?? mod;
+  const createWorker = api.createWorker ?? mod.createWorker;
+  if (typeof createWorker !== 'function') throw new Error('OCR engine unavailable');
+  const worker = await createWorker('fra+eng', 1, { logger: () => undefined });
+  try {
+    const result = await worker.recognize(bytes);
+    return {
+      text: normalizeText(String(result?.data?.text ?? '')),
+      confidence: Number(result?.data?.confidence ?? 0),
+    };
+  } finally {
+    await worker.terminate();
+  }
 }
 
 function financialInstrument(fileName: string, text: string) {
