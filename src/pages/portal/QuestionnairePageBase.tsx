@@ -101,7 +101,7 @@ const cabinetPreviewProgress: PortalProgress = {
   reference: 'APERÇU', libelle: 'Mode test cabinet', recueil_status: 'completed', dossier_recueil_status: 'completed',
   qpi_status: 'in_progress', esg_opt_in: true, esg_status: 'in_progress', qpi_session_id: null, esg_session_id: null,
   documents_status: 'pending', documents_completed_at: null, transmitted_at: null, dossier_members_total: 1,
-  dossier_members_ready: 0, dossier_ready_for_documents: false, is_couple: false, partner_activated: false, next_step: 'QPI',
+  dossier_members_ready: 0, dossier_ready_for_documents: false, is_couple: false, partner_activated: false, partner_name: null, next_step: 'QPI',
 };
 
 export default function QuestionnairePage({ mode, cabinetPreview = false }: { mode: Mode; cabinetPreview?: boolean }) {
