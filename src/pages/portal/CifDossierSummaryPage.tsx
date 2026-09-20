@@ -341,7 +341,11 @@ export default function CifDossierSummaryPage() {
     ];
     return { investor, recueil, qpi, esg, esgNotApplicable, readyTypes };
   }), [investors]);
-  const documentGenerationKey = useMemo(() => investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|'), [investorDocumentStates]);
+  const documentGenerationKey = useMemo(() => {
+    const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
+    const recueilData = sections.map((section) => `${section.investisseur_id}:${section.section_code}:${JSON.stringify(section.payload ?? {})}`).sort().join('|');
+    return `${readiness}::${recueilData}`;
+  }, [investorDocumentStates, sections]);
   useEffect(() => {
     if (!dossierId || !dossier || !investorDocumentStates.some((state) => state.readyTypes.length)) return;
     let active = true;
