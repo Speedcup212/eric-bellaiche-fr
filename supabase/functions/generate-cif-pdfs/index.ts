@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.2';
+const PDF_VERSION = '2026-MAITRE-PDF-2.3';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -272,7 +272,7 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
     const q8 = questions.find((q: Json) => q.ordre === 8); const q8a = q8 ? answerByQuestion.get(q8.id) : null; const q8code = q8a?.option_id ? snapshot.optionMap.get(q8a.option_id)?.code_option : null;
     ensure(ctx, 165); heading(ctx, 'Détail réglementaire du questionnaire', 2);
     if (type === 'QPI') {
-      drawText(ctx, 'Méthode de lecture : seules les questions comportementales 21 à 25 alimentent le score de tolérance au risque sur 25 points. Les autres questions documentent séparément l’horizon, la liquidité, les projets, la capacité de perte, les connaissances et l’expérience.', { size: 8.2, bold: true, color: NAVY, after: 7 });
+      drawText(ctx, 'Méthode de lecture : seules les questions 21 à 25 alimentent le score de tolérance au risque sur 25 points. Les autres questions actives ne sont pas notées : elles servent à apprécier séparément l’horizon de placement, les besoins de liquidité, la capacité de perte, les connaissances et l’expérience. Le bloc « Résultat » en présente uniquement la synthèse utile au conseil ; l’ensemble des réponses est reproduit ci-dessous.', { size: 8.2, bold: true, color: NAVY, after: 7 });
       const unansweredOptional = questions.filter((q: Json) => q.obligatoire === false && !(answerByQuestion.get(q.id)?.id));
       if (unansweredOptional.length) {
         drawText(ctx, `Les questions non renseignées suivantes sont facultatives dans le questionnaire actuel : ${unansweredOptional.map((q: Json) => q.code ?? `Q${q.ordre}`).join(', ')}. Leur absence de réponse n’empêche pas la finalisation du profil, mais l’information reste non documentée.`, { size: 8.2, color: rgb(0.32, 0.38, 0.46), after: 8 });
