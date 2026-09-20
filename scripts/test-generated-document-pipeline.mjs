@@ -21,6 +21,8 @@ const checks = [
   ['incomplete recueil stays draft', edge.includes("DOCUMENT DE TRAVAIL - RECUEIL INCOMPLET") && edge.includes("recueil_complete") && edge.includes("recueil_percentage")],
   ['missing tax values are not rendered as zero', edge.includes("if (!hasValue(value)) return 'Non renseigné'") && edge.includes("Prélèvements sociaux nets") && edge.includes("Taux moyen d’imposition")],
   ['financial PDF separates evidence from estimates', edge.includes("Sous-total directement justifié par pièces") && edge.includes("Total financier indicatif du dossier") && edge.includes("source_document_id ? 'Justificatif'")],
+  ['French number formatting removes unsupported narrow spaces', edge.includes("replace(/[\\u00A0\\u202F]/g, ' ')") && edge.includes('function frNumber')],
+  ['credit PDF uses extracted rate and deferred payment fields', edge.includes("pct(x.taux_credit ?? x.taux)") && edge.includes('creditPaymentLabel(x)') && edge.includes('mensualite_future')],
   ['final format is PDF', edge.includes("final_format: 'pdf'")],
   ['identity document not requested', !edge.includes("categorie='identite'") && !edge.includes('justificatif_domicile')],
 ];
