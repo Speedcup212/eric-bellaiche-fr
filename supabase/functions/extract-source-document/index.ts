@@ -586,27 +586,113 @@ function parseCredit(
   detectedMembers: string[],
   members: Member[],
 ) {
-  const rate = findLineNumber(pages, /(?:taux (?:nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
-  const monthly = findLineNumber(pages, /(?:mensualit[ée]|montant de l['’][ée]ch[ée]ance|[ée]ch[ée]ance hors assurance)/i, { min: 1, max: 50000 });
+  const all = pages.join('\n');
+  const rate = findLineNumber(pages, /(?:taux (?:actuel du pr[êe]t|nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
+  const taeg = findLineNumber(pages, /(?:TAEG|taux annuel effectif global)/i, { min: 0, max: 30, percent: true });
   const outstanding = findLineNumber(pages, /(?:capital restant d[uû]|capital restant|CRD)/i, { min: 0, max: 10000000 });
   const initial = findLineNumber(pages, /(?:capital emprunt[ée]|montant (?:initial )?du pr[êe]t|montant emprunt[ée])/i, { min: 100, max: 10000000, preferLast: false });
-  const endDate = findDateNear(pages, /(?:date de fin|derni[èe]re [ée]ch[ée]ance|fin du pr[êe]t|terme du pr[êe]t)/i);
+  const totalCreditCost = findLineNumber(pages, /co[uû]t total (?:du )?cr[ée]dit/i, { min: 0, max: 10000000 });
+  const totalInsuranceCost = findLineNumber(pages, /co[uû]t total (?:de l['’])?assurance/i, { min: 0, max: 10000000 });
+  const insuranceRate = findLineNumber(pages, /taux (?:annuel )?(?:de l['’])?assurance/i, { min: 0, max: 20, percent: true });
+  const insurancePayment = findLineNumber(pages, /(?:cotisation|prime) (?:mensuelle )?(?:de l['’])?assurance/i, { min: 0, max: 10000 });
 
-  const fact: Json = {
-    source_document_id: documentId,
-    source_file: fileName,
+  const institution = institutionFromText(fileName, all);
+  const contractMatch = all.match(/Contrat\s*:\s*([^\n]+)/i);
+  const referenceMatch = all.match(/(?:Votre r[ée]f[ée]rence [àa] rappeler pour tout [ée]change|R[ée]f\.? [àa] rappeler)\s*:\s*([^\n]+)/i);
+  const loanDateMatch = all.match(/Date de pr[êe]t\s*:\s*([^\n]+)/i);
+  const taDateMatch = all.match(/Date de constitution du TA\s*:\s*([^\n]+)/i);
+  const originalDurationMatch = all.match(/sur une dur[ée]e de\s*(\d{1,4})\s*mois/i);
+  const remainingDurationMatch = all.match(/Dur[ée]e actualis[ée]e restante\s*:\s*(\d{1,4})/i);
+  const paymentDayMatch = all.match(/Date des r[èe]glements\s*:\s*le\s*(\d{1,2})\b/i);
+  const crdDateMatch = all.match(/Capital restant d[uû] au\s*(\d{2}\/\d{2}\/\d{4})/i);
+
+  const monthMap: Record<string,string> = {
+    janvier:'01',fevrier:'02',février:'02',mars:'03',avril:'04',mai:'05',juin:'06',
+    juillet:'07',aout:'08',août:'08',septembre:'09',octobre:'10',novembre:'11',decembre:'12',décembre:'12',
   };
+  const toIso = (raw: string | undefined | null) => {
+    if (!raw) return null;
+    const s = raw.trim().toLowerCase();
+    let m = s.match(/^(\d{2})[./](\d{2})[./](\d{4})$/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    m = s.match(/^(\d{1,2})\s+([a-zàâäéèêëïîôöùûüç]+)\s+(\d{4})$/i);
+    if (m && monthMap[m[2]]) return `${m[3]}-${monthMap[m[2]]}-${m[1].padStart(2,'0')}`;
+    return null;
+  };
+
+  const scheduleRows: Array<{ n:number; date:string; payment:number; fees:number; interest:number; capital:number; crd:number; unpaid:number }> = [];
+  for (const page of pages) {
+    for (const line of page.split('\n')) {
+      const m = line.trim().match(/^(\d{1,4})\s+(\d{2}\.\d{2}\.\d{4})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})$/);
+      if (!m) continue;
+      const vals = m.slice(3).map((raw) => parseFrenchNumber(raw) ?? 0);
+      scheduleRows.push({
+        n:Number(m[1]), date:toIso(m[2].replace(/\./g,'/')) ?? m[2],
+        payment:vals[0], fees:vals[1], interest:vals[2], capital:vals[3], crd:vals[4], unpaid:vals[5],
+      });
+    }
+  }
+  scheduleRows.sort((a,b)=>a.n-b.n);
+  const firstRow = scheduleRows[0] ?? null;
+  const lastRow = scheduleRows.at(-1) ?? null;
+  const changedPayment = firstRow
+    ? scheduleRows.find((row) => Math.abs(row.payment - firstRow.payment) > 0.01 && row.payment > 0)
+    : null;
+
+  const fact: Json = { source_document_id: documentId, source_file: fileName };
   const sourcePages: Json = {};
+  if (institution) { fact.organisme = institution; fact.banque = institution; }
+  if (contractMatch?.[1]) fact.contrat = contractMatch[1].trim();
+  if (referenceMatch?.[1]) fact.reference_pret = referenceMatch[1].trim().replace(/\s+\/.*$/,'');
   if (rate) { fact.taux_credit = rate.value; sourcePages.__merge_credit_items = String(rate.page); }
-  if (monthly) { fact.mensualite = Math.round(monthly.value * 100) / 100; sourcePages.__merge_credit_items ??= String(monthly.page); }
+  if (taeg) fact.taeg = taeg.value;
   if (outstanding) { fact.capital_restant_du = Math.round(outstanding.value * 100) / 100; sourcePages.__merge_credit_items ??= String(outstanding.page); }
   if (initial) { fact.montant_initial = Math.round(initial.value * 100) / 100; sourcePages.__merge_credit_items ??= String(initial.page); }
-  if (endDate) { fact.date_fin = endDate.value; sourcePages.__merge_credit_items ??= String(endDate.page); }
-  if (detectedMembers.length === 1) {
-    const member = members.find((item) => item.investisseur_id === detectedMembers[0]);
-    fact.emprunteur_investisseur_id = detectedMembers[0];
-    if (member) fact.emprunteur = member.role_dossier === 'investisseur_2' ? 'Identifiant 2' : 'Identifiant 1';
-  } else if (detectedMembers.length > 1) {
+  if (loanDateMatch?.[1]) { const d=toIso(loanDateMatch[1]); if (d) { fact.date_pret=d; fact.date_ouverture=d; } }
+  if (taDateMatch?.[1]) { const d=toIso(taDateMatch[1]); if (d) fact.date_constitution_tableau=d; }
+  if (crdDateMatch?.[1]) { const d=toIso(crdDateMatch[1]); if (d) fact.date_derniere_echeance_prelevee=d; }
+  if (originalDurationMatch?.[1]) { fact.duree_initiale_mois=Number(originalDurationMatch[1]); fact.duree_mois=Number(originalDurationMatch[1]); }
+  if (remainingDurationMatch?.[1]) fact.duree_actualisee_restante_mois=Number(remainingDurationMatch[1]);
+  if (paymentDayMatch?.[1]) fact.jour_echeance=Number(paymentDayMatch[1]);
+  if (/taux d['’]int[ée]r[êe]t fixe|taux actuel du pr[êe]t/i.test(all)) fact.taux_type='Fixe';
+  if (/hors assurance/i.test(all)) fact.taux_hors_assurance=true;
+  if (firstRow) {
+    fact.date_premiere_echeance_tableau=firstRow.date;
+    fact.mensualite_actuelle=Math.round(firstRow.payment*100)/100;
+    fact.frais_inclus_dont_assurance_tableau=Math.round(firstRow.fees*100)/100;
+  }
+  if (changedPayment) {
+    fact.mensualite_future=Math.round(changedPayment.payment*100)/100;
+    fact.mensualite_future_date=changedPayment.date;
+  }
+  if (lastRow) {
+    fact.date_fin=lastRow.date;
+    fact.montant_derniere_echeance=Math.round(lastRow.payment*100)/100;
+    fact.nombre_echeances_tableau=lastRow.n;
+  }
+  if (/assurance externe|assurance hors groupe|substitution d['’]assurance groupe vers hors groupe/i.test(all)) {
+    fact.assurance_mode='Assurance externe / hors groupe';
+    fact.assurance_externe=true;
+    fact.assurance_cout_documente=Boolean(totalInsuranceCost || insuranceRate || insurancePayment);
+  }
+  if (totalInsuranceCost) fact.cout_total_assurance=Math.round(totalInsuranceCost.value*100)/100;
+  if (insuranceRate) fact.taux_assurance=insuranceRate.value;
+  if (insurancePayment) fact.cotisation_assurance=Math.round(insurancePayment.value*100)/100;
+  if (totalCreditCost) fact.cout_total_credit=Math.round(totalCreditCost.value*100)/100;
+
+  if (/suspension totale du paiement de vos [ée]ch[ée]ances/i.test(all)) {
+    fact.phase_credit='Suspension totale des échéances';
+  } else if (scheduleRows.length && scheduleRows.slice(0,Math.min(12,scheduleRows.length)).every((row)=>row.capital===0) && scheduleRows.some((row)=>row.interest>0)) {
+    fact.phase_credit="Échéances d'intérêts seuls avant amortissement du capital";
+  }
+
+  const contractIdentity = identityText(String(fact.contrat ?? ''));
+  const contractMembers = members.filter((member) => contractIdentity.includes(identityText(member.nom)));
+  const borrowerMembers = contractMembers.length ? contractMembers : members.filter((member) => detectedMembers.includes(member.investisseur_id));
+  if (borrowerMembers.length === 1) {
+    fact.emprunteur_investisseur_id = borrowerMembers[0].investisseur_id;
+    fact.emprunteur = borrowerMembers[0].role_dossier === 'investisseur_2' ? 'Identifiant 2' : 'Identifiant 1';
+  } else if (borrowerMembers.length > 1) {
     fact.emprunteur = 'Identifiant 1 et 2';
   }
 
@@ -619,12 +705,15 @@ function parseCredit(
       source_pages: sourcePages,
     }] : [],
     summary: {
-      parser: 'credit_schedule_fr_v2',
+      parser: 'credit_schedule_fr_v3',
       file_name: fileName,
       extracted_fields: extractedFields,
-      borrower_matches: detectedMembers,
+      extracted_field_count: extractedFields.length,
+      borrower_matches: borrowerMembers.map((member)=>member.investisseur_id),
+      schedule_rows_read: scheduleRows.length,
       source_document_id: documentId,
       safe_crd_rule: 'same-line-label-only',
+      insurance_cost_documented: fact.assurance_cout_documente ?? null,
     },
     status: extractedFields.length ? 'extracted' : 'to_review',
   };
