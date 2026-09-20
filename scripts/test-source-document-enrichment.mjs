@@ -1,25 +1,37 @@
 import fs from 'node:fs';
 
 const edge = fs.readFileSync('supabase/functions/extract-source-document/index.ts', 'utf8');
-const migration = fs.readFileSync('supabase/migrations/20260920190500_source_document_auto_enrichment.sql', 'utf8');
+const mergeMigration = fs.readFileSync('supabase/migrations/20260920194000_inject_document_data_into_real_recueil_fields.sql', 'utf8');
+const completenessMigration = fs.readFileSync('supabase/migrations/20260920193000_unify_recueil_completeness_and_document_scope.sql', 'utf8');
+const validationMigration = fs.readFileSync('supabase/migrations/20260920193500_validate_recueil_with_single_completeness_engine.sql', 'utf8');
 const documents = fs.readFileSync('src/pages/portal/ClientDocumentsPage.tsx', 'utf8');
+const recueil = fs.readFileSync('src/pages/portal/ClientRecueilJourneyBase.tsx', 'utf8');
 const summary = fs.readFileSync('src/pages/portal/CifDossierSummaryPage.tsx', 'utf8');
+const admin = fs.readFileSync('src/pages/portal/CifAdminPage.tsx', 'utf8');
 
 const checks = [
-  ['edge requires authenticated document access', edge.includes("from('documents_sources')") && edge.includes("Authorization: auth")],
-  ['service role performs controlled internal writes', edge.includes('SUPABASE_SERVICE_ROLE_KEY') && migration.includes("grant execute on function public.apply_source_document_extraction")],
-  ['public and client direct extraction RPC denied', migration.includes('revoke all on function public.apply_source_document_extraction') && migration.includes('anon, authenticated')],
-  ['existing client value is not silently overwritten', migration.includes("v_status := 'a_verifier'") && migration.includes('la déclaration client est conservée')],
-  ['document provenance is persisted', migration.includes("methode_collecte='extraction_document'") && migration.includes('public.data_provenance')],
-  ['tax notice parser feeds tax recueil section', edge.includes("section_code: 'tax'") && edge.includes('revenu_fiscal_reference') && edge.includes('revenu_imposable')],
-  ['credit parser adds documented loan facts', edge.includes("section_code: 'credits'") && edge.includes('documented_loan_facts')],
-  ['financial parser adds documented accounts', edge.includes("section_code: 'financial'") && edge.includes('documented_accounts')],
-  ['images are never guessed from filename alone', edge.includes('Image reçue : extraction automatique différée') && edge.includes("p_status: 'to_review'")],
-  ['client upload triggers extraction', documents.includes("functions.invoke('extract-source-document'") && documents.includes('registeredDocumentId')],
-  ['advisor summary lists actual source documents', summary.includes("from('documents_sources')") && summary.includes('Justificatifs clients')],
+  ['edge requires authenticated document access', edge.includes("from('documents_sources')") && edge.includes('Authorization: auth')],
+  ['service role performs controlled internal writes', edge.includes('SUPABASE_SERVICE_ROLE_KEY') && mergeMigration.includes('grant execute on function public.apply_source_document_extraction')],
+  ['client cannot directly call extraction merge RPC', mergeMigration.includes('revoke all on function public.apply_source_document_extraction') && mergeMigration.includes('anon, authenticated')],
+  ['existing declarations are preserved on conflicts', mergeMigration.includes("v_status := 'a_verifier'") && mergeMigration.includes('la déclaration client est conservée')],
+  ['document provenance is persisted', mergeMigration.includes("methode_collecte='extraction_document'") && mergeMigration.includes('public.data_provenance')],
+  ['document scope supports investor or household', completenessMigration.includes('portee_document') && completenessMigration.includes('concerne_investisseur_ids') && documents.includes('Foyer / document commun')],
+  ['client uploads use scoped registration', documents.includes("rpc('register_source_document_v2'") && documents.includes('p_portee_document')],
+  ['tax notice parser uses strict line labels', edge.includes('avis_imposition_fr_v2') && edge.includes('findLineNumber') && edge.includes('Revenu fiscal de r[ée]f[ée]rence')],
+  ['tax notice parser feeds real tax section', edge.includes("section_code: 'tax'") && edge.includes('revenu_imposable') && edge.includes('nombre_parts') && edge.includes('tmi')],
+  ['credit parser merges into real credit items', edge.includes('__merge_credit_items') && mergeMigration.includes("v_field='__merge_credit_items'") && mergeMigration.includes("'{items}'")],
+  ['parallel documented loan facts are no longer generated', !edge.includes('documented_loan_facts')],
+  ['credit CRD extraction is same-line strict', edge.includes("safe_crd_rule: 'same-line-label-only'") && edge.includes('capital restant')],
+  ['financial parser writes only safe real recueil fields', edge.includes("section_code: 'financial'") && edge.includes('total_band') && !edge.includes('documented_accounts')],
+  ['images are not guessed without reliable extraction', edge.includes('Image reçue : aucune donnée n’est inventée sans lecture fiable') && edge.includes("p_status: 'to_review'")],
+  ['long PDFs are no longer rejected at 30 pages', edge.includes('pdf.numPages > 120') && !edge.includes('pdf.numPages > 30')],
+  ['recueil journey visibly includes tax', recueil.includes("{ code: 'tax', label: 'Fiscalité'")],
+  ['single completeness engine covers ten sections', completenessMigration.includes("'identity','family','professional','objectives','capacity'") && completenessMigration.includes("'tax','patrimony','financial','credits','regulatory'")],
+  ['server validation delegates to the same completeness engine', validationMigration.includes('private.recueil_completeness_core')],
+  ['advisor cockpit shows authoritative percentage', summary.includes('get_all_recueil_completeness') && summary.includes('completeness.percentage')],
+  ['cabinet list shows real recueil percentage and received documents', admin.includes('get_all_recueil_completeness') && admin.includes('recueil_percentage') && admin.includes('documents_received')],
   ['advisor opening backfills legacy uploaded documents', summary.includes("doc.statut_analyse === 'uploaded'") && summary.includes("functions.invoke('extract-source-document'")],
   ['recueil PDFs regenerate after enriched section data', summary.includes('const recueilData = sections.map') && summary.includes('documentGenerationKey')],
-  ['analysis details are visible to advisor', summary.includes('fields_applied') && summary.includes('conflicts_detected')],
 ];
 
 let failed = 0;
@@ -28,4 +40,4 @@ for (const [label, ok] of checks) {
   if (!ok) failed++;
 }
 if (failed) process.exit(1);
-console.log(`Source document enrichment: ${checks.length}/${checks.length} controls passed.`);
+console.log(`Source document enrichment v2: ${checks.length}/${checks.length} controls passed.`);
