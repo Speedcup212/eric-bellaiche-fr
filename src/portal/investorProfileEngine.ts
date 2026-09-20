@@ -50,6 +50,7 @@ export type InvestorProfileResult = {
     knowledgeOrExperienceReview: boolean;
     liquidityConstraint: boolean;
     futureProjectConstraint: boolean;
+    lossImpactOnProjects: boolean;
   };
 };
 
@@ -127,6 +128,7 @@ export function computeInvestorProfile(input: InvestorProfileInput): InvestorPro
       knowledgeOrExperienceReview: answered === 5 && (correct < 5 || practiced === 0),
       liquidityConstraint: capacity.Q3 === 'A' || capacity.Q3 === 'B',
       futureProjectConstraint: capacity.Q4 === 'B' || capacity.Q4 === 'C' || capacity.Q4 === 'D',
+      lossImpactOnProjects: capacity.Q9 === 'A' || capacity.Q9 === 'B',
     },
   };
 }
