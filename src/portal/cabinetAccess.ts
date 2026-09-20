@@ -2,52 +2,35 @@ import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'cabinet_access_token';
 
-async function callAccessEndpoint(body: Record<string, string>) {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  const accessToken = data.session?.access_token;
-  if (!accessToken) throw new Error('Session expirée. Reconnecte-toi.');
+export async function verifyCabinetCode(code: string) {
+  const cleanCode = code.trim();
+  if (!/^\d{6}$/.test(cleanCode)) throw new Error('Saisissez votre code personnel à 6 chiffres.');
 
-  const response = await fetch('/.netlify/functions/verify-cabinet-code', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(body),
+  const { data, error } = await supabase.rpc('verify_cabinet_access_code', {
+    p_code: cleanCode,
   });
 
-  const payload = await response.json().catch(() => ({})) as {
-    valid?: boolean;
-    accessToken?: string;
-    error?: string;
-  };
+  if (error) throw new Error('Vérification du code impossible.');
+  if (!data || typeof data !== 'string') throw new Error('Code incorrect.');
 
-  if (!response.ok) throw new Error(payload.error || 'Vérification du code impossible.');
-  return payload;
-}
-
-export async function verifyCabinetCode(code: string) {
-  const payload = await callAccessEndpoint({ code });
-  if (!payload.valid || !payload.accessToken) throw new Error('Code incorrect.');
-  sessionStorage.setItem(STORAGE_KEY, payload.accessToken);
+  sessionStorage.setItem(STORAGE_KEY, data);
   return true;
 }
 
 export async function hasValidCabinetAccess() {
   const token = sessionStorage.getItem(STORAGE_KEY);
   if (!token) return false;
-  try {
-    const payload = await callAccessEndpoint({ accessToken: token });
-    if (!payload.valid) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      return false;
-    }
-    return true;
-  } catch {
+
+  const { data, error } = await supabase.rpc('validate_cabinet_access_token', {
+    p_token: token,
+  });
+
+  if (error || data !== true) {
     sessionStorage.removeItem(STORAGE_KEY);
     return false;
   }
+
+  return true;
 }
 
 export function clearCabinetAccess() {
