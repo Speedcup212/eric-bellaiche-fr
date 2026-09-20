@@ -26,7 +26,8 @@
     "test:routes": "node scripts/smoke-built-routes.mjs",
     "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs",
     "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs",
-    "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs"
+    "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs",
+    "test:source-documents": "node scripts/test-source-document-enrichment.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
