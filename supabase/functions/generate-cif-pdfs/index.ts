@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.8';
+const PDF_VERSION = '2026-MAITRE-PDF-1.9';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -173,24 +173,23 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
           'Le score de tolérance ne constitue ni une garantie de performance ni une autorisation automatique à prendre davantage de risque.'
         );
 
-        drawTable(ctx, ['Indicateur', 'Résultat'], [
-          ['Score de tolérance au risque', score],
-          ['Profil indicatif de tolérance', clean(result.profil_indicatif)],
-          ['Profil opérationnel final', clean(result.profil_operationnel_final)],
-          ['Niveau opérationnel retenu', clean(result.synthese_dimensions?.profil_operationnel?.rang ?? result.niveau_tolerance_retenu)],
-          ['Perte maximale déclarée', pct(result.perte_max_declairee_pct)],
-          ['Montant correspondant', result.perte_max_declairee_montant === null || result.perte_max_declairee_montant === undefined ? 'Non renseigné' : eur(result.perte_max_declairee_montant)],
-          ['Capacité de perte retenue', pct(result.capacite_perte_retenue_pct)],
-          ['Montant de capacité de perte', result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? 'Non renseigné' : eur(result.capacite_perte_retenue_montant)],
-          ['Niveau de connaissances', clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)],
-          ['Familles de produits déjà pratiquées', clean(result.synthese_dimensions?.experience?.familles_pratiquees)],
-          ['Écart tolérance / capacité de perte', result.ecart_declared_objective === true ? 'Oui' : result.ecart_declared_objective === false ? 'Non' : 'Non déterminé'],
-          ['Motif du plafonnement', result.ecart_declared_objective === true ? clean(result.justification_ecart) : 'Sans objet'],
-        ], [56, 44]);
+        heading(ctx, 'Lecture du résultat', 2);
+        drawTable(ctx, ['Étape', 'Ce que cela signifie'], [
+          ['1. Tolérance au risque', `${score} → ${clean(result.profil_indicatif)}. Le client accepte des fluctuations significatives sur la partie de l’épargne investie à long terme.`],
+          ['2. Capacité à supporter une perte', `${pct(result.capacite_perte_retenue_pct)} de perte maximale déclarée${result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? ', sans montant en euros précisé' : `, soit ${eur(result.capacite_perte_retenue_montant)}`}.`],
+          ['3. Connaissances / expérience', `${clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)} · ${clean(result.synthese_dimensions?.experience?.familles_pratiquees)} famille(s) de produits déjà pratiquée(s).`],
+          ['4. Conclusion', `Profil opérationnel retenu : ${clean(result.profil_operationnel_final)} (niveau ${clean(result.synthese_dimensions?.profil_operationnel?.rang ?? result.niveau_tolerance_retenu)}).`],
+        ], [32, 68]);
+
+        drawText(ctx, result.ecart_declared_objective === true
+          ? `Pourquoi ce profil est plafonné : ${clean(result.justification_ecart)}`
+          : 'La tolérance au risque et la capacité de perte sont cohérentes : aucun plafonnement supplémentaire du profil n’est nécessaire.',
+          { size: 8.8, bold: true, color: result.ecart_declared_objective === true ? rgb(0.65, 0.35, 0.05) : GREEN, after: 8 }
+        );
 
         if (liquidityAlerts.length) {
-          heading(ctx, 'Contraintes de liquidité / projet', 2);
-          drawText(ctx, `À prendre en compte dans le conseil : ${liquidityAlerts.join(' ; ')}. Ces éléments imposent de distinguer les sommes à conserver disponibles ou à sécuriser à court terme de celles pouvant être investies sur un horizon plus long.`, { size: 8.8, color: NAVY, after: 8 });
+          heading(ctx, 'Point d’attention : liquidité et projets', 2);
+          drawText(ctx, `Même si le profil de risque est ${level}, certaines sommes ne doivent pas être exposées au même niveau de risque : ${liquidityAlerts.join(' ; ')}. En pratique, il faut séparer une poche disponible / sécurisée à court terme du capital réellement investissable à long terme.`, { size: 8.8, color: NAVY, after: 8 });
         }
       }
     } else {
