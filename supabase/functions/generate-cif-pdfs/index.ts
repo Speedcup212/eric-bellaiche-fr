@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.13';
+const PDF_VERSION = '2026-MAITRE-PDF-2.14';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -319,7 +319,59 @@ async function buildRecueil(snapshot: Json) {
   heading(ctx, `${n++}. Patrimoine immobilier consolidé`); drawTable(ctx, ['Bien', 'Ville', 'Usage', 'Détention', 'Propriétaire', 'Valeur'], properties.length ? properties.map((x, idx) => [`Bien ${idx + 1}`, clean(x.ville), clean(x.usage), clean(x.mode_detention), clean(x.proprietaire), eur(x.valeur_actuelle)]) : [['-', '-', 'Aucun bien déclaré', '-', '-', '0 EUR']], [10, 18, 18, 18, 18, 18]);
   heading(ctx, `${n++}. Patrimoine financier et liquidités`); for (const { inv, map } of maps) { const fin = map.financial ?? {}; const items = Array.isArray(fin.items) ? fin.items : []; const documentedItems = items.filter((item: Json) => Boolean(item.source_document_id)); const documentedTotal = documentedItems.reduce((sum: number, item: Json) => sum + num(item.montant ?? item.valeur ?? item.encours), 0); drawText(ctx, investorName(inv), { bold: true, size: 9.5, color: BLUE, after: 5 }); if (items.length) { drawTable(ctx, ['Placement', 'Organisme', 'Titulaire', 'Montant', 'Source'], items.map((item: Json) => [clean(item.type_placement ?? item.type_contrat ?? item.type), clean(item.organisme ?? item.etablissement), clean(item.proprietaire ?? item.titulaire), eur(item.montant ?? item.valeur ?? item.encours), item.source_document_id ? 'Justificatif' : item.source === 'synthese_dossier' || item.source_type === 'synthese_dossier' ? 'Synthèse dossier' : 'Déclaré']), [28, 20, 18, 17, 17]); } drawTable(ctx, ['Donnée', 'Valeur'], [['Sous-total directement justifié par pièces', documentedTotal > 0 ? eur(documentedTotal) : 'Non consolidé'], ['Total financier indicatif du dossier', hasValue(fin.estimated_total_amount) ? eur(fin.estimated_total_amount) : 'Non renseigné'], ['Liquidités importantes volontairement conservées sur comptes courants', clean(fin.current_accounts_intentional)], ['Catégories de placements', financialCategoryLabel(fin.categories)], ['Fourchette déclarée', financialBandLabel(fin.total_band)], ['Autres placements / précisions', clean(fin.other_details)], ['Complétude confirmée', clean(fin.completeness_confirmed)]], [58, 42]); }
   const crdTotal = credits.reduce((sum, x) => sum + num(x.crd ?? x.capital_restant_du), 0); const monthlyDebt = credits.reduce((sum, x) => sum + num(hasValue(x.mensualite_actuelle) ? x.mensualite_actuelle : x.mensualite), 0); const futureMonthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite_future), 0); const monthlyIncome = incomeAnnual / 12; const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null; const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null; const propertyTotal = properties.reduce((sum, x) => sum + num(x.valeur_actuelle), 0);
-  heading(ctx, `${n++}. Crédits et endettement`); drawTable(ctx, ['Crédit', 'Type', 'Montant initial', 'CRD', 'Mensualité / phase', 'Taux'], credits.length ? credits.map((x, idx) => [`Crédit ${idx + 1}`, clean(x.type_credit ?? x.type_pret), eur(x.montant_initial), eur(x.crd ?? x.capital_restant_du), creditPaymentLabel(x), pct(x.taux_credit ?? x.taux)]) : [['-', 'Aucun crédit déclaré', '0 EUR', '0 EUR', '-', '-']], [10, 20, 16, 15, 28, 11]); drawTable(ctx, ['Ratio', 'Résultat'], [['Revenus annuels consolidés', eur(incomeAnnual)], ['Mensualités actuelles de crédits', eur(monthlyDebt)], ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Non renseigné'], ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)], ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)], ['Patrimoine immobilier brut', eur(propertyTotal)], ['Patrimoine financier directement justifié', financialExact > 0 ? eur(financialExact) : 'Non consolidé'], ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Non renseigné'], ['CRD total', eur(crdTotal)], ['Patrimoine net calculable sur montants justifiés', financialExact > 0 ? eur(propertyTotal + financialExact - crdTotal) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non justifié`]], [64, 36]); drawText(ctx, 'Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.', { bold: true, color: GREEN, size: 8.4, after: 12 });
+  heading(ctx, `${n++}. Crédits et endettement détaillés`);
+  if (!credits.length) {
+    drawTable(ctx, ['Donnée', 'Valeur'], [['Situation', 'Aucun crédit déclaré']], [62, 38]);
+  } else {
+    credits.forEach((x: Json, idx: number) => {
+      heading(ctx, `Crédit ${idx + 1} - ${clean(x.type_credit ?? x.type_pret)}`, 2);
+      const missing = 'Non indiqué sur le document transmis';
+      drawTable(ctx, ['Caractéristique', 'Valeur'], [
+        ['Bien / projet rattaché', hasValue(x.credit_rattache_a) ? clean(x.credit_rattache_a) : missing],
+        ['Organisme prêteur', hasValue(x.organisme ?? x.banque) ? clean(x.organisme ?? x.banque) : missing],
+        ['Référence du prêt', hasValue(x.reference_pret) ? clean(x.reference_pret) : missing],
+        ['Contrat / emprunteur(s)', hasValue(x.contrat ?? x.emprunteur) ? clean(x.contrat ?? x.emprunteur) : missing],
+        ['Emprunteur(s) CRM', hasValue(x.emprunteur) ? clean(x.emprunteur) : missing],
+        ['Date du prêt / ouverture', hasValue(x.date_pret ?? x.date_ouverture) ? frDate(x.date_pret ?? x.date_ouverture) : missing],
+        ['Date de constitution du tableau', hasValue(x.date_constitution_tableau) ? frDate(x.date_constitution_tableau) : missing],
+        ['Dernière échéance prélevée connue', hasValue(x.date_derniere_echeance_prelevee) ? frDate(x.date_derniere_echeance_prelevee) : missing],
+        ['Date de fin / dernière échéance', hasValue(x.date_fin ?? x.date_echeance) ? frDate(x.date_fin ?? x.date_echeance) : missing],
+        ['Montant initial emprunté', hasValue(x.montant_initial) ? eur(x.montant_initial) : missing],
+        ['Capital restant dû (CRD)', hasValue(x.capital_restant_du ?? x.crd) ? eur(x.capital_restant_du ?? x.crd) : missing],
+        ['Durée initiale', hasValue(x.duree_initiale_mois ?? x.duree_mois) ? `${clean(x.duree_initiale_mois ?? x.duree_mois)} mois` : missing],
+        ['Durée actualisée restante', hasValue(x.duree_actualisee_restante_mois) ? `${clean(x.duree_actualisee_restante_mois)} mois` : missing],
+        ['Taux nominal actuel', hasValue(x.taux_credit ?? x.taux) ? `${pct(x.taux_credit ?? x.taux)}${x.taux_hors_assurance === true ? ' hors assurance' : ''}` : missing],
+        ['Nature du taux', hasValue(x.taux_type) ? clean(x.taux_type) : missing],
+        ['TAEG', hasValue(x.taeg) ? pct(x.taeg) : missing],
+        ['Jour habituel de l’échéance', hasValue(x.jour_echeance) ? `Le ${clean(x.jour_echeance)} de chaque mois` : missing],
+        ['Mensualité actuelle', hasValue(x.mensualite_actuelle) ? eur(x.mensualite_actuelle) : hasValue(x.mensualite) ? eur(x.mensualite) : missing],
+        ['Phase / différé / suspension', hasValue(x.phase_credit) ? clean(x.phase_credit) : missing],
+        ['Mensualité après reprise', hasValue(x.mensualite_future) ? eur(x.mensualite_future) : missing],
+        ['Date de reprise / nouvelle mensualité', hasValue(x.mensualite_future_date) ? frDate(x.mensualite_future_date) : missing],
+        ['Mode d’assurance emprunteur', hasValue(x.assurance_mode) ? clean(x.assurance_mode) : missing],
+        ['Taux d’assurance', hasValue(x.taux_assurance) ? pct(x.taux_assurance) : missing],
+        ['Cotisation d’assurance', hasValue(x.cotisation_assurance) ? eur(x.cotisation_assurance) : missing],
+        ['Coût total de l’assurance', hasValue(x.cout_total_assurance) ? eur(x.cout_total_assurance) : x.assurance_cout_documente === false ? 'Non indiqué : assurance externe' : missing],
+        ['Frais inclus dans l’échéance dont assurance', hasValue(x.frais_inclus_dont_assurance_tableau) ? eur(x.frais_inclus_dont_assurance_tableau) : missing],
+        ['Coût total du crédit', hasValue(x.cout_total_credit) ? eur(x.cout_total_credit) : missing],
+        ['Intérêts totaux / restant à payer', hasValue(x.interets_totaux ?? x.interets_restants) ? eur(x.interets_totaux ?? x.interets_restants) : missing],
+        ['Garantie / sûreté', hasValue(x.garantie) ? clean(x.garantie) : missing],
+      ], [56, 44]);
+    });
+  }
+  drawTable(ctx, ['Ratio', 'Résultat'], [
+    ['Revenus annuels consolidés', eur(incomeAnnual)],
+    ['Mensualités actuelles de crédits', eur(monthlyDebt)],
+    ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Non renseigné'],
+    ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)],
+    ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)],
+    ['Patrimoine immobilier brut', eur(propertyTotal)],
+    ['Patrimoine financier directement justifié', financialExact > 0 ? eur(financialExact) : 'Non consolidé'],
+    ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Non renseigné'],
+    ['CRD total', eur(crdTotal)],
+    ['Patrimoine net calculable sur montants justifiés', financialExact > 0 ? eur(propertyTotal + financialExact - crdTotal) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non justifié`],
+  ], [64, 36]);
+  drawText(ctx, 'Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.', { bold: true, color: GREEN, size: 8.4, after: 12 });
   heading(ctx, `${n++}. Informations réglementaires`); for (const { inv, map } of maps) { const reg = map.regulatory ?? {}; drawText(ctx, investorName(inv), { bold: true, size: 9.5, color: BLUE, after: 5 }); drawTable(ctx, ['Question / information', 'Réponse'], [['Pays de résidence fiscale', clean(reg.pays_residence_fiscale)], ['Citoyen ou résident fiscal américain', clean(reg.citoyen_ou_resident_us)], ['TIN américain', clean(reg.code_tin)], ['Sanctions internationales / gel des avoirs', clean(reg.sanctions_declarees)], ['PPE - client ou proche', clean(reg.ppe_declaree)], ['Personne exposée', clean(reg.ppe_personne_exposee)], ['Fonction PPE', clean(reg.ppe_motif)], ['Pays d’exercice PPE', clean(reg.ppe_pays_exercice)], ['Période PPE', clean(reg.ppe_anciennete)], ['Souhaite prendre en compte des critères ESG', clean(reg.esg_opt_in)]], [62, 38]); }
   ensure(ctx, 145); heading(ctx, `${n++}. Validation des informations`); drawText(ctx, 'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.', { size: 8.6 }); drawText(ctx, 'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.', { bold: true, color: GREEN, size: 8.6, after: 12 }); signatureBoxes(ctx, investors); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
