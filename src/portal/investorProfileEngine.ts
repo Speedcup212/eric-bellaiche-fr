@@ -69,15 +69,14 @@ export function lossPctFromQ10(code?: string | null): number | null {
 }
 
 export function capacityRankFromAnswers(answers: CapacityAnswers): ProfileRank | null {
-  const keys = ['Q3', 'Q4', 'Q9', 'Q10'] as const;
-  const ranks: number[] = [];
-  for (const key of keys) {
-    const code = String(answers[key] ?? '');
-    const rank = (CAPACITY_MAP[key] as Record<string, number>)[code];
-    if (!rank) return null;
-    ranks.push(rank);
-  }
-  return Math.min(...ranks) as ProfileRank;
+  // Q10 mesure directement la perte financière supportable : c'est le plafond
+  // de capacité de perte utilisé pour le profil opérationnel.
+  // Q3 (horizon de disponibilité), Q4 (projet à financer) et Q9 (impact sur
+  // dépenses/projets) restent des contraintes de conseil et de liquidité,
+  // mais ne doivent pas, à elles seules, écraser automatiquement le profil.
+  const code = String(answers.Q10 ?? '');
+  const rank = (CAPACITY_MAP.Q10 as Record<string, number>)[code];
+  return rank ? rank as ProfileRank : null;
 }
 
 export function knowledgeLevel(answered: number, correct: number): InvestorProfileResult['knowledgeLevel'] {
