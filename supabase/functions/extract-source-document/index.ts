@@ -396,8 +396,10 @@ Deno.serve(async (req) => {
     admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    const bearerToken = auth.slice('Bearer '.length).trim();
+    const documentClient = bearerToken === serviceKey ? admin : userClient;
 
-    const { data: doc, error: docError } = await userClient
+    const { data: doc, error: docError } = await documentClient
       .from('documents_sources')
       .select('id,dossier_id,investisseur_id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,metadata,portee_document,concerne_investisseur_ids')
       .eq('id', documentId)
