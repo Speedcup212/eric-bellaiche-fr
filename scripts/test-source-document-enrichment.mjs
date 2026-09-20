@@ -22,6 +22,7 @@ const checks = [
   ['tax notice parser uses PDF coordinates plus strict labels', edge.includes('avis_imposition_fr_v3') && edge.includes('findPdfRowNumber') && edge.includes('findPdfRowValues') && edge.includes('Revenu fiscal de r[ée]f[ée]rence')],
   ['tax notice parser feeds real tax section', edge.includes("section_code: 'tax'") && edge.includes('revenu_imposable') && edge.includes('nombre_parts') && edge.includes('tmi')],
   ['tax notice parser extracts detailed fiscal identity and retirement rows', edge.includes('numero_fiscal_declarant_1') && edge.includes('numero_fiscal_declarant_2') && edge.includes('plafond_per_2026_declarant_1') && edge.includes('plafond_per_2026_declarant_2') && edge.includes('extracted_field_count')],
+  ['tax declarants are mapped to CRM investor roles by name', edge.includes('matchMember') && edge.includes('nom_identifiant_1') === false && edge.includes('numero_fiscal_identifiant_1') === false ? false : edge.includes('memberForDeclarant1') && edge.includes('memberForDeclarant2') && edge.includes("role_dossier === 'investisseur_1'")],
   ['credit parser merges into real credit items', edge.includes('__merge_credit_items') && mergeMigration.includes("v_field='__merge_credit_items'") && mergeMigration.includes("'{items}'")],
   ['parallel documented loan facts are no longer generated', !edge.includes('documented_loan_facts')],
   ['credit CRD extraction is same-line strict', edge.includes("safe_crd_rule: 'same-line-label-only'") && edge.includes('capital restant')],
