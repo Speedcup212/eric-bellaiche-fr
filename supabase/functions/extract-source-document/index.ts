@@ -421,7 +421,7 @@ function parseCredit(
   const rate = findLineNumber(pages, /(?:taux (?:nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
   const monthly = findLineNumber(pages, /(?:mensualit[ée]|montant de l['’][ée]ch[ée]ance|[ée]ch[ée]ance hors assurance)/i, { min: 1, max: 50000 });
   const outstanding = findLineNumber(pages, /(?:capital restant d[uû]|capital restant|CRD)/i, { min: 0, max: 10000000 });
-  const initial = findLineNumber(pages, /(?:capital emprunt[ée]|montant (?:initial )?du pr[êe]t|montant emprunt[ée])/i, { min: 100, max: 10000000 });
+  const initial = findLineNumber(pages, /(?:capital emprunt[ée]|montant (?:initial )?du pr[êe]t|montant emprunt[ée])/i, { min: 100, max: 10000000, preferLast: false });
   const endDate = findDateNear(pages, /(?:date de fin|derni[èe]re [ée]ch[ée]ance|fin du pr[êe]t|terme du pr[êe]t)/i);
 
   const fact: Json = {
