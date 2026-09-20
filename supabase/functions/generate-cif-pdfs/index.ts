@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.0';
+const PDF_VERSION = '2026-MAITRE-PDF-2.1';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -60,7 +60,16 @@ function clean(value: unknown, fallback = 'Non renseigné') {
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (Array.isArray(value)) return value.length ? value.map((x) => clean(x, '')).join(', ') : fallback;
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value).replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2022/g, '-').replace(/\u00A0/g, ' ');
+  return String(value)
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2022/g, '-')
+    .replace(/\u2192/g, ' vers ')
+    .replace(/\u2260/g, ' different de ')
+    .replace(/\u2264/g, ' <= ')
+    .replace(/\u2265/g, ' >= ')
+    .replace(/\u00A0/g, ' ');
 }
 function num(value: unknown) { const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; }
 function eur(value: unknown) { return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(value))} EUR`; }
@@ -222,12 +231,12 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
           `${level} - niveau ${operationalRank}/7`,
           `Le score de ${score} mesure la tolérance comportementale au risque. Il conduit à un profil indicatif ${clean(result.profil_indicatif)}. Après prise en compte séparée de la capacité de perte, le niveau de risque maximal compatible avec les réponses est ${level} - niveau ${operationalRank}/7.`,
           'Ce niveau ne constitue pas une allocation de portefeuille. Il s’applique uniquement à la part du capital réellement disponible pour un investissement de long terme. Les besoins de liquidité, les projets à financer, la capacité de perte, les connaissances et l’expérience déterminent ensuite la façon de répartir cette épargne.',
-          'Profil de risque ≠ allocation : une partie de l’épargne peut devoir rester disponible ou sécurisée même avec un profil dynamique.'
+          'Le profil de risque ne constitue pas une allocation : une partie de l’épargne peut devoir rester disponible ou sécurisée même avec un profil dynamique.'
         );
 
         heading(ctx, 'Synthèse à retenir', 2);
         drawTable(ctx, ['Critère', 'Lecture pratique'], [
-          ['Tolérance au risque', `${score} → ${clean(result.profil_indicatif)}.`],
+          ['Tolérance au risque', `${score} correspond à ${clean(result.profil_indicatif)}.`],
           ['Capacité de perte', `Jusqu’à ${pct(result.capacite_perte_retenue_pct)} sur les placements concernés. Ce pourcentage ne signifie pas que l’ensemble du patrimoine doit être exposé à cette perte.`],
           ['Part acceptée en forte exposition', `${q25Label}. Cette donnée limite la part des sommes investissables que le client accepte de soumettre à une forte baisse temporaire.`],
           ['Connaissances', `${clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)}${knowledgeGaps.length ? `. Points à expliquer / vérifier : ${knowledgeGaps.join(', ')}.` : '. Aucun point de vigilance spécifique identifié sur les questions obligatoires.'}`],
