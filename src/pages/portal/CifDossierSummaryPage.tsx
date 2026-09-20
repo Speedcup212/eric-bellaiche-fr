@@ -492,6 +492,25 @@ export default function CifDossierSummaryPage() {
         const identifierLabel = investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
         const analysed = selectedSourceDocuments.filter((doc) => ['extracted','validated'].includes(doc.statut_analyse)).length;
         const review = selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review').length;
+        const selectedIdentity = sections.find((row) => row.investisseur_id === investor.investisseur_id && row.section_code === 'identity')?.payload ?? {};
+        const primaryInvestor = orderedInvestorDocumentStates.find((item) => item.investor.role_dossier === 'investisseur_1')?.investor ?? orderedInvestorDocumentStates[0]?.investor;
+        const primarySections = primaryInvestor ? sections.filter((row) => row.investisseur_id === primaryInvestor.investisseur_id) : [];
+        const primaryObjectives = primarySections.find((row) => row.section_code === 'objectives')?.payload as Record<string, unknown> | undefined;
+        const primaryObjectivesCount = Array.isArray(primaryObjectives?.items) ? primaryObjectives.items.length : 0;
+        const primaryRecueilReady = primaryInvestor ? ['completed','validated'].includes(primaryInvestor.recueil_status) : false;
+        const allPartiesIdentified = orderedInvestorDocumentStates.every((item) => Boolean(item.investor.investisseurs?.prenom && item.investor.investisseurs?.nom && item.investor.investisseurs?.email));
+        const derMissing = [
+          !investor.investisseurs?.prenom || !investor.investisseurs?.nom ? 'identité' : '',
+          !investor.investisseurs?.email ? 'email' : '',
+          !selectedIdentity.civilite ? 'civilité' : '',
+        ].filter(Boolean);
+        const derReady = derMissing.length === 0;
+        const missionMissing = [
+          !allPartiesIdentified ? 'coordonnées des parties' : '',
+          !primaryRecueilReady ? 'recueil principal validé' : '',
+          primaryObjectivesCount === 0 ? 'objectifs de la mission' : '',
+        ].filter(Boolean);
+        const missionReady = missionMissing.length === 0;
         return <div className="mt-6 space-y-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
             <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 shadow-[0_14px_34px_rgba(2,10,25,0.18)] sm:p-5">
@@ -543,17 +562,25 @@ export default function CifDossierSummaryPage() {
             <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 shadow-[0_14px_34px_rgba(2,10,25,0.18)] sm:p-5">
               <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-300">Documents réglementaires</p>
               <div className="mt-4 space-y-2">
-                <div className="rounded-xl border border-[#315173] bg-[#10243E] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">DER</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className={`rounded-xl border px-4 py-3 ${derReady ? 'border-emerald-500/40 bg-[#10352F]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold text-white">DER</p>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${derReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{derReady ? 'Prêt à générer' : 'Données manquantes'}</span>
+                  </div>
+                  <p className={`mt-1.5 text-[10px] leading-4 ${derReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{derReady ? 'Identité et coordonnées suffisantes pour préparer le document.' : `Manque : ${derMissing.join(', ')}.`}</p>
                 </div>
-                <div className="rounded-xl border border-[#315173] bg-[#10243E] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Lettre de mission</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className={`rounded-xl border px-4 py-3 ${missionReady ? 'border-emerald-500/40 bg-[#10352F]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold text-white">Lettre de mission</p>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${missionReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{missionReady ? 'Prête à générer' : 'Données manquantes'}</span>
+                  </div>
+                  <p className={`mt-1.5 text-[10px] leading-4 ${missionReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{missionReady ? 'Parties identifiées, recueil principal validé et objectifs disponibles.' : `Manque : ${missionMissing.join(', ')}.`}</p>
                 </div>
                 <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-500/40 bg-[#12345B] px-4 py-3 transition hover:bg-[#173E69]">
                   <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Déclaration d’adéquation</p><span className="rounded-full border border-blue-400/40 bg-blue-400/15 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-100">Ouvrir</span></div>
                 </Link>
               </div>
-              <p className="mt-3 text-[11px] leading-5 text-slate-300">DER et lettre de mission avant recommandation. Adéquation après validation de la stratégie et des supports.</p>
+              <p className="mt-3 text-[11px] leading-5 text-slate-300">Le DER et la lettre de mission ne sont plus bloqués par l’achèvement complet du recueil du conjoint. L’adéquation reste postérieure à la validation de la stratégie et des supports.</p>
             </div>
           </div>
 
