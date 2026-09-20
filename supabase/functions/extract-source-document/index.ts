@@ -233,28 +233,59 @@ function financialInstrument(fileName: string, text: string) {
   return 'Placement financier';
 }
 
-function findFinancialImageAmount(text: string) {
+function parseFinancialDisplayNumber(raw: string, brokerStyle = false) {
+  let value = raw.trim().replace(/\s+/g,'');
+  const k = /k$/i.test(value);
+  value = value.replace(/k$/i,'');
+  if (brokerStyle && /^-?\d{1,3},\d{3}$/.test(value)) {
+    value = value.replace(',','');
+  } else if (/^-?\d{1,3}(?:\.\d{3})+,\d{1,2}$/.test(value)) {
+    value = value.replace(/\./g,'').replace(',','.');
+  } else if (/^-?\d{1,3}(?: \d{3})+(?:,\d{1,2})?$/.test(raw.trim())) {
+    value = raw.trim().replace(/ /g,'').replace(',','.');
+  } else if (/^-?\d+[.,]\d{1,2}$/.test(value)) {
+    value = value.replace(',','.');
+  } else if (/^-?\d{1,3}(?:,\d{3})+$/.test(value)) {
+    value = value.replace(/,/g,'');
+  }
+  const n = Number(value.replace(/[^0-9.-]/g,''));
+  if (!Number.isFinite(n)) return null;
+  return k ? n * 1000 : n;
+}
+
+function financialNumberCandidates(line: string, brokerStyle = false) {
+  const matches = line.match(/-?\d[\d\s.,]*(?:[kK])?/g) ?? [];
+  return matches
+    .map((raw) => parseFinancialDisplayNumber(raw, brokerStyle))
+    .filter((value): value is number => value !== null && value >= 0 && value <= 100000000);
+}
+
+function findFinancialImageAmount(text: string, instrument: string) {
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
-  const priority = [
-    /(?:net liquidation value|net asset value|valeur nette|valorisation(?: totale)?|valeur du portefeuille|total portefeuille)/i,
-    /(?:solde(?: disponible| comptable)?|encours(?: total)?|total des avoirs|montant disponible)/i,
-  ];
-  for (const pattern of priority) {
-    for (const line of lines) {
-      if (!pattern.test(line)) continue;
-      const amounts = numberCandidates(line)
-        .map((item) => item.value)
-        .filter((value) => value >= 1 && value <= 100000000);
-      if (amounts.length) return amounts.at(-1)!;
+  const brokerStyle = /bourse|titres/i.test(instrument) || /ibkr|interactive brokers/i.test(text);
+
+  const rules = /livret|ldds/i.test(instrument)
+    ? [/(?:solde au|solde disponible|solde comptable|encours)/i]
+    : [
+        /(?:valeur nette liquidative|net liquidation value|net asset value|valorisation(?: totale)?|valeur du portefeuille)/i,
+        /(?:total des espèces|total portefeuille|total des avoirs|solde disponible|encours total)/i,
+      ];
+
+  for (const pattern of rules) {
+    for (let i = 0; i < lines.length; i++) {
+      if (!pattern.test(lines[i])) continue;
+      for (const candidateLine of lines.slice(i, Math.min(lines.length, i + 3))) {
+        const amounts = financialNumberCandidates(candidateLine, brokerStyle)
+          .filter((value) => value >= 100);
+        if (amounts.length) return amounts[0];
+      }
     }
   }
 
   const currencyAmounts: number[] = [];
   for (const line of lines) {
-    if (!/(?:€|EUR|USD|CHF)/i.test(line)) continue;
-    for (const item of numberCandidates(line)) {
-      if (item.value >= 10 && item.value <= 100000000) currencyAmounts.push(item.value);
-    }
+    if (!/(?:€|EUR|USD|CHF|\bK\b)/i.test(line)) continue;
+    currencyAmounts.push(...financialNumberCandidates(line, brokerStyle).filter((value) => value >= 100));
   }
   return currencyAmounts.length ? Math.max(...currencyAmounts) : null;
 }
@@ -267,8 +298,8 @@ function parseFinancialImage(
   targetIds: string[],
 ) {
   const institution = institutionFromText(fileName, text);
-  const amount = findFinancialImageAmount(text);
   const instrument = financialInstrument(fileName, text);
+  const amount = findFinancialImageAmount(text, instrument);
   const item: Json = {
     type_placement: instrument,
     organisme: institution ?? 'Non identifié',
@@ -277,7 +308,7 @@ function parseFinancialImage(
   };
   if (amount !== null) item.montant = Math.round(amount * 100) / 100;
 
-  const safe = targetIds.length === 1 && amount !== null && confidence >= 45;
+  const safe = targetIds.length === 1 && amount !== null && amount >= 100 && confidence >= 45;
   return {
     patches: safe ? [{
       section_code: 'financial',
