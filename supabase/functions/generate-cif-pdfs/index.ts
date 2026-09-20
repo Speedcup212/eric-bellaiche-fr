@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.9';
+const PDF_VERSION = '2026-MAITRE-PDF-2.10';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -110,6 +110,21 @@ function financialBandLabel(value: unknown) {
     over_500k: 'Plus de 500 000 EUR',
   };
   return labels[String(value ?? '')] ?? clean(value);
+}
+function monthYearLabel(value: unknown) {
+  if (!hasValue(value)) return 'Non renseigné';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}$/.test(raw)) {
+    const parts = raw.split('-');
+    const names = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    return `${names[Math.max(0, Math.min(11, Number(parts[1]) - 1))]} ${parts[0]}`;
+  }
+  return frDate(value);
+}
+function creditPaymentLabel(x: Json) {
+  const current = hasValue(x.mensualite_actuelle) ? eur(x.mensualite_actuelle) : hasValue(x.mensualite) ? eur(x.mensualite) : 'Non renseigné';
+  if (hasValue(x.mensualite_future)) return `${current} actuellement ; ${eur(x.mensualite_future)} dès ${monthYearLabel(x.mensualite_future_date)}`;
+  return current;
 }
 function readable(value: unknown) { if (Array.isArray(value)) return value.map((v) => ESG_LABELS[String(v)] ?? clean(v)).join(', '); const s = clean(value); return ESG_LABELS[s] ?? ESG_LABELS[s.toLowerCase()] ?? s; }
 function wrap(font: PDFFont, value: string, size: number, width: number) { const words = clean(value).split(/\s+/).filter(Boolean); if (!words.length) return ['']; const lines: string[] = []; let line = words[0]; for (const word of words.slice(1)) { const candidate = `${line} ${word}`; if (font.widthOfTextAtSize(candidate, size) <= width) line = candidate; else { lines.push(line); line = word; } } lines.push(line); return lines; }
