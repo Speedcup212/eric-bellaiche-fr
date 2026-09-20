@@ -23,6 +23,8 @@ const checks = [
   ['financial PDF separates evidence from estimates', edge.includes("Sous-total directement justifié par pièces") && edge.includes("Total financier indicatif du dossier") && edge.includes("source_document_id ? 'Justificatif'")],
   ['French number formatting removes unsupported narrow spaces', edge.includes("replace(/[\\u00A0\\u202F]/g, ' ')") && edge.includes('function frNumber')],
   ['credit PDF uses extracted rate and deferred payment fields', edge.includes("pct(x.taux_credit ?? x.taux)") && edge.includes('creditPaymentLabel(x)') && edge.includes('mensualite_future')],
+  ['tax PDF starts with fiscal identifiers', edge.includes("Numéro fiscal - déclarant 1") && edge.includes("Numéro fiscal - déclarant 2") && edge.includes("Référence de l’avis")],
+  ['tax PDF exposes maximum useful notice detail', edge.includes("Revenus déclarés") && edge.includes("Calcul de l’impôt sur le revenu") && edge.includes("Prélèvements sociaux") && edge.includes("Solde de l’impôt et remboursement") && edge.includes("Plafond épargne retraite - déclarant 1") && edge.includes("Plafond épargne retraite - déclarant 2")],
   ['final format is PDF', edge.includes("final_format: 'pdf'")],
   ['identity document not requested', !edge.includes("categorie='identite'") && !edge.includes('justificatif_domicile')],
 ];
