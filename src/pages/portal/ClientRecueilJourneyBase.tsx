@@ -8,6 +8,55 @@ import { dossierHref, fetchPortalProgress, messageFromError, selectedProgress, t
 type AnyPayload = Record<string, any>;
 type SectionCode = 'identity' | 'family' | 'professional' | 'objectives' | 'capacity' | 'tax' | 'regulatory' | 'patrimony' | 'financial' | 'credits';
 
+const SHARED_HOUSEHOLD_SECTIONS: SectionCode[] = ['family', 'patrimony', 'credits'];
+
+type HouseholdReviewRow = {
+  section_code: 'family' | 'patrimony' | 'credits';
+  source_investisseur_id: string;
+  source_name: string;
+  payload: AnyPayload;
+  completed_at: string | null;
+  source_updated_at: string;
+  confirmation_status: 'confirmed' | 'change_requested' | null;
+  confirmation_note: string | null;
+  confirmation_updated_at: string | null;
+  confirmation_stale: boolean;
+};
+
+const householdSectionLabels: Record<HouseholdReviewRow['section_code'], string> = {
+  family: 'Situation familiale',
+  patrimony: 'Immobilier du foyer',
+  credits: 'Crédits du foyer',
+};
+
+function householdReviewSummary(row: HouseholdReviewRow) {
+  const payload = row.payload ?? {};
+  if (row.section_code === 'family') {
+    const children = Array.isArray(payload.enfants) ? payload.enfants.length : Number(payload.nombre_enfants || 0);
+    return [
+      payload.situation && String(payload.situation),
+      payload.regime_convention && String(payload.regime_convention),
+      Number.isFinite(children) ? `${children} enfant${children > 1 ? 's' : ''}` : '',
+    ].filter(Boolean).join(' · ') || 'Informations familiales renseignées.';
+  }
+  if (row.section_code === 'patrimony') {
+    const items: AnyPayload[] = Array.isArray(payload.immobilier) ? payload.immobilier : [];
+    if (!items.length) return 'Aucun bien immobilier déclaré.';
+    return items.map((item) => {
+      const label = [item.type_bien, item.ville].filter(Boolean).join(' — ') || 'Bien immobilier';
+      const owner = item.proprietaire ? ` · ${item.proprietaire}` : '';
+      const quote = item.quote_part ? ` (${item.quote_part} %)` : '';
+      return `${label}${owner}${quote}`;
+    }).join(' | ');
+  }
+  const items: AnyPayload[] = Array.isArray(payload.items) ? payload.items : [];
+  if (!payload.has_credits || !items.length) return 'Aucun crédit en cours déclaré.';
+  return items.map((item) => {
+    const borrower = item.emprunteur ? ` · ${item.emprunteur}` : '';
+    return `${item.type_credit || 'Crédit'}${borrower}${item.credit_rattache_a ? ` · ${item.credit_rattache_a}` : ''}`;
+  }).join(' | ');
+}
+
 const sections: Array<{ code: SectionCode; label: string; title: string; description: string }> = [
   { code: 'identity', label: 'Identité', title: 'Identité et coordonnées', description: 'Vérifiez vos informations personnelles, votre adresse fiscale et vos coordonnées.' },
   { code: 'family', label: 'Famille', title: 'Situation familiale', description: 'Renseignez votre situation de famille et les éléments utiles à l’organisation patrimoniale.' },
@@ -280,8 +329,17 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
+  const [householdReview, setHouseholdReview] = useState<HouseholdReviewRow[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null);
   const progress = useMemo(() => cabinetPreview ? cabinetPreviewProgress : selectedProgress(rows, dossierId), [cabinetPreview, rows, dossierId]);
-  const current = sections[step];
+  const visibleSections = useMemo(
+    () => progress?.role_dossier === 'investisseur_2'
+      ? sections.filter((section) => !SHARED_HOUSEHOLD_SECTIONS.includes(section.code))
+      : sections,
+    [progress?.role_dossier],
+  );
+  const current = visibleSections[step] ?? visibleSections[0];
   const form = forms[current.code];
   const identityNeedsBirthName = String(forms.identity.civilite ?? '').trim().toLowerCase() === 'mme';
   const familySituation = String(forms.family.situation ?? '').toLowerCase();
@@ -340,12 +398,18 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         const { error } = await supabase.rpc('start_my_recueil', { p_dossier_id: row.dossier_id });
         if (error) throw error;
       }
-      const [{ data: sectionData, error: sectionError }, { data: investor, error: investorError }] = await Promise.all([
+      const [{ data: sectionData, error: sectionError }, { data: investor, error: investorError }, householdReviewResult] = await Promise.all([
         supabase.from('recueil_sections').select('section_code,payload,completed_at').eq('dossier_id', row.dossier_id).eq('investisseur_id', row.investisseur_id),
         supabase.from('investisseurs').select('civilite,prenom,nom,nom_naissance,date_naissance,lieu_naissance,pays_naissance,nationalite,mobile,email,telephone_bureau,telephone_domicile,numero_fiscal').eq('id', row.investisseur_id).single(),
+        row.role_dossier === 'investisseur_2'
+          ? supabase.rpc('get_my_household_review', { p_dossier_id: row.dossier_id })
+          : Promise.resolve({ data: [], error: null }),
       ]);
       if (sectionError) throw sectionError;
       if (investorError) throw investorError;
+      if (householdReviewResult.error) throw householdReviewResult.error;
+      setHouseholdReview((householdReviewResult.data ?? []) as HouseholdReviewRow[]);
+      setReviewNotes(Object.fromEntries(((householdReviewResult.data ?? []) as HouseholdReviewRow[]).map((item) => [item.section_code, item.confirmation_note ?? ''])));
       setAccountEmail(investor?.email ?? '');
       const nextForms = structuredClone(initial) as Record<SectionCode, AnyPayload>;
       nextForms.identity = { ...nextForms.identity, ...(investor ?? {}) };
@@ -372,7 +436,10 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
       setForms(nextForms);
       setDoneSections(completed);
       if (row.esg_opt_in !== null && !(sectionData ?? []).some((x) => x.section_code === 'regulatory')) patch('regulatory', { esg_opt_in: row.esg_opt_in });
-      const firstIncomplete = sections.findIndex((s) => !(row.role_dossier === 'investisseur_2' && s.code === 'family') && !completed.has(s.code));
+      const rowSections = row.role_dossier === 'investisseur_2'
+        ? sections.filter((section) => !SHARED_HOUSEHOLD_SECTIONS.includes(section.code))
+        : sections;
+      const firstIncomplete = rowSections.findIndex((section) => !completed.has(section.code));
       if (firstIncomplete >= 0) setStep(firstIncomplete);
     }).catch((error) => setErrorMessage(messageFromError(error)));
   }, [cabinetPreview, dossierId]);
@@ -467,6 +534,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
       if (form.has_credits === true && (form.items ?? []).length === 0) throw new Error('Ajoutez au moins un crédit.');
       for (const item of form.items ?? []) {
         if ([item.type_credit, item.taux_credit, item.credit_rattache_a].some(isBlank)) throw new Error('Complétez le type, le taux et le rattachement de chaque crédit.');
+        if (progress?.is_couple && progress.role_dossier === 'investisseur_1' && isBlank(item.emprunteur)) throw new Error('Indiquez à qui appartient chaque crédit du foyer.');
         if (!isNonNegativeNumber(item.taux_credit)) throw new Error('Le taux du crédit doit être un nombre positif ou nul.');
       }
     }
@@ -512,7 +580,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
     setErrorMessage('');
     try {
       await saveCurrent();
-      const nextIncomplete = sections.findIndex((section, index) => index !== step && !(progress.role_dossier === 'investisseur_2' && section.code === 'family') && !doneSections.has(section.code));
+      const nextIncomplete = visibleSections.findIndex((section, index) => index !== step && !doneSections.has(section.code));
       if (nextIncomplete >= 0) { setStep(nextIncomplete); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       if (cabinetPreview) {
         navigate('/cabinet/questionnaires?vue=qpi');
@@ -537,7 +605,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
   const previous = () => {
     setErrorMessage('');
     if (!progress) return;
-    if (step === 0) navigate(cabinetPreview ? '/cabinet/questionnaires' : dossierHref('/espace-client', progress.dossier_id)); else { setStep(progress.role_dossier === 'investisseur_2' && step === 2 ? 0 : step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (step === 0) navigate(cabinetPreview ? '/cabinet/questionnaires' : dossierHref('/espace-client', progress.dossier_id)); else { setStep(step - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
   if (!progress) return <p className="text-sm text-slate-500">Chargement du dossier…</p>;
@@ -601,10 +669,41 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
     patchCurrent({ enfants: nextChildren, nombre_enfants: String(nextChildren.length) });
   };
 
+  const refreshHouseholdReview = async () => {
+    if (!progress || progress.role_dossier !== 'investisseur_2') return;
+    const { data, error } = await supabase.rpc('get_my_household_review', { p_dossier_id: progress.dossier_id });
+    if (error) throw error;
+    const next = (data ?? []) as HouseholdReviewRow[];
+    setHouseholdReview(next);
+    setReviewNotes(Object.fromEntries(next.map((item) => [item.section_code, item.confirmation_note ?? ''])));
+  };
+
+  const setHouseholdConfirmation = async (sectionCode: HouseholdReviewRow['section_code'], status: 'confirmed' | 'change_requested') => {
+    if (!progress) return;
+    setReviewBusy(sectionCode);
+    setErrorMessage('');
+    try {
+      const note = reviewNotes[sectionCode] ?? '';
+      if (status === 'change_requested' && !note.trim()) throw new Error('Précisez la correction à apporter avant de la signaler.');
+      const { error } = await supabase.rpc('set_my_household_confirmation', {
+        p_dossier_id: progress.dossier_id,
+        p_section_code: sectionCode,
+        p_status: status,
+        p_note: status === 'change_requested' ? note.trim() : null,
+      });
+      if (error) throw error;
+      await refreshHouseholdReview();
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setReviewBusy(null);
+    }
+  };
+
   return <div>
     <JourneyProgress current="recueil" esgEnabled={forms.regulatory.esg_opt_in !== false} sticky={false} />
     <WizardCard>
-      <div className="border-b border-white/10 px-4 py-4 sm:px-5"><div className="flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{sections.map((section, index) => { const familyLocked = section.code === 'family' && progress.role_dossier === 'investisseur_2'; return <button key={section.code} type="button" disabled={familyLocked} title={familyLocked ? 'Informations communes gérées par l’Identifiant 1' : undefined} onClick={() => setStep(index)} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1.5 text-[10px] font-semibold leading-none transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 lg:px-2.5 lg:text-[11px] ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {section.label}</button>; })}</div></div>
+      <div className="border-b border-white/10 px-4 py-4 sm:px-5"><div className="flex flex-nowrap items-center justify-between gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{visibleSections.map((section, index) => <button key={section.code} type="button" onClick={() => setStep(index)} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1.5 text-[10px] font-semibold leading-none transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60 lg:px-2.5 lg:text-[11px] ${index === step ? 'bg-[#3B82F6] text-white shadow-sm' : doneSections.has(section.code) ? 'bg-[#10B981] text-white shadow-sm' : 'bg-white/10 text-[#94A3B8] hover:bg-white/15 hover:text-[#F1F5F9]'}`}>{doneSections.has(section.code) ? '✓ ' : ''}{index + 1}. {section.label}</button>)}</div></div>
       <div className="space-y-10 px-6 py-9 sm:px-9 sm:py-12">
         <div data-person-banner="global" className="flex items-center justify-between gap-4 rounded-2xl border border-[#3B82F6] bg-[#163B73] px-5 py-4 shadow-sm shadow-blue-950/20">
           <div className="min-w-0">
@@ -613,6 +712,43 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
           </div>
           <span className="shrink-0 rounded-full bg-[#3B82F6] px-3.5 py-1.5 text-xs font-bold text-white">{progress.role_dossier === 'investisseur_2' ? '2' : '1'}</span>
         </div>
+
+        {progress.role_dossier === 'investisseur_2' && (
+          <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-slate-800">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Informations communes du foyer</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-950">Vérifiez sans ressaisir</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Les informations ci-dessous ont été renseignées par l’Identifiant 1. Confirmez-les ou signalez une correction. Votre remarque n’écrase jamais la déclaration initiale.</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">{householdReview.filter((item) => item.confirmation_status === 'confirmed' && !item.confirmation_stale).length}/{Math.max(2, householdReview.filter((item) => ['family','patrimony'].includes(item.section_code)).length)} confirmées</span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {householdReview.length === 0 && <p className="rounded-xl bg-white p-4 text-sm text-slate-600">Les informations communes ne sont pas encore disponibles. Vous pouvez compléter vos informations personnelles ; la confirmation du foyer sera demandée avant la validation finale.</p>}
+              {householdReview.map((item) => {
+                const confirmed = item.confirmation_status === 'confirmed' && !item.confirmation_stale;
+                const changeRequested = item.confirmation_status === 'change_requested' && !item.confirmation_stale;
+                return <div key={item.section_code} className="rounded-xl border border-blue-100 bg-white p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-950">{householdSectionLabels[item.section_code]}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">{householdReviewSummary(item)}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Déclaré par {item.source_name || 'l’Identifiant 1'}.</p>
+                    </div>
+                    <span className={`self-start rounded-full px-2.5 py-1 text-[11px] font-bold ${confirmed ? 'bg-emerald-100 text-emerald-700' : changeRequested ? 'bg-amber-100 text-amber-800' : item.confirmation_stale ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-600'}`}>{confirmed ? 'Confirmé' : changeRequested ? 'Correction signalée' : item.confirmation_stale ? 'À reconfirmer' : 'À vérifier'}</span>
+                  </div>
+                  <textarea value={reviewNotes[item.section_code] ?? ''} onChange={(e) => setReviewNotes((state) => ({ ...state, [item.section_code]: e.target.value }))} rows={2} className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" placeholder="Une correction à signaler ? Décrivez-la ici." />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" disabled={reviewBusy === item.section_code} onClick={() => void setHouseholdConfirmation(item.section_code, 'confirmed')} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">Confirmer</button>
+                    <button type="button" disabled={reviewBusy === item.section_code} onClick={() => void setHouseholdConfirmation(item.section_code, 'change_requested')} className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-900 disabled:opacity-50">Signaler une correction</button>
+                  </div>
+                </div>;
+              })}
+            </div>
+          </section>
+        )}
+
         {current.code === 'identity' && <><div className="recueil-question-grid recueil-question-grid--3 grid gap-x-5 gap-y-7 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-8"><Field label="Civilité" required value={form.civilite} onChange={(v) => patchCurrent({ civilite: v })} /><Field label="Prénom" required value={form.prenom} onChange={(v) => patchCurrent({ prenom: v })} /><Field label="Nom" required value={form.nom} onChange={(v) => patchCurrent({ nom: v })} /><Field label="Nom de naissance" required={identityNeedsBirthName} value={form.nom_naissance} onChange={(v) => patchCurrent({ nom_naissance: v })} placeholder="Nom à la naissance" /><Field label="Date de naissance" required type="date" value={form.date_naissance} onChange={(v) => patchCurrent({ date_naissance: v })} /><Field label="Lieu de naissance" required value={form.lieu_naissance} onChange={(v) => patchCurrent({ lieu_naissance: v })} /><Field label="Pays de naissance" required value={form.pays_naissance} onChange={(v) => patchCurrent({ pays_naissance: v })} /><Field label="Nationalité" required value={form.nationalite} onChange={(v) => patchCurrent({ nationalite: v })} /><Field label="Mobile" required value={form.mobile} onChange={(v) => patchCurrent({ mobile: v })} placeholder="06 12 34 56 78 ou +33 6 12 34 56 78" />{accountEmail && <ReadOnlyField label="E-mail *" value={accountEmail} help="Adresse e-mail enregistrée pour cette personne dans le dossier." />}</div><div className="border-t border-slate-100 pt-7"><h3 className="font-semibold text-slate-900">Adresse fiscale</h3><div className="mt-4 recueil-question-grid recueil-question-grid--2 grid gap-x-5 gap-y-7 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8"><Field label="N° et voie" required value={form.address?.numero_voie} onChange={(v) => patchCurrent({ address: { ...form.address, numero_voie: v } })} /><Field label="Complément" value={form.address?.complement} onChange={(v) => patchCurrent({ address: { ...form.address, complement: v } })} /><Field label="Code postal" required value={form.address?.code_postal} onChange={(v) => patchCurrent({ address: { ...form.address, code_postal: v } })} /><Field label="Ville" required value={form.address?.ville} onChange={(v) => patchCurrent({ address: { ...form.address, ville: v } })} /><Field label="Pays" required value={form.address?.pays} onChange={(v) => patchCurrent({ address: { ...form.address, pays: v } })} /><Field label="Type de logement" required value={form.address?.type_logement} onChange={(v) => patchCurrent({ address: { ...form.address, type_logement: v } })} /></div></div></>}
 
         {current.code === 'family' && <div className="space-y-5">
@@ -867,21 +1003,23 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         </div>}
 
         {current.code === 'credits' && <div className="credit-section space-y-6">
+          {progress.is_couple && progress.role_dossier === 'investisseur_1' && <p className="rounded-xl border border-blue-300/30 bg-blue-500/10 px-4 py-3 text-xs leading-5 text-blue-100">Déclarez ici tous les crédits du foyer, y compris ceux propres à l’Identifiant 2. Indiquez pour chacun qui est emprunteur. L’Identifiant 2 les vérifiera sans les ressaisir.</p>}
           <div>
             <p className="text-sm font-semibold text-[#F1F5F9]">Avez-vous un ou plusieurs crédits en cours ? *</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <button type="button" aria-pressed={form.has_credits === true} onClick={() => patchCurrent({ has_credits: true, items: (form.items ?? []).length > 0 ? form.items : [{ type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className={`rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.has_credits === true ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-md shadow-blue-950/25' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}><span className="block text-base font-semibold">Oui</span></button>
+              <button type="button" aria-pressed={form.has_credits === true} onClick={() => patchCurrent({ has_credits: true, items: (form.items ?? []).length > 0 ? form.items : [{ type_credit: '', taux_credit: '', credit_rattache_a: '', emprunteur: progress.is_couple ? '' : 'Identifiant 1' }] })} className={`rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.has_credits === true ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-md shadow-blue-950/25' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}><span className="block text-base font-semibold">Oui</span></button>
               <button type="button" aria-pressed={form.has_credits === false} onClick={() => patchCurrent({ has_credits: false, items: [] })} className={`rounded-2xl border p-4 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${form.has_credits === false ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-md shadow-blue-950/25' : 'border-[#E2E8F0] bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md'}`}><span className="block text-base font-semibold">Non</span></button>
             </div>
           </div>
           {form.has_credits === true && <div>
-            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
+            <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-[#F1F5F9]">Vos crédits</h3></div><button type="button" onClick={() => patchCurrent({ items: [...(form.items ?? []), { type_credit: '', taux_credit: '', credit_rattache_a: '', emprunteur: progress.is_couple ? '' : 'Identifiant 1' }] })} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2563EB]"><Plus className="h-4 w-4" /> Ajouter un crédit</button></div>
             {(form.items ?? []).map((item: AnyPayload, index: number) => <div key={index} className="credit-card mt-4 rounded-2xl border p-5">
               <div className="flex items-center justify-between gap-3"><p className="font-semibold text-white">Crédit {index + 1}</p>{(form.items ?? []).length > 1 && <button type="button" onClick={() => removeList('items', index)} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div>
               <div className="recueil-question-grid mt-5 grid gap-x-5 gap-y-6 sm:grid-cols-3">
                 <CompactSelectField label="Type de crédit" required value={item.type_credit} onChange={(value) => updateList('items', index, { type_credit: value })} options={['Crédit immobilier résidence principale', 'Crédit immobilier locatif', 'Crédit à la consommation', 'Crédit renouvelable / réserve', 'Crédit automobile', 'Crédit étudiant', 'Crédit travaux', 'Crédit professionnel', 'Autre crédit']} />
                 <Field label="Taux du crédit (%)" required type="number" value={item.taux_credit} onChange={(value) => updateList('items', index, { taux_credit: value })} placeholder="Ex. 3,45" />
                 <CompactSelectField label="À quoi ce crédit est-il rattaché ?" required value={item.credit_rattache_a} onChange={(value) => updateList('items', index, { credit_rattache_a: value })} options={creditLinkedAssetOptions} />
+                {progress.is_couple && progress.role_dossier === 'investisseur_1' && <CompactSelectField label="Emprunteur" required value={item.emprunteur ?? ''} onChange={(value) => updateList('items', index, { emprunteur: value })} options={['Identifiant 1 et 2', 'Identifiant 1', 'Identifiant 2']} />}
               </div>
             </div>)}
           </div>}
@@ -890,7 +1028,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         {errorMessage && <div id="recueil-validation-alert" role="alert" tabIndex={-1} className="scroll-mt-28 rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{errorMessage}</p></div>}
         
       </div>
-      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === sections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
+      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === visibleSections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
   </div>;
 }
