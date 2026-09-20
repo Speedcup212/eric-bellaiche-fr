@@ -87,6 +87,59 @@ function findLineNumber(
   return null;
 }
 
+async function findPdfRowValues(
+  pdf: any,
+  label: RegExp,
+  opts: { min?: number; max?: number } = {},
+): Promise<{ values: number[]; page: number } | null> {
+  const min = opts.min ?? -Infinity;
+  const max = opts.max ?? Infinity;
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const items = (content.items ?? [])
+      .filter((item: any) => typeof item?.str === 'string')
+      .map((item: any) => ({ str: String(item.str ?? '').trim(), x: Number(item.transform?.[4] ?? 0), y: Number(item.transform?.[5] ?? 0), width: Number(item.width ?? 0) }))
+      .filter((item: any) => item.str);
+
+    for (const target of items) {
+      const re = new RegExp(label.source, label.flags.replace('g',''));
+      if (!re.test(target.str)) continue;
+      const row = items
+        .filter((item: any) => Math.abs(item.y - target.y) <= 2.4 && item.x > target.x + Math.max(target.width * 0.65, 12))
+        .sort((a: any,b: any) => a.x - b.x);
+      const values = row.flatMap((item: any) => numberCandidates(item.str).map((candidate) => candidate.value))
+        .filter((value: number) => value >= min && value <= max);
+      if (values.length) return { values, page: pageNo };
+    }
+  }
+  return null;
+}
+
+async function findPdfRowTextRight(pdf: any, label: RegExp): Promise<{ value: string; page: number } | null> {
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const items = (content.items ?? [])
+      .filter((item: any) => typeof item?.str === 'string')
+      .map((item: any) => ({ str: String(item.str ?? '').trim(), x: Number(item.transform?.[4] ?? 0), y: Number(item.transform?.[5] ?? 0), width: Number(item.width ?? 0) }))
+      .filter((item: any) => item.str);
+
+    for (const target of items) {
+      const re = new RegExp(label.source, label.flags.replace('g',''));
+      if (!re.test(target.str)) continue;
+      const right = items
+        .filter((item: any) => Math.abs(item.y - target.y) <= 2.4 && item.x > target.x + Math.max(target.width * 0.65, 12))
+        .sort((a: any,b: any) => a.x - b.x)
+        .map((item: any) => item.str)
+        .join(' ')
+        .trim();
+      if (right) return { value: right, page: pageNo };
+    }
+  }
+  return null;
+}
+
 function findDateNear(pages: string[], label: RegExp): { value: string; page: number } | null {
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
     const page = pages[pageIndex];
