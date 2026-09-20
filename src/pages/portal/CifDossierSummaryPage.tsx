@@ -442,17 +442,18 @@ export default function CifDossierSummaryPage() {
             : type === 'qpi'
               ? { card:'border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-indigo-50/40', title:'text-indigo-950', badgeDone:'bg-indigo-700 text-white', action:'bg-indigo-700 hover:bg-indigo-800', soft:'border-indigo-200 text-indigo-800 hover:bg-indigo-50' }
               : { card:'border-teal-200 bg-gradient-to-br from-teal-50 via-white to-teal-50/40', title:'text-teal-950', badgeDone:'bg-teal-700 text-white', action:'bg-teal-700 hover:bg-teal-800', soft:'border-teal-200 text-teal-800 hover:bg-teal-50' };
-          const classes = notApplicable ? 'border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 text-slate-700' : recueilInProgress ? 'border-amber-300 bg-gradient-to-br from-amber-50 via-white to-amber-50 text-amber-950' : completed ? typeTheme.card : 'border-red-200 bg-gradient-to-br from-red-50 via-white to-red-50 text-red-900';
-          const badge = notApplicable ? 'border border-slate-200 bg-slate-100 text-slate-700' : completed ? typeTheme.badgeDone : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-red-200 bg-red-100 text-red-800';
-          const status = notApplicable ? 'Aucune préférence exprimée' : completed ? 'Terminé' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
+          const classes = notApplicable ? 'border-teal-200 bg-gradient-to-br from-teal-50 via-white to-teal-50/40 text-teal-950' : recueilInProgress ? 'border-amber-300 bg-gradient-to-br from-amber-50 via-white to-amber-50 text-amber-950' : completed ? typeTheme.card : 'border-red-200 bg-gradient-to-br from-red-50 via-white to-red-50 text-red-900';
+          const badge = notApplicable ? 'border border-teal-200 bg-teal-100 text-teal-800' : completed ? typeTheme.badgeDone : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-red-200 bg-red-100 text-red-800';
+          const status = notApplicable ? 'Non exprimée' : completed ? 'Terminé' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
           const showRecueilActions = type === 'recueil' && state.recueilPdfAvailable;
           const generationError = generationErrors[`${investor.investisseur_id}:${type}`];
-          return <div key={type} className={`min-h-[126px] rounded-2xl border px-4 py-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${classes}`}>
+          return <div key={type} className={`flex min-h-[136px] flex-col rounded-2xl border px-4 py-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${classes}`}>
             <div className="flex min-h-[42px] items-start justify-between gap-3">
-              <span className={`text-[15px] font-bold leading-5 tracking-[-0.01em] ${notApplicable || !completed ? '' : typeTheme.title}`}>{generatedDocumentLabel[type]}</span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] ${badge}`}>{status}</span>
+              <span className={`text-[15px] font-extrabold leading-5 tracking-[-0.01em] ${typeTheme.title}`}>{generatedDocumentLabel[type]}</span>
+              <span className={`max-w-[92px] shrink-0 rounded-full px-2.5 py-1 text-center text-[9px] font-extrabold uppercase leading-3 tracking-[0.06em] ${badge}`}>{status}</span>
             </div>
-            {(completed || showRecueilActions) && <div className="mt-4 flex flex-wrap gap-2">
+            {notApplicable && <p className="mt-1 text-[11px] font-medium leading-4 text-teal-700">Aucune préférence de durabilité déclarée.</p>}
+            {(completed || showRecueilActions) && <div className="mt-auto flex flex-wrap gap-2 pt-4">
               {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold text-white shadow-sm transition ${completed ? typeTheme.action : 'bg-slate-950 hover:bg-slate-800'}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation du PDF</span> : null}
               {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className={`rounded-lg border bg-white px-3 py-2 text-[11px] font-bold transition ${typeTheme.soft}`}>Voir les réponses</button>}
             </div>}
