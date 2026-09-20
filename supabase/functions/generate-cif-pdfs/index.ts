@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.1';
+const PDF_VERSION = '2026-MAITRE-PDF-2.2';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -168,7 +168,9 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
     const session = sessions.find((s: Json) => s.investisseur_id === inv.id);
     ensure(ctx, 80); heading(ctx, `${investorName(inv)} - ${type === 'QPI' ? 'profil investisseur' : 'préférences ESG'}`);
     if (!session) { if (type === 'ESG' && inv.esg_status === 'not_applicable') drawText(ctx, 'Aucune préférence ESG détaillée : questionnaire non applicable selon le choix du client.', { bold: true, color: GREEN }); else drawText(ctx, 'Questionnaire non disponible pour cet investisseur.', { color: rgb(0.7, 0.3, 0.05) }); continue; }
-    const questions = snapshot.questions.filter((q: Json) => q.template_id === session.template_id).sort((a: Json, b: Json) => a.ordre - b.ordre); const answers = snapshot.answers.filter((a: Json) => a.session_id === session.id); const answerByQuestion = new Map(answers.map((a: Json) => [a.question_id, a]));
+    const questions = snapshot.questions
+      .filter((q: Json) => q.template_id === session.template_id && q.metadata?.deprecated !== true)
+      .sort((a: Json, b: Json) => a.ordre - b.ordre); const answers = snapshot.answers.filter((a: Json) => a.session_id === session.id); const answerByQuestion = new Map(answers.map((a: Json) => [a.question_id, a]));
     if (type === 'QPI') {
       const result = snapshot.qpiResults.find((r: Json) => r.session_id === session.id);
       if (result) {
