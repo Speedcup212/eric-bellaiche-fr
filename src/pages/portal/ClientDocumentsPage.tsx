@@ -209,12 +209,19 @@ export default function ClientDocumentsPage() {
     try {
       const { error: uploadError } = await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).upload(path, file, { upsert: false });
       if (uploadError) throw uploadError;
-      const { error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: uploadCategory === 'identite' ? identityTargetId : progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
+      const { data: registeredDocumentId, error: registerError } = await supabase.rpc('register_source_document', { p_dossier_id: progress.dossier_id, p_investisseur_id: uploadCategory === 'identite' ? identityTargetId : progress.investisseur_id, p_categorie: uploadCategory, p_nom_fichier: displayedName, p_storage_path: path, p_date_document: null, p_annee_reference: null });
       if (registerError) { await supabase.storage.from(SOURCE_DOCUMENTS_BUCKET).remove([path]); throw registerError; }
       setFile(null);
       setIdentityType('');
       setIdentityOwnerId('');
-      setMessage(`${categoryLabel(uploadCategory)} transmis avec succès.`);
+      let analysisDeferred = false;
+      if (typeof registeredDocumentId === 'string') {
+        const { error: analysisError } = await supabase.functions.invoke('extract-source-document', { body: { document_id: registeredDocumentId } });
+        analysisDeferred = Boolean(analysisError);
+      }
+      setMessage(analysisDeferred
+        ? `${categoryLabel(uploadCategory)} transmis avec succès. L’analyse automatique sera reprise par le cabinet.`
+        : `${categoryLabel(uploadCategory)} transmis avec succès. Les données exploitables ont été rapprochées du recueil.`);
       await loadDocuments(progress);
       setCategory('');
       const receivedBeforeUpload = sources.filter((doc) => doc.categorie === uploadCategory).length;
