@@ -68,6 +68,18 @@ assert.equal(balanced.operationalRank, 5);
 assert.equal(balanced.gap, false);
 assert.equal(balanced.knowledgeLevel, 'Suffisant');
 assert.equal(balanced.controls.knowledgeOrExperienceReview, true);
+assert.equal(balanced.controls.lossImpactOnProjects, false);
+
+const projectSensitive = computeInvestorProfile({
+  toleranceScores:[4,4,4,4,3],
+  capacity:{ Q3:'C', Q4:'B', Q9:'B', Q10:'E' },
+  knowledgeAnswered:5,
+  knowledgeCorrect:3,
+  practicedProductFamilies:3,
+});
+assert.equal(projectSensitive.operationalRank, 5);
+assert.equal(projectSensitive.controls.futureProjectConstraint, true);
+assert.equal(projectSensitive.controls.lossImpactOnProjects, true);
 
 const incomplete = computeInvestorProfile({ toleranceScores:[5,5,5,5,5], capacity:{ Q3:'D', Q4:'A', Q9:'D' } });
 assert.equal(incomplete.complete, false);
