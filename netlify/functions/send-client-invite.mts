@@ -89,7 +89,7 @@ Vous n’avez pas nécessairement besoin de tous ces documents. Selon votre situ
 - les tableaux d’amortissement ou justificatifs de vos crédits en cours ;
 - les documents utiles concernant une SCI ou une société, le cas échéant.
 
-Si votre dossier concerne également votre conjoint, ses informations seront ajoutées au cours du recueil. Il recevra ensuite son propre accès pour compléter les éléments qui le concernent.
+Si votre dossier concerne deux personnes, chacun dispose de son propre accès. Les informations communes du foyer sont renseignées une seule fois puis vérifiées par le second membre afin d’éviter les doubles saisies. Les informations personnelles, réglementaires et le profil investisseur restent individuels.
 
 Pour tous nos prochains rendez-vous en visioconférence, vous pourrez utiliser ce lien Zoom unique :
 ${ZOOM_URL}
