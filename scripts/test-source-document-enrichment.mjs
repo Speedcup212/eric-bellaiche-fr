@@ -2,6 +2,8 @@ import fs from 'node:fs';
 
 const edge = fs.readFileSync('supabase/functions/extract-source-document/index.ts', 'utf8');
 const mergeMigration = fs.readFileSync('supabase/migrations/20260920194000_inject_document_data_into_real_recueil_fields.sql', 'utf8');
+const financialMergeMigration = fs.readFileSync('supabase/migrations/20260920203500_merge_ocr_financial_items_into_recueil.sql', 'utf8');
+const financialTotalsMigration = fs.readFileSync('supabase/migrations/20260920205500_separate_documented_and_estimated_financial_totals.sql', 'utf8');
 const completenessMigration = fs.readFileSync('supabase/migrations/20260920193000_unify_recueil_completeness_and_document_scope.sql', 'utf8');
 const validationMigration = fs.readFileSync('supabase/migrations/20260920193500_validate_recueil_with_single_completeness_engine.sql', 'utf8');
 const documents = fs.readFileSync('src/pages/portal/ClientDocumentsPage.tsx', 'utf8');
@@ -17,13 +19,16 @@ const checks = [
   ['document provenance is persisted', mergeMigration.includes("methode_collecte='extraction_document'") && mergeMigration.includes('public.data_provenance')],
   ['document scope supports investor or household', completenessMigration.includes('portee_document') && completenessMigration.includes('concerne_investisseur_ids') && documents.includes('Foyer / document commun')],
   ['client uploads use scoped registration', documents.includes("rpc('register_source_document_v2'") && documents.includes('p_portee_document')],
-  ['tax notice parser uses strict line labels', edge.includes('avis_imposition_fr_v2') && edge.includes('findLineNumber') && edge.includes('Revenu fiscal de r[ée]f[ée]rence')],
+  ['tax notice parser uses PDF coordinates plus strict labels', edge.includes('avis_imposition_fr_v2') && edge.includes('findPdfRowNumber') && edge.includes('Revenu fiscal de r[ée]f[ée]rence')],
   ['tax notice parser feeds real tax section', edge.includes("section_code: 'tax'") && edge.includes('revenu_imposable') && edge.includes('nombre_parts') && edge.includes('tmi')],
   ['credit parser merges into real credit items', edge.includes('__merge_credit_items') && mergeMigration.includes("v_field='__merge_credit_items'") && mergeMigration.includes("'{items}'")],
   ['parallel documented loan facts are no longer generated', !edge.includes('documented_loan_facts')],
   ['credit CRD extraction is same-line strict', edge.includes("safe_crd_rule: 'same-line-label-only'") && edge.includes('capital restant')],
   ['financial parser writes only safe real recueil fields', edge.includes("section_code: 'financial'") && edge.includes('total_band') && !edge.includes('documented_accounts')],
-  ['images are not guessed without reliable extraction', edge.includes('Image reçue : aucune donnée n’est inventée sans lecture fiable') && edge.includes("p_status: 'to_review'")],
+  ['financial PNG evidence uses workerless OCR', edge.includes("npm:nocr@1.2.0") && edge.includes('financial_image_ocr_v1') && edge.includes('ocrImage(bytes)')],
+  ['OCR financial items merge into real holdings', edge.includes('__merge_financial_items') && financialMergeMigration.includes("__merge_financial_items") && financialMergeMigration.includes("financial.items")],
+  ['documented financial total excludes synthesis-only rows', financialTotalsMigration.includes("source_document_id") && financialTotalsMigration.includes("v_total_financial")],
+  ['OCR amount parser supports French Livret and broker thousands formats', edge.includes('parseFinancialDisplayNumber') && edge.includes('Solde') && edge.includes('net liquidation value')],
   ['long PDFs are no longer rejected at 30 pages', edge.includes('pdf.numPages > 120') && !edge.includes('pdf.numPages > 30')],
   ['recueil journey visibly includes tax', recueil.includes("{ code: 'tax', label: 'Fiscalité'")],
   ['single completeness engine covers ten sections', completenessMigration.includes("'identity','family','professional','objectives','capacity'") && completenessMigration.includes("'tax','patrimony','financial','credits','regulatory'")],
