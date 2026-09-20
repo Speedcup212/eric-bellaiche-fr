@@ -68,6 +68,8 @@ jobs:
         run: npm run test:audit-documents
       - name: Adequation document pipeline
         run: npm run test:adequation-documents
+      - name: Source document enrichment
+        run: npm run test:source-documents
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
