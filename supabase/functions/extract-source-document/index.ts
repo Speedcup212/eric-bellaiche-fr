@@ -53,7 +53,7 @@ function parseFrenchNumber(raw: string): number | null {
 }
 
 function numberCandidates(text: string) {
-  const matches = text.match(/-?\d{1,3}(?:[ .\u00a0]\d{3})*(?:[,.]\d{1,2})?|-?\d+(?:[,.]\d{1,2})?/g) ?? [];
+  const matches = text.match(/-?(?:\d{1,3}(?:[ .\u00a0]\d{3})+|\d+)(?:[,.]\d{1,2})?/g) ?? [];
   return matches
     .map((raw) => ({ raw, value: parseFrenchNumber(raw) }))
     .filter((item) => item.value !== null) as Array<{ raw: string; value: number }>;
@@ -306,14 +306,18 @@ function parseFinancialImage(
   documentId: string,
   fileName: string,
   targetIds: string[],
+  members: Member[],
 ) {
   const institution = institutionFromText(fileName, text);
   const instrument = financialInstrument(fileName, text);
   const amount = findFinancialImageAmount(text, instrument);
+  const owner = targetIds.length === 1 ? members.find((member) => member.investisseur_id === targetIds[0]) : null;
   const item: Json = {
     type_placement: instrument,
     organisme: institution ?? 'Non identifié',
+    proprietaire: owner ? `${owner.prenom} ${owner.nom}`.trim() : targetIds.length > 1 ? 'Foyer' : 'Non identifié',
     source_file: fileName,
+    source_type: 'justificatif_image',
     ocr_confidence: Math.round(confidence * 10) / 10,
   };
   if (amount !== null) item.montant = Math.round(amount * 100) / 100;
@@ -639,7 +643,7 @@ Deno.serve(async (req) => {
 
       if (doc.categorie === 'patrimoine_financier') {
         const ocr = await ocrImage(bytes);
-        parsedImage = parseFinancialImage(ocr.text, ocr.confidence, documentId, doc.nom_fichier, scopeIds);
+        parsedImage = parseFinancialImage(ocr.text, ocr.confidence, documentId, doc.nom_fichier, scopeIds, members);
       }
 
       const extraction = {
