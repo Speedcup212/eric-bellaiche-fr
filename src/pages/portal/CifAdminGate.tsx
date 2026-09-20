@@ -4,14 +4,11 @@ import CifCabinetLogin from './CifCabinetLogin';
 import CifQuestionnairesPage from './CifQuestionnairesPage';
 import CifProspectsPage from './CifProspectsPage';
 import MandatoryMfa from '../../portal/MandatoryMfa';
-import CabinetAccessCodeGate from '../../portal/CabinetAccessCodeGate';
-import { hasValidCabinetAccess } from '../../portal/cabinetAccess';
 import { supabase } from '../../lib/supabase';
 
 export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard' | 'questionnaires' | 'prospects' }) {
   const [checking, setChecking] = useState(true);
   const [authorized, setAuthorized] = useState(false);
-  const [codeRequired, setCodeRequired] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
 
   const verify = useCallback(async () => {
@@ -19,23 +16,15 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
     const session = sessionData.session;
-    if (!session) { setAuthorized(false); setCodeRequired(false); setMfaRequired(false); setChecking(false); return; }
+    if (!session) { setAuthorized(false); setMfaRequired(false); setChecking(false); return; }
 
     const { data: current, error } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', session.user.id).maybeSingle();
     if (error) throw error;
     const isStaff = Boolean(current?.actif && ['cif', 'admin'].includes(current.role));
-    if (!isStaff) { await supabase.auth.signOut(); setAuthorized(false); setCodeRequired(false); setMfaRequired(false); setChecking(false); return; }
+    if (!isStaff) { await supabase.auth.signOut(); setAuthorized(false); setMfaRequired(false); setChecking(false); return; }
 
     setAuthorized(true);
 
-    const codeOk = await hasValidCabinetAccess();
-    if (!codeOk) {
-      setCodeRequired(true);
-      setMfaRequired(false);
-      setChecking(false);
-      return;
-    }
-    setCodeRequired(false);
 
     const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError) throw aalError;
@@ -46,11 +35,11 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
 
   useEffect(() => {
     let active = true;
-    const run = async () => { try { await verify(); } catch { if (active) { setAuthorized(false); setCodeRequired(false); setMfaRequired(false); setChecking(false); } } };
+    const run = async () => { try { await verify(); } catch { if (active) { setAuthorized(false); setMfaRequired(false); setChecking(false); } } };
     void run();
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      if (event === 'SIGNED_OUT' || !session) { setAuthorized(false); setCodeRequired(false); setMfaRequired(false); setChecking(false); return; }
+      if (event === 'SIGNED_OUT' || !session) { setAuthorized(false); setMfaRequired(false); setChecking(false); return; }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION' || event === 'MFA_CHALLENGE_VERIFIED') window.setTimeout(() => { if (active) void run(); }, 0);
     });
     return () => { active = false; data.subscription.unsubscribe(); };
@@ -58,7 +47,6 @@ export default function CifAdminGate({ view = 'dashboard' }: { view?: 'dashboard
 
   if (checking) return <div className="flex min-h-screen items-center justify-center bg-[#081426] px-4"><div className="rounded-3xl border border-white/10 bg-white px-6 py-5 text-center shadow-2xl"><p className="text-sm font-semibold text-[#0F172A]">Ouverture du cockpit cabinet…</p><p className="mt-1 text-xs text-[#64748B]">Vérification de la session sécurisée.</p></div></div>;
   if (!authorized) return <CifCabinetLogin onAuthenticated={() => { void verify(); }} />;
-  if (codeRequired) return <CabinetAccessCodeGate onVerified={() => { setCodeRequired(false); void verify(); }} />;
   if (mfaRequired) return <MandatoryMfa onVerified={() => { setMfaRequired(false); void verify(); }} />;
   if (view === 'questionnaires') return <CifQuestionnairesPage />;
   if (view === 'prospects') return <CifProspectsPage />;
