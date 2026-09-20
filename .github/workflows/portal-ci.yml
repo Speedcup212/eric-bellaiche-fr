@@ -73,7 +73,7 @@ jobs:
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal
-        run: npx eslint src/lib src/portal src/pages/portal src/App.tsx scripts
+        run: npm run lint:portal
       - name: Build
         run: npm run build
       - name: Critical route smoke test
