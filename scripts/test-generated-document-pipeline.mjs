@@ -17,7 +17,8 @@ const checks = [
   ['PDF MIME type used', edge.includes("contentType: 'application/pdf'")],
   ['PDF extension used', edge.includes('.pdf')],
   ['documents hashed', edge.includes('hash_sha256') && edge.includes('snapshot_hash')],
-  ['Youtrust handoff metadata', edge.includes("signature_provider: 'youtrust'") && edge.includes("signature_status: 'ready_to_send'")],
+  ['Youtrust handoff metadata', edge.includes("signature_provider: 'youtrust'") && edge.includes("signature_status: type === 'recueil'") && edge.includes("'draft' : 'ready_to_send'")],
+  ['incomplete recueil stays draft', edge.includes("DOCUMENT DE TRAVAIL - RECUEIL INCOMPLET") && edge.includes("recueil_complete") && edge.includes("recueil_percentage")],
   ['final format is PDF', edge.includes("final_format: 'pdf'")],
   ['identity document not requested', !edge.includes("categorie='identite'") && !edge.includes('justificatif_domicile')],
 ];
