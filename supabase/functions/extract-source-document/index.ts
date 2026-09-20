@@ -229,6 +229,7 @@ function parseCredit(
   fileName: string,
   targetIds: string[],
   detectedMembers: string[],
+  members: Member[],
 ) {
   const rate = findLineNumber(pages, /(?:taux (?:nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
   const monthly = findLineNumber(pages, /(?:mensualit[ée]|montant de l['’][ée]ch[ée]ance|[ée]ch[ée]ance hors assurance)/i, { min: 1, max: 50000 });
@@ -246,7 +247,13 @@ function parseCredit(
   if (outstanding) { fact.capital_restant_du = Math.round(outstanding.value * 100) / 100; sourcePages.__merge_credit_items ??= String(outstanding.page); }
   if (initial) { fact.montant_initial = Math.round(initial.value * 100) / 100; sourcePages.__merge_credit_items ??= String(initial.page); }
   if (endDate) { fact.date_fin = endDate.value; sourcePages.__merge_credit_items ??= String(endDate.page); }
-  if (detectedMembers.length === 1) fact.emprunteur_investisseur_id = detectedMembers[0];
+  if (detectedMembers.length === 1) {
+    const member = members.find((item) => item.investisseur_id === detectedMembers[0]);
+    fact.emprunteur_investisseur_id = detectedMembers[0];
+    if (member) fact.emprunteur = member.role_dossier === 'investisseur_2' ? 'Identifiant 2' : 'Identifiant 1';
+  } else if (detectedMembers.length > 1) {
+    fact.emprunteur = 'Identifiant 1 et 2';
+  }
 
   const extractedFields = Object.keys(fact).filter((key) => !['source_document_id','source_file','emprunteur_investisseur_id'].includes(key));
   return {
@@ -492,7 +499,7 @@ Deno.serve(async (req) => {
       parsed = parseTaxNotice(pages, documentId, doc.nom_fichier, concernedIds);
     } else if (doc.categorie === 'tableau_amortissement') {
       const creditTargetIds = primaryId ? [primaryId] : concernedIds.slice(0, 1);
-      parsed = parseCredit(pages, documentId, doc.nom_fichier, creditTargetIds, detected);
+      parsed = parseCredit(pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
     } else if (doc.categorie === 'patrimoine_financier') {
       parsed = parseFinancial(pages, documentId, doc.nom_fichier, concernedIds);
     } else if (doc.categorie === 'identite') {
