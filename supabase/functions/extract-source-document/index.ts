@@ -191,6 +191,16 @@ async function findPdfRowNumber(
       const row = items
         .filter((item: any) => Math.abs(item.y - target.y) <= 2.2 && item.x > target.x + Math.max(target.width * 0.65, 12))
         .sort((a: any,b: any) => a.x - b.x);
+
+      const joined = row.map((item: any) => item.str).join('');
+      const joinedValues = numberCandidates(joined).map((candidate) => candidate.value)
+        .filter((value) => value >= min && value <= max);
+      if (joinedValues.length) {
+        if (!opts.percent || /%/.test(joined) || joinedValues[0] <= 45) {
+          return { value: joinedValues[0], page: pageNo };
+        }
+      }
+
       for (const item of row) {
         const values = numberCandidates(item.str).map((candidate) => candidate.value)
           .filter((value) => value >= min && value <= max);
