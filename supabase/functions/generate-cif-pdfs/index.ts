@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.10';
+const PDF_VERSION = '2026-MAITRE-PDF-2.11';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -79,8 +79,13 @@ function clean(value: unknown, fallback = 'Non renseigné') {
 }
 function hasValue(value: unknown) { return !(value === null || value === undefined || String(value).trim() === ''); }
 function num(value: unknown) { const n = typeof value === 'number' ? value : Number(String(value ?? '').replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; }
-function eur(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(value))} EUR`; }
-function pct(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(value))} %`; }
+function frNumber(value: unknown) {
+  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 })
+    .format(num(value))
+    .replace(/[\u00A0\u202F]/g, ' ');
+}
+function eur(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${frNumber(value)} EUR`; }
+function pct(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${frNumber(value)} %`; }
 function frDate(value: unknown) { if (!value) return 'Non renseignée'; const d = new Date(String(value)); if (Number.isNaN(d.getTime())) return clean(value); return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d); }
 function slug(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase(); }
 async function sha256Hex(data: Uint8Array | string) { const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data; const hash = await crypto.subtle.digest('SHA-256', bytes); return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join(''); }
