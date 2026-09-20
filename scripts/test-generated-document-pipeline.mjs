@@ -5,11 +5,12 @@ const edgePath = 'supabase/functions/generate-cif-pdfs/index.ts';
 const edge = fs.readFileSync(edgePath, 'utf8');
 const checks = [
   ['portal invokes PDF generator', page.includes("functions.invoke('generate-cif-pdfs'")],
-  ['recueil PDF readiness', page.includes("recueil: investors.length > 0") && page.includes("recueil_status")],
-  ['qpi PDF readiness', page.includes("qpi: investors.length > 0") && page.includes("qpi_status")],
-  ['esg PDF readiness', page.includes("esg: investors.length > 0") && page.includes("esg_status")],
-  ['ready document types derived from completion map', page.includes('readyDocumentTypes') && page.includes('Object.entries(questionnaireCompletion)')],
+  ['recueil PDF readiness per investor', page.includes("const recueil = ['completed', 'validated'].includes(investor.recueil_status)")],
+  ['qpi PDF readiness per investor', page.includes("const qpi = ['completed', 'validated'].includes(investor.qpi_status)")],
+  ['esg PDF readiness per investor', page.includes("const esg = ['completed', 'validated'].includes(investor.esg_status)") && page.includes('esgNotApplicable')],
+  ['ready document types derived per investor', page.includes('readyTypes') && page.includes('investorDocumentStates') && page.includes('investisseur_id: state.investor.investisseur_id')],
   ['PDF download links exposed only from signed URL', page.includes('document?.signed_url') && page.includes('href={document.signed_url}') && page.includes('generatedDocumentLabel[type]')],
+  ['individual PDF scoping supported', edge.includes('targetInvestorId') && edge.includes('scopeSnapshotToInvestor') && edge.includes('investisseur_id: targetInvestorId || null')],
   ['PDF generator versioned', /PDF_VERSION\s*=\s*'2026-MAITRE-PDF-\d+\.\d+'/.test(edge)],
   ['private regulatory storage used', edge.includes("BUCKET = 'regulatory-docs'")],
   ['PDF path archived', edge.includes('storage_path_pdf') && !edge.includes('storage_path_docx: storagePath')],
