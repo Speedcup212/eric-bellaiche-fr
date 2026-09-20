@@ -28,7 +28,7 @@ const checks = [
   ['financial PNG evidence uses workerless OCR', edge.includes("npm:nocr@1.2.0") && edge.includes('financial_image_ocr_v1') && edge.includes('ocrImage(bytes)')],
   ['OCR financial items merge into real holdings', edge.includes('__merge_financial_items') && financialMergeMigration.includes("__merge_financial_items") && financialMergeMigration.includes("financial.items")],
   ['documented financial total excludes synthesis-only rows', financialTotalsMigration.includes("source_document_id") && financialTotalsMigration.includes("v_total_financial")],
-  ['OCR amount parser supports French Livret and broker thousands formats', edge.includes('parseFinancialDisplayNumber') && edge.includes('Solde') && edge.includes('net liquidation value')],
+  ['OCR amount parser supports French Livret and broker thousands formats', edge.includes('parseFinancialDisplayNumber') && edge.includes('solde au') && edge.includes('net liquidation value') && edge.includes("brokerStyle && /^-?\\d{1,3},\\d{3}$/")],
   ['long PDFs are no longer rejected at 30 pages', edge.includes('pdf.numPages > 120') && !edge.includes('pdf.numPages > 30')],
   ['recueil journey visibly includes tax', recueil.includes("{ code: 'tax', label: 'Fiscalité'")],
   ['single completeness engine covers ten sections', completenessMigration.includes("'identity','family','professional','objectives','capacity'") && completenessMigration.includes("'tax','patrimony','financial','credits','regulatory'")],
