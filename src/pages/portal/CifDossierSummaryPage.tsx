@@ -18,7 +18,7 @@ type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg'; investisseur_id?: st
 type HouseholdConfirmationRow = { section_code:string; status:'confirmed'|'change_requested'; note:string|null; source_updated_at:string; updated_at:string };
 type QpiSessionRow = { id:string; investisseur_id:string };
 type QpiControlRow = { id:string; session_id:string; control_code:string; alerte:boolean; traite:boolean; commentaire:string|null; details:Record<string,unknown>; resolution_code:string|null; resolution_note:string|null; resolved_at:string|null };
-type QpiResultSummaryRow = { session_id:string; synthese_dimensions:Record<string,any> };
+type QpiResultSummaryRow = { session_id:string; synthese_dimensions:Record<string,unknown> & { liquidite?: Record<string,unknown> } };
 
 const sectionLabel: Record<string, string> = { identity: 'Identité', family: 'Situation familiale', professional: 'Profession', objectives: 'Objectifs', capacity: 'Revenus & capacité', tax: 'Fiscalité', patrimony: 'Immobilier', financial: 'Patrimoine financier', credits: 'Crédits', regulatory: 'Réglementaire' };
 const sectionOrder = ['identity', 'family', 'professional', 'capacity', 'tax', 'patrimony', 'financial', 'credits', 'objectives', 'regulatory'];
@@ -72,7 +72,7 @@ function QpiControlCard({ control, busy, onResolve }: { control: QpiControlRow; 
 }
 
 function QpiLiquidityCard({ result }: { result: QpiResultSummaryRow }) {
-  const liq = (result.synthese_dimensions?.liquidite ?? {}) as Record<string, any>;
+  const liq = result.synthese_dimensions?.liquidite ?? {};
   const min = numberValue(liq.capital_investissable_lt_min);
   const max = numberValue(liq.capital_investissable_lt_max);
   const constrainedMin = numberValue(liq.capital_contraint_min);
