@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.11';
+const PDF_VERSION = '2026-MAITRE-PDF-2.12';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -206,7 +206,109 @@ async function buildRecueil(snapshot: Json) {
     const pro = map.professional ?? {}; heading(ctx, `${n++}. Situation professionnelle`); drawTable(ctx, ['Donnée', 'Valeur'], [['Profession', clean(pro.profession_actuelle)], ['Société / employeur', clean(pro.societe)], ['Secteur', clean(pro.secteur_activite)], ['Statut', clean(pro.statut)], ['Date d’entrée', frDate(pro.date_entree)], ['Ancienneté déclarée', clean(pro.anciennete_annees)], ['Changement prévu', clean(pro.changement_professionnel_prevu)], ['Détails', clean(pro.changement_professionnel_details)]], [34, 66]);
     const objs = map.objectives?.items ?? []; heading(ctx, `${n++}. Objectifs et horizons`); drawTable(ctx, ['Priorité', 'Objectif', 'Horizon'], objs.length ? objs.map((o: Json, idx: number) => [String(idx + 1), o.code_objectif === 'autre' ? clean(o.libelle_autre) : objectiveLabel(clean(o.code_objectif, '')), clean(o.horizon_annees)]) : [['-', 'Aucun objectif renseigné', '-']], [12, 62, 26]);
     const cap = map.capacity ?? {}; incomeAnnual += num(cap.estimation_revenus_travail_annuels) + num(cap.estimation_revenus_fonciers_annuels); heading(ctx, `${n++}. Revenus et équilibre financier`); drawTable(ctx, ['Donnée', 'Valeur'], [['Revenus professionnels nets estimés - année en cours', eur(cap.estimation_revenus_travail_annuels)], ['Revenus immobiliers estimés - année en cours', eur(cap.estimation_revenus_fonciers_annuels)], ['Capacité d’épargne mensuelle', eur(cap.capacite_epargne_mensuelle)], ['Réserve de sécurité souhaitée', eur(cap.epargne_precaution_cible)], ['Apport immobilier mobilisable', eur(cap.apport_immobilier_possible)]], [58, 42]);
-    const tax = map.tax ?? {}; heading(ctx, `${n++}. Situation fiscale`); drawTable(ctx, ['Donnée fiscale', 'Valeur'], [['Année d’imposition', clean(tax.annee_imposition)], ['Revenu imposable', eur(tax.revenu_imposable)], ['Revenu fiscal de référence', eur(tax.revenu_fiscal_reference)], ['Nombre de parts', clean(tax.nombre_parts)], ['TMI', pct(tax.tmi)], ['Taux moyen d’imposition', pct(tax.taux_imposition)], ['Impôt sur le revenu net', eur(tax.impot_revenu_net)], ['Prélèvements sociaux nets', eur(tax.prelevements_sociaux_nets)], ['Salaires / assimilés', eur(tax.salaires_assimiles)], ['Revenus fonciers nets', eur(tax.revenus_fonciers_nets)], ['Déficit foncier reportable', eur(tax.deficit_foncier_reportable)], ['Plafond épargne retraite disponible', eur(tax.plafond_disponible_avis)], ['Versements retraite à déduire', eur(tax.versements_a_deduire)]], [58, 42]); if (tax.ifi_concerne === true) { heading(ctx, 'IFI', 2); drawTable(ctx, ['Donnée IFI', 'Valeur'], [['Base imposable IFI', eur(tax.ifi_base_imposable)], ['TMI IFI', pct(tax.ifi_tmi)], ['IFI net à payer', eur(tax.ifi_net_a_payer)]], [58, 42]); }
+    const tax = map.tax ?? {}; heading(ctx, `${n++}. Situation fiscale détaillée`);
+    const taxRows = (rows: Array<[string, unknown, 'eur' | 'pct' | 'date' | 'text']>) => rows.filter(([, value]) => hasValue(value)).map(([label, value, kind]) => [label, kind === 'eur' ? eur(value) : kind === 'pct' ? pct(value) : kind === 'date' ? frDate(value) : clean(value)]);
+    const taxTable = (title: string, rows: Array<[string, unknown, 'eur' | 'pct' | 'date' | 'text']>) => { const filtered = taxRows(rows); if (filtered.length) { heading(ctx, title, 2); drawTable(ctx, ['Donnée fiscale', 'Valeur'], filtered, [62, 38]); } };
+
+    taxTable('Identifiants fiscaux et avis', [
+      ['Numéro fiscal - déclarant 1', tax.numero_fiscal_declarant_1, 'text'],
+      ['Nom - déclarant 1', tax.nom_declarant_1, 'text'],
+      ['Numéro fiscal - déclarant 2', tax.numero_fiscal_declarant_2, 'text'],
+      ['Nom - déclarant 2', tax.nom_declarant_2, 'text'],
+      ['Référence de l’avis', tax.reference_avis, 'text'],
+      ['Référence du foyer fiscal', tax.reference_foyer, 'text'],
+      ['Adresse fiscale', tax.adresse_fiscale, 'text'],
+      ['Année d’imposition', tax.annee_imposition, 'text'],
+      ['Date d’établissement de l’avis', tax.date_etablissement_avis, 'date'],
+      ['Date de mise en recouvrement', tax.date_mise_en_recouvrement, 'date'],
+      ['Centre des finances publiques', tax.centre_impots, 'text'],
+      ['Nombre de parts', tax.nombre_parts, 'text'],
+    ]);
+
+    taxTable('Revenus déclarés', [
+      ['Salaires - déclarant 1', tax.salaires_declarant_1, 'eur'],
+      ['Heures supplémentaires non exonérées - déclarant 1', tax.heures_supp_non_exonerees_declarant_1, 'eur'],
+      ['Total salaires - déclarant 1', tax.total_salaires_declarant_1, 'eur'],
+      ['Déduction 10 % / frais réels - déclarant 1', tax.deduction_10_declarant_1, 'eur'],
+      ['Salaires nets - déclarant 1', tax.salaires_nets_declarant_1, 'eur'],
+      ['Salaires - déclarant 2', tax.salaires_declarant_2, 'eur'],
+      ['Total salaires - déclarant 2', tax.total_salaires_declarant_2, 'eur'],
+      ['Déduction 10 % / frais réels - déclarant 2', tax.deduction_10_declarant_2, 'eur'],
+      ['Salaires nets - déclarant 2', tax.salaires_nets_declarant_2, 'eur'],
+      ['Revenu brut global', tax.revenu_brut_global, 'eur'],
+      ['CSG déductible du revenu global', tax.csg_deductible_revenu_global, 'eur'],
+      ['Revenu imposable', tax.revenu_imposable, 'eur'],
+      ['Revenus au taux forfaitaire', tax.revenus_taux_forfaitaire, 'eur'],
+      ['Revenus fonciers nets', tax.revenus_fonciers_nets, 'eur'],
+      ['Déficit foncier reportable', tax.deficit_foncier_reportable, 'eur'],
+    ]);
+
+    taxTable('Calcul de l’impôt sur le revenu', [
+      ['Impôt sur les revenus soumis au barème', tax.impot_revenus_bareme, 'eur'],
+      ['Décote', tax.decote, 'eur'],
+      ['Impôt proportionnel', tax.impot_proportionnel, 'eur'],
+      ['Impôt total avant crédits d’impôt', tax.impot_total_avant_credits, 'eur'],
+      ['Impôt étranger déclaré', tax.impot_etranger_declare, 'eur'],
+      ['Impôt étranger imputé sur l’IR', tax.impot_etranger_impute, 'eur'],
+      ['Prélèvement forfaitaire déjà versé', tax.prelevement_forfaitaire_deja_verse, 'eur'],
+      ['Frais de garde déclarés', tax.frais_garde_declares, 'eur'],
+      ['Frais de garde retenus', tax.frais_garde_retenus, 'eur'],
+      ['Crédit d’impôt calculé', tax.credit_impot_calcule, 'eur'],
+      ['Impôt sur le revenu net', tax.impot_revenu_net, 'eur'],
+    ]);
+
+    taxTable('Prélèvements sociaux', [
+      ['Revenus de capitaux mobiliers', tax.revenus_capitaux_mobiliers_ps, 'eur'],
+      ['Plus-values et gains divers', tax.plus_values_gains_divers_ps, 'eur'],
+      ['Base imposable aux prélèvements sociaux', tax.base_prelevements_sociaux, 'eur'],
+      ['Taux CSG-CRDS', tax.taux_csg_crds, 'pct'],
+      ['Montant CSG-CRDS', tax.montant_csg_crds, 'eur'],
+      ['Taux prélèvement de solidarité', tax.taux_prelevement_solidarite, 'pct'],
+      ['Montant prélèvement de solidarité', tax.montant_prelevement_solidarite, 'eur'],
+      ['Total des prélèvements sociaux nets', tax.prelevements_sociaux_nets, 'eur'],
+    ]);
+
+    taxTable('Solde de l’impôt et remboursement', [
+      ['Impôt sur le revenu 2025 dû', tax.ir_2025_du, 'eur'],
+      ['Retenue à la source prélevée en 2025', tax.retenue_source_2025, 'eur'],
+      ['Avance sur réductions et crédits d’impôt', tax.avance_reductions_credits_impot, 'eur'],
+      ['Solde d’impôt sur les revenus 2025', tax.solde_ir_2025, 'eur'],
+      ['Prélèvements sociaux sur revenus du patrimoine', tax.prelevements_sociaux_patrimoine, 'eur'],
+      ['Restitution impôt étranger sur prélèvements sociaux', tax.restitution_impot_etranger_ps, 'eur'],
+      ['Prélèvements sociaux patrimoine nets', tax.prelevements_sociaux_patrimoine_nets, 'eur'],
+      ['Solde des prélèvements sociaux 2025', tax.solde_prelevements_sociaux_2025, 'eur'],
+      ['Somme remboursée', tax.somme_remboursee, 'eur'],
+      ['Date du remboursement', tax.date_remboursement, 'date'],
+    ]);
+
+    taxTable('Informations complémentaires', [
+      ['Revenu fiscal de référence', tax.revenu_fiscal_reference, 'eur'],
+      ['RCM déjà soumis aux prélèvements sociaux avec CSG déductible', tax.rcm_deja_soumis_ps_csg_deductible, 'eur'],
+      ['Heures supplémentaires exonérées déclarées - déclarant 1', tax.heures_supp_exonerees_declarant_1_brut, 'eur'],
+      ['Heures supplémentaires exonérées nettes - déclarant 1', tax.heures_supp_exonerees_declarant_1_net, 'eur'],
+      ['Taux moyen d’imposition', tax.taux_imposition, 'pct'],
+      ['Taux marginal d’imposition (TMI)', tax.tmi, 'pct'],
+    ]);
+
+    taxTable('Plafond épargne retraite - déclarant 1', [
+      ['Plafond total de 2024', tax.plafond_total_2024_declarant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_declarant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_declarant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_declarant_1, 'eur'],
+      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_declarant_1, 'eur'],
+      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_declarant_1 ?? tax.plafond_disponible_avis, 'eur'],
+    ]);
+
+    taxTable('Plafond épargne retraite - déclarant 2', [
+      ['Plafond total de 2024', tax.plafond_total_2024_declarant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_declarant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_declarant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_declarant_2, 'eur'],
+      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_declarant_2, 'eur'],
+      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_declarant_2, 'eur'],
+    ]);
+
+    if (tax.ifi_concerne === true) { taxTable('IFI', [['Base imposable IFI', tax.ifi_base_imposable, 'eur'], ['TMI IFI', tax.ifi_tmi, 'pct'], ['IFI net à payer', tax.ifi_net_a_payer, 'eur']]); }
     if (map.patrimony?.has_real_estate === true) properties.push(...(map.patrimony?.immobilier ?? [])); if (map.credits?.has_credits === true) credits.push(...(map.credits?.items ?? [])); const placements = map.financial?.items ?? map.patrimony?.placements ?? []; financialExact += placements.filter((x: Json) => Boolean(x.source_document_id)).reduce((sum: number, x: Json) => sum + num(x.montant ?? x.valeur ?? x.encours), 0); financialEstimated += num(map.financial?.estimated_total_amount);
   }
   heading(ctx, `${n++}. Patrimoine immobilier consolidé`); drawTable(ctx, ['Bien', 'Ville', 'Usage', 'Détention', 'Propriétaire', 'Valeur'], properties.length ? properties.map((x, idx) => [`Bien ${idx + 1}`, clean(x.ville), clean(x.usage), clean(x.mode_detention), clean(x.proprietaire), eur(x.valeur_actuelle)]) : [['-', '-', 'Aucun bien déclaré', '-', '-', '0 EUR']], [10, 18, 18, 18, 18, 18]);
