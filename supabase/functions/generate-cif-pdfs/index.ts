@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.7';
+const PDF_VERSION = '2026-MAITRE-PDF-1.8';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -153,7 +153,9 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
           const question = qByCode.get(code);
           if (!question) return null;
           const answer = answerByQuestion.get(question.id);
-          return answer?.option_id ? snapshot.optionMap.get(answer.option_id)?.code_option ?? null : null;
+          if (!answer?.option_id) return null;
+          const option = snapshot.optionMap.get(answer.option_id);
+          return option?.code ?? option?.code_option ?? null;
         };
         const q4Code = answerCode('Q4');
         const q9Code = answerCode('Q9');
