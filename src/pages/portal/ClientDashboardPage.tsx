@@ -118,7 +118,7 @@ export default function ClientDashboardPage() {
               <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm sm:px-6">
                 <div className="flex items-start gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><UsersRound className="h-5 w-5" /></div>
-                  <div><h3 className="font-semibold text-amber-950">Dossier couple : validation commune en attente</h3><p className="mt-1.5 text-sm leading-6 text-amber-800">Chaque personne conserve son propre recueil, son profil investisseur et ses préférences de durabilité. La transmission finale sera disponible uniquement lorsque les {row.dossier_members_total} parcours individuels seront terminés.</p>{!row.partner_activated && <p className="mt-2 text-sm font-semibold text-amber-900">L’autre personne n’a pas encore activé son accès sécurisé.</p>}</div>
+                  <div><h3 className="font-semibold text-amber-950">Dossier couple : validation commune en attente</h3><p className="mt-1.5 text-sm leading-6 text-amber-800">Les informations communes du foyer sont saisies une seule fois puis vérifiées par le second membre. Chacun conserve ses informations personnelles, son profil investisseur et ses préférences de durabilité. La transmission finale sera disponible lorsque les {row.dossier_members_total} parcours seront terminés.</p>{!row.partner_activated && <p className="mt-2 text-sm font-semibold text-amber-900">L’autre personne n’a pas encore activé son accès sécurisé.</p>}</div>
                 </div>
               </div>
             )}
