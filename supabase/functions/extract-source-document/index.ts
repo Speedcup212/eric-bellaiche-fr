@@ -390,6 +390,10 @@ function parseFinancialImage(
       instrument,
       extracted_amount: amount,
       ocr_confidence: Math.round(confidence * 10) / 10,
+      tax_declarant_mapping: [
+        { source_declarant: 1, name: fields.nom_declarant_1 ?? null, investisseur_id: memberForDeclarant1?.investisseur_id ?? null, role_dossier: memberForDeclarant1?.role_dossier ?? null },
+        { source_declarant: 2, name: fields.nom_declarant_2 ?? null, investisseur_id: memberForDeclarant2?.investisseur_id ?? null, role_dossier: memberForDeclarant2?.role_dossier ?? null },
+      ],
       source_document_id: documentId,
       ocr_text_excerpt: text.slice(0, 1200),
     },
@@ -397,7 +401,7 @@ function parseFinancialImage(
   };
 }
 
-async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fileName: string, targetIds: string[]) {
+async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fileName: string, targetIds: string[], members: Member[]) {
   const all = pages.join('\n');
   const yearMatch = all.match(/revenus (?:de |per[cç]us en )?(20\d{2})/i);
   const incomeYear = yearMatch ? Number(yearMatch[1]) : null;
@@ -521,6 +525,34 @@ async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fil
     const values = await findPdfRowValues(pdf,label,{min:0,max:1000000});
     putTax(key1,at(values,0),values?.page);
     putTax(key2,at(values,1),values?.page);
+  }
+
+  const matchMember = (rawName: unknown) => {
+    const wanted = identityText(String(rawName ?? ''));
+    if (!wanted) return null;
+    return members.find((member) => {
+      const familyFirst = identityText(`${member.nom} ${member.prenom}`);
+      const givenFirst = identityText(`${member.prenom} ${member.nom}`);
+      return wanted === familyFirst || wanted === givenFirst || wanted.includes(familyFirst) || wanted.includes(givenFirst);
+    }) ?? null;
+  };
+  const memberForDeclarant1 = matchMember(fields.nom_declarant_1);
+  const memberForDeclarant2 = matchMember(fields.nom_declarant_2);
+  const suffixFor = (member: Member | null) => member?.role_dossier === 'investisseur_1'
+    ? 'identifiant_1'
+    : member?.role_dossier === 'investisseur_2'
+      ? 'identifiant_2'
+      : null;
+
+  for (const [sourceSuffix, member] of [['_declarant_1', memberForDeclarant1], ['_declarant_2', memberForDeclarant2]] as const) {
+    const targetSuffix = suffixFor(member);
+    if (!targetSuffix) continue;
+    for (const key of Object.keys(fields)) {
+      if (!key.endsWith(sourceSuffix)) continue;
+      const mappedKey = `${key.slice(0, -sourceSuffix.length)}_${targetSuffix}`;
+      fields[mappedKey] = fields[key];
+      if (sourcePages[key]) sourcePages[mappedKey] = sourcePages[key];
+    }
   }
 
   const required = ['annee_imposition','revenu_imposable','revenu_fiscal_reference','nombre_parts','tmi','impot_revenu_net'];
@@ -833,7 +865,7 @@ Deno.serve(async (req) => {
     let parsed: any;
 
     if (doc.categorie === 'avis_imposition') {
-      parsed = await parseTaxNotice(pdf, pages, documentId, doc.nom_fichier, concernedIds);
+      parsed = await parseTaxNotice(pdf, pages, documentId, doc.nom_fichier, concernedIds, members);
     } else if (doc.categorie === 'tableau_amortissement') {
       const creditTargetIds = primaryId ? [primaryId] : concernedIds.slice(0, 1);
       parsed = parseCredit(pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
