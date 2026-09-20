@@ -165,20 +165,153 @@ function uniqueIds(values: string[]) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function parseTaxNotice(pages: string[], documentId: string, fileName: string, targetIds: string[]) {
+async function findPdfRowNumber(
+  pdf: any,
+  label: RegExp,
+  opts: { min?: number; max?: number; percent?: boolean } = {},
+): Promise<{ value: number; page: number } | null> {
+  const min = opts.min ?? -Infinity;
+  const max = opts.max ?? Infinity;
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const items = (content.items ?? [])
+      .filter((item: any) => typeof item?.str === 'string')
+      .map((item: any) => ({
+        str: String(item.str ?? '').trim(),
+        x: Number(item.transform?.[4] ?? 0),
+        y: Number(item.transform?.[5] ?? 0),
+        width: Number(item.width ?? 0),
+      }))
+      .filter((item: any) => item.str);
+
+    for (const target of items) {
+      const re = new RegExp(label.source, label.flags.replace('g',''));
+      if (!re.test(target.str)) continue;
+      const row = items
+        .filter((item: any) => Math.abs(item.y - target.y) <= 2.2 && item.x > target.x + Math.max(target.width * 0.65, 12))
+        .sort((a: any,b: any) => a.x - b.x);
+      for (const item of row) {
+        const values = numberCandidates(item.str).map((candidate) => candidate.value)
+          .filter((value) => value >= min && value <= max);
+        if (!values.length) continue;
+        if (opts.percent && !/%/.test(item.str) && values[0] > 45) continue;
+        return { value: values[0], page: pageNo };
+      }
+    }
+  }
+  return null;
+}
+
+async function ocrImage(bytes: Uint8Array) {
+  const Tesseract = await import('npm:tesseract.js@6.0.1');
+  const result = await Tesseract.recognize(bytes, 'fra+eng', { logger: () => undefined });
+  return {
+    text: normalizeText(String(result?.data?.text ?? '')),
+    confidence: Number(result?.data?.confidence ?? 0),
+  };
+}
+
+function financialInstrument(fileName: string, text: string) {
+  const haystack = `${fileName} ${text}`.toLowerCase();
+  if (/livret\s*a/.test(haystack)) return 'Livret A';
+  if (/ldds|livret de développement durable/.test(haystack)) return 'LDDS';
+  if (/ibkr|interactive brokers/.test(haystack)) return 'Compte-titres / bourse';
+  if (/pee|plan d.?épargne entreprise/.test(haystack)) return 'PEE';
+  if (/\bper\b|plan d.?épargne retraite/.test(haystack)) return 'PER';
+  if (/assurance.?vie/.test(haystack)) return 'Assurance-vie';
+  if (/crypto|bitcoin|ethereum/.test(haystack)) return 'Cryptoactifs';
+  return 'Placement financier';
+}
+
+function findFinancialImageAmount(text: string) {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const priority = [
+    /(?:net liquidation value|net asset value|valeur nette|valorisation(?: totale)?|valeur du portefeuille|total portefeuille)/i,
+    /(?:solde(?: disponible| comptable)?|encours(?: total)?|total des avoirs|montant disponible)/i,
+  ];
+  for (const pattern of priority) {
+    for (const line of lines) {
+      if (!pattern.test(line)) continue;
+      const amounts = numberCandidates(line)
+        .map((item) => item.value)
+        .filter((value) => value >= 1 && value <= 100000000);
+      if (amounts.length) return amounts.at(-1)!;
+    }
+  }
+
+  const currencyAmounts: number[] = [];
+  for (const line of lines) {
+    if (!/(?:€|EUR|USD|CHF)/i.test(line)) continue;
+    for (const item of numberCandidates(line)) {
+      if (item.value >= 10 && item.value <= 100000000) currencyAmounts.push(item.value);
+    }
+  }
+  return currencyAmounts.length ? Math.max(...currencyAmounts) : null;
+}
+
+function parseFinancialImage(
+  text: string,
+  confidence: number,
+  documentId: string,
+  fileName: string,
+  targetIds: string[],
+) {
+  const institution = institutionFromText(fileName, text);
+  const amount = findFinancialImageAmount(text);
+  const instrument = financialInstrument(fileName, text);
+  const item: Json = {
+    type_placement: instrument,
+    organisme: institution ?? 'Non identifié',
+    source_file: fileName,
+    ocr_confidence: Math.round(confidence * 10) / 10,
+  };
+  if (amount !== null) item.montant = Math.round(amount * 100) / 100;
+
+  const safe = targetIds.length === 1 && amount !== null && confidence >= 45;
+  return {
+    patches: safe ? [{
+      section_code: 'financial',
+      target_investisseur_ids: targetIds,
+      fields: { __merge_financial_items: [item] },
+      source_pages: { __merge_financial_items: 'image' },
+    }] : [],
+    summary: {
+      parser: 'financial_image_ocr_v1',
+      file_name: fileName,
+      institution,
+      instrument,
+      extracted_amount: amount,
+      ocr_confidence: Math.round(confidence * 10) / 10,
+      source_document_id: documentId,
+      ocr_text_excerpt: text.slice(0, 1200),
+    },
+    status: safe ? 'extracted' : 'to_review',
+  };
+}
+
+async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fileName: string, targetIds: string[]) {
   const all = pages.join('\n');
   const yearMatch = all.match(/revenus (?:de |per[cç]us en )?(20\d{2})/i);
   const incomeYear = yearMatch ? Number(yearMatch[1]) : null;
   const assessmentYear = incomeYear && incomeYear >= 2000 && incomeYear <= 2100 ? incomeYear + 1 : null;
 
-  const revenuImposable = findLineNumber(pages, /^\s*Revenu imposable/i, { min: 0, max: 10000000 });
-  const rfr = findLineNumber(pages, /Revenu fiscal de r[ée]f[ée]rence/i, { min: 0, max: 10000000 });
-  const parts = findTaxParts(pages, rfr?.value ?? null);
-  const impotNet = findLineNumber(pages, /Total de l['’]imp[oô]t sur le revenu net/i, { min: 0, max: 1000000 });
-  const prelevements = findLineNumber(pages, /Total des pr[ée]l[èe]vements sociaux nets/i, { min: 0, max: 1000000 });
-  const tmi = findLineNumber(pages, /Taux marginal d['’]imposition/i, { min: 0, max: 45, percent: true });
-  const tauxMoyen = findLineNumber(pages, /Taux moyen d['’]imposition/i, { min: 0, max: 100, percent: true });
-  const revenusFonciers = findLineNumber(pages, /^\s*Revenus fonciers nets/i, { min: 0, max: 10000000 });
+  const revenuImposable = await findPdfRowNumber(pdf, /Revenu imposable/i, { min: 0, max: 10000000 })
+    ?? findLineNumber(pages, /^\s*Revenu imposable/i, { min: 0, max: 10000000 });
+  const rfr = await findPdfRowNumber(pdf, /Revenu fiscal de r[ée]f[ée]rence/i, { min: 1000, max: 10000000 })
+    ?? findLineNumber(pages, /Revenu fiscal de r[ée]f[ée]rence/i, { min: 1000, max: 10000000 });
+  const parts = await findPdfRowNumber(pdf, /Nombre de parts/i, { min: 0.5, max: 20 })
+    ?? findTaxParts(pages, rfr?.value ?? null);
+  const impotNet = await findPdfRowNumber(pdf, /Total de l['’]imp[oô]t sur le revenu net/i, { min: 0, max: 1000000 })
+    ?? findLineNumber(pages, /Total de l['’]imp[oô]t sur le revenu net/i, { min: 0, max: 1000000 });
+  const prelevements = await findPdfRowNumber(pdf, /Total des pr[ée]l[èe]vements sociaux nets/i, { min: 0, max: 1000000 })
+    ?? findLineNumber(pages, /Total des pr[ée]l[èe]vements sociaux nets/i, { min: 0, max: 1000000 });
+  const tmi = await findPdfRowNumber(pdf, /Taux marginal d['’]imposition/i, { min: 0, max: 45, percent: true })
+    ?? findLineNumber(pages, /Taux marginal d['’]imposition/i, { min: 0, max: 45, percent: true });
+  const tauxMoyen = await findPdfRowNumber(pdf, /Taux moyen d['’]imposition/i, { min: 0, max: 100, percent: true })
+    ?? findLineNumber(pages, /Taux moyen d['’]imposition/i, { min: 0, max: 100, percent: true });
+  const revenusFonciers = await findPdfRowNumber(pdf, /Revenus fonciers nets/i, { min: 0, max: 10000000 })
+    ?? findLineNumber(pages, /^\s*Revenus fonciers nets/i, { min: 0, max: 10000000 });
 
   const fields: Json = {};
   const sourcePages: Json = {};
@@ -443,17 +576,29 @@ Deno.serve(async (req) => {
         ? members.map((m) => m.investisseur_id)
         : explicitIds.length ? explicitIds : [doc.investisseur_id].filter(Boolean);
 
+      let parsedImage: any = {
+        patches: [],
+        summary: {
+          parser: 'generic_image_v1',
+          file_name: doc.nom_fichier,
+          source_document_id: documentId,
+          reason: 'Image reçue mais catégorie non prise en charge par la lecture automatique.',
+        },
+        status: 'to_review',
+      };
+
+      if (doc.categorie === 'patrimoine_financier') {
+        const ocr = await ocrImage(bytes);
+        parsedImage = parseFinancialImage(ocr.text, ocr.confidence, documentId, doc.nom_fichier, scopeIds);
+      }
+
       const extraction = {
-        parser_version: 'source-doc-v2',
+        parser_version: 'source-doc-v3',
         category: doc.categorie,
         format: blob.type || 'image',
         scope_detection: { mode: doc.portee_document, concerned_investor_ids: scopeIds },
-        summary: {
-          file_name: doc.nom_fichier,
-          source_document_id: documentId,
-          reason: 'Image reçue : aucune donnée n’est inventée sans lecture fiable. La pièce reste visible au cabinet pour contrôle.',
-        },
-        patches: [],
+        summary: parsedImage.summary,
+        patches: parsedImage.patches,
       };
 
       await admin.from('documents_sources').update({
@@ -464,7 +609,7 @@ Deno.serve(async (req) => {
       const { data: applied, error: applyError } = await admin.rpc('apply_source_document_extraction', {
         p_document_id: documentId,
         p_extraction: extraction,
-        p_status: 'to_review',
+        p_status: parsedImage.status,
         p_hash_sha256: fileHash,
       });
       if (applyError) throw applyError;
@@ -498,7 +643,7 @@ Deno.serve(async (req) => {
     let parsed: any;
 
     if (doc.categorie === 'avis_imposition') {
-      parsed = parseTaxNotice(pages, documentId, doc.nom_fichier, concernedIds);
+      parsed = await parseTaxNotice(pdf, pages, documentId, doc.nom_fichier, concernedIds);
     } else if (doc.categorie === 'tableau_amortissement') {
       const creditTargetIds = primaryId ? [primaryId] : concernedIds.slice(0, 1);
       parsed = parseCredit(pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
@@ -522,7 +667,7 @@ Deno.serve(async (req) => {
     }
 
     const extraction = {
-      parser_version: 'source-doc-v2',
+      parser_version: 'source-doc-v3',
       category: doc.categorie,
       page_count: pdf.numPages,
       text_length: pages.reduce((sum, page) => sum + page.length, 0),
