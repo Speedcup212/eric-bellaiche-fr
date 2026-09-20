@@ -299,6 +299,13 @@ export default function QuestionnairePage({ mode, cabinetPreview = false }: { mo
     if (question.type_reponse === 'single') {
       if (!answer?.option_id) return false;
       const selected = question.options?.find((option) => option.id === answer.option_id);
+      if (question.code === 'Q4' && ['B', 'C'].includes(selected?.code ?? '')) {
+        const details = answerObject(answer);
+        const amount = Number(details.montant_besoin_futur);
+        return Number.isFinite(amount) && amount > 0
+          && Boolean(String(details.echeance ?? '').trim())
+          && ['included', 'separate', 'unknown'].includes(String(details.reserve_overlap ?? ''));
+      }
       if ((question.code === 'ESG_TAX_MIN' || question.code === 'ESG_SFDR_MIN') && selected?.code === 'AUTRE') return answer.answer_numeric !== null && answer.answer_numeric !== undefined && answer.answer_numeric >= 0 && answer.answer_numeric <= 100;
       return true;
     }
@@ -407,9 +414,10 @@ export default function QuestionnairePage({ mode, cabinetPreview = false }: { mo
     // In the investor profile, every single-choice answer advances immediately.
     // Optional QPI precision fields must never force the client to click “Suivant”.
     // ESG keeps its explicit-detail exceptions when “Autre” requires a follow-up field.
-    const needsDetails = mode === 'ESG'
-      && ['ESG_SCOPE', 'ESG_TAX_MIN', 'ESG_SFDR_MIN'].includes(question.code)
-      && option.code === 'AUTRE';
+    const needsDetails = (mode === 'QPI' && question.code === 'Q4' && ['B', 'C'].includes(option.code))
+      || (mode === 'ESG'
+        && ['ESG_SCOPE', 'ESG_TAX_MIN', 'ESG_SFDR_MIN'].includes(question.code)
+        && option.code === 'AUTRE');
     if (!needsDetails && currentIndex < totalSteps - 1) {
       window.setTimeout(() => {
         setCurrentIndex((index) => Math.min(index + 1, totalSteps - 1));
@@ -554,7 +562,26 @@ export default function QuestionnairePage({ mode, cabinetPreview = false }: { mo
 
         {currentQuestion?.type_reponse === 'text' && <textarea value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} rows={5} className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ajoutez vos précisions ici…" />}
 
-        {currentQuestion?.code === 'Q4' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code !== 'A' && answers[currentQuestion.id]?.option_id && <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label><label className="text-sm font-semibold text-slate-700">Échéance envisagée <span className="font-normal text-slate-400">— facultatif</span><input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
+        {currentQuestion?.code === 'Q4' && ['B', 'C'].includes(currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code ?? '') && answers[currentQuestion.id]?.option_id && <div className="mt-6 space-y-5 border-t border-slate-100 pt-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-semibold text-slate-700">Montant estimé du besoin (€) *<input type="number" min="1" value={String(answerObject(answers[currentQuestion.id]).montant_besoin_futur ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_besoin_futur: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label>
+            <label className="text-sm font-semibold text-slate-700">Échéance envisagée *<input type="date" value={String(answerObject(answers[currentQuestion.id]).echeance ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), echeance: e.target.value || null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Ce besoin est-il déjà inclus dans votre épargne de précaution ? *</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Cette réponse évite de compter deux fois la même somme lors du calcul du capital réellement investissable.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {([
+                ['included', 'Oui, il est inclus'],
+                ['separate', 'Non, c’est une somme distincte'],
+                ['unknown', 'Je ne sais pas'],
+              ] as const).map(([value, label]) => {
+                const selected = String(answerObject(answers[currentQuestion.id]).reserve_overlap ?? '') === value;
+                return <button type="button" key={value} onClick={() => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), reserve_overlap: value } })} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${selected ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-[#6f8fb4]'}`}>{selected ? '✓ ' : ''}{label}</button>;
+              })}
+            </div>
+          </div>
+        </div>}
         {currentQuestion?.code === 'Q5' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-sm text-sm font-semibold text-slate-700">Montant de l’investissement envisagé (€)<input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).montant_investissement_envisage ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), montant_investissement_envisage: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'Q10' && answers[currentQuestion.id]?.option_id && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block max-w-md text-sm font-semibold text-slate-700">Montant maximum de perte estimé (€) <span className="font-normal text-slate-400">— facultatif</span><input type="number" min="0" value={String(answerObject(answers[currentQuestion.id]).perte_max_declairee_montant ?? '')} onChange={(e) => updateLocal(currentQuestion, { answer_json: { ...answerObject(answers[currentQuestion.id]), perte_max_declairee_montant: e.target.value ? Number(e.target.value) : null } })} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" /></label></div>}
         {currentQuestion?.code === 'ESG_SCOPE' && currentQuestion.options?.find((option) => option.id === answers[currentQuestion.id]?.option_id)?.code === 'AUTRE' && <div className="mt-6 border-t border-slate-100 pt-6"><label className="block text-sm font-semibold text-slate-700">Si vous le souhaitez, précisez les placements concernés <span className="font-normal text-slate-400">— facultatif</span><input value={answers[currentQuestion.id]?.answer_text ?? ''} onChange={(e) => updateLocal(currentQuestion, { answer_text: e.target.value })} onBlur={() => void persistCurrentQuestion().catch((error) => setErrorMessage(messageFromError(error)))} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-400 focus:bg-white" placeholder="Ex. assurance-vie et PER" /></label><p className="mt-2 text-xs leading-5 text-slate-500">Vous pouvez laisser ce champ vide et préciser ce point plus tard avec votre conseiller.</p></div>}
