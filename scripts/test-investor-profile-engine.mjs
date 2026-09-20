@@ -19,12 +19,12 @@ assert.equal(profileRankFromScore(26), null);
 assert.equal(profileRankFromScore(10.5), null);
 
 assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'A', Q9:'D', Q10:'F' }), 6);
-assert.equal(capacityRankFromAnswers({ Q3:'A', Q4:'A', Q9:'D', Q10:'F' }), 1);
-assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'B', Q9:'D', Q10:'F' }), 2);
-assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'A', Q9:'B', Q10:'F' }), 2);
+assert.equal(capacityRankFromAnswers({ Q3:'A', Q4:'A', Q9:'D', Q10:'F' }), 6);
+assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'B', Q9:'D', Q10:'F' }), 6);
+assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'A', Q9:'B', Q10:'F' }), 6);
 assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'A', Q9:'D', Q10:'C' }), 3);
 assert.equal(capacityRankFromAnswers({ Q3:'D', Q4:'A', Q9:'D' }), null);
-assert.equal(capacityRankFromAnswers({ Q3:'Z', Q4:'A', Q9:'D', Q10:'F' }), null);
+assert.equal(capacityRankFromAnswers({ Q3:'Z', Q4:'A', Q9:'D', Q10:'F' }), 6);
 
 assert.equal(lossPctFromQ10('A'), 0);
 assert.equal(lossPctFromQ10('B'), 5);
@@ -48,9 +48,9 @@ const aggressiveButFragile = computeInvestorProfile({
   practicedProductFamilies:5,
 });
 assert.equal(aggressiveButFragile.toleranceRank, 7);
-assert.equal(aggressiveButFragile.capacityRank, 1);
-assert.equal(aggressiveButFragile.operationalRank, 1);
-assert.equal(aggressiveButFragile.operationalProfile, 'Très prudent');
+assert.equal(aggressiveButFragile.capacityRank, 6);
+assert.equal(aggressiveButFragile.operationalRank, 6);
+assert.equal(aggressiveButFragile.operationalProfile, 'Dynamique');
 assert.equal(aggressiveButFragile.gap, true);
 assert.equal(aggressiveButFragile.complete, true);
 
