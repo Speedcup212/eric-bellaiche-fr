@@ -286,9 +286,16 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">Double authentification obligatoire</h1>
         <p className="mt-3 text-sm leading-6 text-[#52627A]">
           {mode === 'challenge'
-            ? 'Ouvrez votre application d’authentification et saisissez le code à 6 chiffres affiché.'
+            ? 'Ouvrez votre application d’authentification et saisissez le code temporaire à 6 chiffres affiché.'
             : 'Pour protéger vos données personnelles et patrimoniales, une seconde vérification est nécessaire après votre mot de passe.'}
         </p>
+
+        <div className="mt-3 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] px-4 py-3 text-xs leading-5 text-[#52627A]">
+          <p className="font-semibold text-[#0F172A]">Application d’authentification compatible TOTP</p>
+          <p className="mt-1">
+            Vous pouvez utiliser notamment <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Authy</strong> ou <strong className="font-semibold text-[#0F172A]">1Password</strong>.
+          </p>
+        </div>
 
         {busy && !factorId && (
           <p className="mt-6 rounded-2xl bg-[#F8FBFF] p-4 text-sm text-[#52627A]">
@@ -375,7 +382,7 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
             <div>
               <p className="font-semibold text-[#0F172A]">Quelle application dois-je utiliser ?</p>
               <p className="mt-1">
-                Vous pouvez utiliser <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong> ou <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, disponibles gratuitement sur smartphone.
+                Utilisez une application compatible avec les codes temporaires <strong className="font-semibold text-[#0F172A]">TOTP</strong>, par exemple <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Authy</strong> ou <strong className="font-semibold text-[#0F172A]">1Password</strong>.
               </p>
             </div>
             <div>
