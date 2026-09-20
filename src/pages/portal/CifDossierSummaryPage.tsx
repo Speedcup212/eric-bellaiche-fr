@@ -226,6 +226,8 @@ function objectivePresentation(goal: string) {
 export default function CifDossierSummaryPage() {
   const [searchParams] = useSearchParams(); const dossierId = searchParams.get('dossier');
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('synthese');
+  const [selectedDocumentInvestorId, setSelectedDocumentInvestorId] = useState<string | null>(null);
+  const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
@@ -357,6 +359,15 @@ export default function CifDossierSummaryPage() {
     ];
     return { investor, recueil, recueilPdfAvailable, recueilPercentage: completeness?.percentage ?? 0, qpi, esg, esgNotApplicable, readyTypes };
   }), [investors, recueilCompleteness, sections]);
+  const orderedInvestorDocumentStates = useMemo(() => [...investorDocumentStates].sort((a, b) => (a.investor.role_dossier === 'investisseur_1' ? 0 : 1) - (b.investor.role_dossier === 'investisseur_1' ? 0 : 1)), [investorDocumentStates]);
+  const selectedDocumentState = useMemo(() => orderedInvestorDocumentStates.find((state) => state.investor.investisseur_id === selectedDocumentInvestorId) ?? orderedInvestorDocumentStates[0] ?? null, [orderedInvestorDocumentStates, selectedDocumentInvestorId]);
+  const selectedSourceDocuments = useMemo(() => {
+    if (!selectedDocumentState) return [];
+    const investorId = selectedDocumentState.investor.investisseur_id;
+    return sourceDocuments.filter((doc) => doc.investisseur_id === investorId || doc.concerne_investisseur_ids?.includes(investorId));
+  }, [sourceDocuments, selectedDocumentState]);
+  const displayedSourceDocuments = useMemo(() => documentReviewOnly ? selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review') : selectedSourceDocuments, [documentReviewOnly, selectedSourceDocuments]);
+
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
     const recueilData = sections.map((section) => `${section.investisseur_id}:${section.section_code}:${JSON.stringify(section.payload ?? {})}`).sort().join('|');
