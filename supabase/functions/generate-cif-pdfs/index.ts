@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.9';
+const PDF_VERSION = '2026-MAITRE-PDF-2.0';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -32,6 +32,23 @@ const ESG_LABELS: Record<string, string> = {
   EXCLUSION: 'Éviter les entreprises les plus concernées', SEUIL: 'Fixer des limites précises', ENGAGEMENT: 'Privilégier les entreprises engagées dans une trajectoire de progrès',
   ARMES: 'Armes controversées', ARMES_CONVENTIONNELLES: 'Armes militaires conventionnelles', ARMES_NUCLEAIRES: 'Armes nucléaires', TABAC: 'Tabac', JEUX_HASARD: 'Jeux de hasard', DIVERTISSEMENTS_ADULTES: 'Divertissements pour adultes', CHARBON_THERMIQUE: 'Charbon thermique', FOSSILES: 'Énergies fossiles', HUILE_PALME: 'Huile de palme', PESTICIDES: 'Pesticides', EMBRYONS_HUMAINS: 'Recherche sur les embryons humains', ALCOOL: 'Alcool', OPIOIDES: 'Opioïdes', PRISONS_PRIVEES: 'Prisons privées', MATERIELS_RADIOACTIFS: 'Production ou extraction de matériels radioactifs', ESPECES_MENACEES: 'Trafic d’espèces animales menacées',
   RENDEMENT: 'Rendement potentiel différent', OFFRE: 'Univers de placements plus limité',
+};
+
+
+const QPI_EXPERIENCE_LABELS: Record<string, string> = {
+  liquidites: 'Produits sécurisés, livrets et fonds euros',
+  obligations: 'Obligations et fonds obligataires',
+  actions: 'Actions, OPC, ETF et fonds diversifiés',
+  immobilier_papier: 'SCPI, OPCI et fonds immobiliers',
+  structures: 'Produits complexes, structurés et non cotés',
+};
+
+const QPI_KNOWLEDGE_LABELS: Record<string, string> = {
+  Q13: 'Diversification',
+  Q14: 'Couple rendement / risque',
+  Q15: 'SCPI / immobilier non coté',
+  Q16: 'Unités de compte assurance-vie / PER',
+  Q17: 'Obligations',
 };
 
 function corsHeaders(origin: string | null) {
@@ -148,48 +165,93 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
       if (result) {
         const score = `${clean(result.score_tolerance)} / ${clean(result.score_max)}`;
         const level = clean(result.profil_operationnel_final ?? result.profil_indicatif);
+        const operationalRank = clean(result.synthese_dimensions?.profil_operationnel?.rang ?? result.niveau_tolerance_retenu);
         const qByCode = new Map(questions.map((question: Json) => [question.code, question]));
-        const answerCode = (code: string) => {
+        const answerFor = (code: string) => {
           const question = qByCode.get(code);
-          if (!question) return null;
-          const answer = answerByQuestion.get(question.id);
-          if (!answer?.option_id) return null;
-          const option = snapshot.optionMap.get(answer.option_id);
+          return question ? answerByQuestion.get(question.id) ?? null : null;
+        };
+        const optionFor = (code: string) => {
+          const answer = answerFor(code);
+          return answer?.option_id ? snapshot.optionMap.get(answer.option_id) ?? null : null;
+        };
+        const answerCode = (code: string) => {
+          const option = optionFor(code);
           return option?.code ?? option?.code_option ?? null;
         };
+        const answerLabel = (code: string) => {
+          const option = optionFor(code);
+          return option?.libelle ? clean(option.libelle) : 'Non renseigné';
+        };
+
         const q4Code = answerCode('Q4');
         const q9Code = answerCode('Q9');
+        const q25Label = answerLabel('Q25');
+        const q4Answer = answerFor('Q4');
+        const futureNeed = q4Answer?.answer_json && typeof q4Answer.answer_json === 'object' ? q4Answer.answer_json : {};
+        const futureAmount = futureNeed?.montant_besoin_futur ? eur(futureNeed.montant_besoin_futur) : null;
+        const futureDate = futureNeed?.echeance ? frDate(futureNeed.echeance) : null;
+
+        const knowledgeGaps = questions
+          .filter((question: Json) => ['Q13','Q14','Q15','Q16','Q17'].includes(question.code))
+          .filter((question: Json) => {
+            const option = optionFor(question.code);
+            const selected = option?.code ?? option?.code_option ?? null;
+            const expected = question.metadata?.correct_option ?? null;
+            return !selected || (expected && selected !== expected);
+          })
+          .map((question: Json) => QPI_KNOWLEDGE_LABELS[question.code] ?? clean(question.libelle));
+
+        const sessionExperience = snapshot.qpiProductExperience
+          .filter((item: Json) => item.session_id === session.id && item.niveau_experience && item.niveau_experience !== 'jamais');
+        const practicedFamilies = sessionExperience
+          .map((item: Json) => QPI_EXPERIENCE_LABELS[item.famille_produit] ?? clean(item.famille_produit));
+        const expDetails = snapshot.qpiExperienceDetails.find((item: Json) => item.session_id === session.id);
+
         const liquidityAlerts: string[] = [];
-        if (q4Code === 'B') liquidityAlerts.push('projet ou dépense importante susceptible de mobiliser de l’épargne dans moins de 2 ans');
+        if (q4Code === 'B') {
+          const detail = [futureAmount ? `besoin estimé ${futureAmount}` : null, futureDate ? `échéance ${futureDate}` : null].filter(Boolean).join(', ');
+          liquidityAlerts.push(`projet ou dépense importante dans moins de 2 ans${detail ? ` (${detail})` : ''}`);
+        }
         if (q9Code === 'B') liquidityAlerts.push('une baisse du patrimoine financier pourrait conduire à réduire des dépenses ou reporter certains projets');
 
         drawResultPanel(
           ctx,
           'RÉSULTAT DU PROFIL INVESTISSEUR',
           score,
-          level,
-          `Le score de ${score} mesure la tolérance au risque à partir des questions comportementales du questionnaire. Il correspond à un profil indicatif ${clean(result.profil_indicatif)}. Le profil opérationnel final est ${level} après prise en compte séparée de la capacité de perte.`,
-          'Le profil opérationnel encadre le niveau de risque des solutions pouvant être recommandées. L’horizon de placement, les besoins de liquidité, les projets à financer, les connaissances et l’expérience restent analysés séparément et peuvent conduire à sécuriser une partie de l’épargne sans modifier mécaniquement le profil de risque.',
-          'Le score de tolérance ne constitue ni une garantie de performance ni une autorisation automatique à prendre davantage de risque.'
+          `${level} - niveau ${operationalRank}/7`,
+          `Le score de ${score} mesure la tolérance comportementale au risque. Il conduit à un profil indicatif ${clean(result.profil_indicatif)}. Après prise en compte séparée de la capacité de perte, le niveau de risque maximal compatible avec les réponses est ${level} - niveau ${operationalRank}/7.`,
+          'Ce niveau ne constitue pas une allocation de portefeuille. Il s’applique uniquement à la part du capital réellement disponible pour un investissement de long terme. Les besoins de liquidité, les projets à financer, la capacité de perte, les connaissances et l’expérience déterminent ensuite la façon de répartir cette épargne.',
+          'Profil de risque ≠ allocation : une partie de l’épargne peut devoir rester disponible ou sécurisée même avec un profil dynamique.'
         );
 
-        heading(ctx, 'Lecture du résultat', 2);
-        drawTable(ctx, ['Étape', 'Ce que cela signifie'], [
-          ['1. Tolérance au risque', `${score} → ${clean(result.profil_indicatif)}. Le client accepte des fluctuations significatives sur la partie de l’épargne investie à long terme.`],
-          ['2. Capacité à supporter une perte', `${pct(result.capacite_perte_retenue_pct)} de perte maximale déclarée${result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? ', sans montant en euros précisé' : `, soit ${eur(result.capacite_perte_retenue_montant)}`}.`],
-          ['3. Connaissances / expérience', `${clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)} · ${clean(result.synthese_dimensions?.experience?.familles_pratiquees)} famille(s) de produits déjà pratiquée(s).`],
-          ['4. Conclusion', `Profil opérationnel retenu : ${clean(result.profil_operationnel_final)} (niveau ${clean(result.synthese_dimensions?.profil_operationnel?.rang ?? result.niveau_tolerance_retenu)}).`],
-        ], [32, 68]);
+        heading(ctx, 'Synthèse à retenir', 2);
+        drawTable(ctx, ['Critère', 'Lecture pratique'], [
+          ['Tolérance au risque', `${score} → ${clean(result.profil_indicatif)}.`],
+          ['Capacité de perte', `Jusqu’à ${pct(result.capacite_perte_retenue_pct)} sur les placements concernés. Ce pourcentage ne signifie pas que l’ensemble du patrimoine doit être exposé à cette perte.`],
+          ['Part acceptée en forte exposition', `${q25Label}. Cette donnée limite la part des sommes investissables que le client accepte de soumettre à une forte baisse temporaire.`],
+          ['Connaissances', `${clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)}${knowledgeGaps.length ? `. Points à expliquer / vérifier : ${knowledgeGaps.join(', ')}.` : '. Aucun point de vigilance spécifique identifié sur les questions obligatoires.'}`],
+          ['Expérience', practicedFamilies.length ? `${practicedFamilies.length} famille(s) déjà pratiquée(s) : ${practicedFamilies.join(' ; ')}.` : 'Aucune famille de placements déjà pratiquée déclarée.'],
+          ['Conclusion', `Niveau de risque maximal compatible : ${level} - niveau ${operationalRank}/7. Ce niveau ne s’applique qu’au capital réellement investissable à long terme.`],
+        ], [35, 65]);
+
+        if (expDetails) {
+          const seniorityLabels: Record<string,string> = { aucune:'Aucune expérience', moins_2_ans:'Moins de 2 ans', '2_5_ans':'2 à 5 ans', '5_10_ans':'5 à 10 ans', plus_10_ans:'Plus de 10 ans' };
+          const amountLabels: Record<string,string> = { moins_10k:'Moins de 10 000 EUR', '10_50k':'10 000 à 50 000 EUR', '50_100k':'50 000 à 100 000 EUR', plus_100k:'Plus de 100 000 EUR' };
+          const modeLabels: Record<string,string> = { accompagne_conseille:'Principalement accompagné / conseillé', gestion_libre:'Principalement en gestion libre', gestion_sous_mandat:'Principalement sous mandat', mixte:'Mixte selon les placements' };
+          drawText(ctx, `Expérience déclarée : ${seniorityLabels[expDetails.anciennete_experience] ?? clean(expDetails.anciennete_experience)} · montant habituel des opérations : ${amountLabels[expDetails.montant_habituel_operation] ?? clean(expDetails.montant_habituel_operation)} · mode de gestion : ${modeLabels[expDetails.mode_gestion] ?? clean(expDetails.mode_gestion)}.`, { size: 8.4, color: rgb(0.32,0.38,0.46), after: 8 });
+        }
 
         drawText(ctx, result.ecart_declared_objective === true
-          ? `Pourquoi ce profil est plafonné : ${clean(result.justification_ecart)}`
-          : 'La tolérance au risque et la capacité de perte sont cohérentes : aucun plafonnement supplémentaire du profil n’est nécessaire.',
+          ? `Plafonnement du profil : ${clean(result.justification_ecart)}`
+          : 'Tolérance au risque et capacité de perte : compatibles. Des contraintes de liquidité, de projet ou de concentration du risque peuvent néanmoins conduire à sécuriser une partie de l’épargne.',
           { size: 8.8, bold: true, color: result.ecart_declared_objective === true ? rgb(0.65, 0.35, 0.05) : GREEN, after: 8 }
         );
 
         if (liquidityAlerts.length) {
           heading(ctx, 'Point d’attention : liquidité et projets', 2);
-          drawText(ctx, `Même si le profil de risque est ${level}, certaines sommes ne doivent pas être exposées au même niveau de risque : ${liquidityAlerts.join(' ; ')}. En pratique, il faut séparer une poche disponible / sécurisée à court terme du capital réellement investissable à long terme.`, { size: 8.8, color: NAVY, after: 8 });
+          drawText(ctx, `Contraintes identifiées : ${liquidityAlerts.join(' ; ')}. En pratique, il faut distinguer une poche disponible / sécurisée à court terme du capital réellement investissable à long terme.`, { size: 8.8, color: NAVY, after: 6 });
+          drawText(ctx, `Conclusion pour le conseil : le niveau ${operationalRank}/7 est compatible avec la partie du capital réellement disponible pour un investissement de long terme. Il ne doit pas être appliqué indistinctement à l’ensemble de l’épargne.`, { size: 8.8, bold: true, color: GREEN, after: 8 });
         }
       }
     } else {
@@ -211,10 +273,10 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
 }
 
 async function loadSnapshot(client: any, dossierId: string) {
-  const [dossierRes, investorRes, sectionRes, sessionRes] = await Promise.all([client.from('dossiers').select('*').eq('id', dossierId).single(), client.from('dossier_investisseurs').select('*,investisseurs(*)').eq('dossier_id', dossierId).order('role_dossier'), client.from('recueil_sections').select('*').eq('dossier_id', dossierId), client.from('questionnaire_sessions').select('*').eq('dossier_id', dossierId)]); for (const r of [dossierRes, investorRes, sectionRes, sessionRes]) if (r.error) throw r.error; const links = investorRes.data ?? []; const investors = links.map((row: Json) => ({ ...(Array.isArray(row.investisseurs) ? row.investisseurs[0] : row.investisseurs), ...row, id: row.investisseur_id })); const sessions = sessionRes.data ?? []; const templateIds = [...new Set(sessions.map((s: Json) => s.template_id).filter(Boolean))]; let templates: Json[] = [], questions: Json[] = [], answers: Json[] = [], options: Json[] = [], qpiResults: Json[] = [], esgPreferences: Json[] = [];
+  const [dossierRes, investorRes, sectionRes, sessionRes] = await Promise.all([client.from('dossiers').select('*').eq('id', dossierId).single(), client.from('dossier_investisseurs').select('*,investisseurs(*)').eq('dossier_id', dossierId).order('role_dossier'), client.from('recueil_sections').select('*').eq('dossier_id', dossierId), client.from('questionnaire_sessions').select('*').eq('dossier_id', dossierId)]); for (const r of [dossierRes, investorRes, sectionRes, sessionRes]) if (r.error) throw r.error; const links = investorRes.data ?? []; const investors = links.map((row: Json) => ({ ...(Array.isArray(row.investisseurs) ? row.investisseurs[0] : row.investisseurs), ...row, id: row.investisseur_id })); const sessions = sessionRes.data ?? []; const templateIds = [...new Set(sessions.map((s: Json) => s.template_id).filter(Boolean))]; let templates: Json[] = [], questions: Json[] = [], answers: Json[] = [], options: Json[] = [], qpiResults: Json[] = [], esgPreferences: Json[] = [], qpiProductExperience: Json[] = [], qpiExperienceDetails: Json[] = [];
   if (templateIds.length) { const templateRes = await client.from('questionnaire_templates').select('*').in('id', templateIds); if (templateRes.error) throw templateRes.error; templates = templateRes.data ?? []; const questionRes = await client.from('questionnaire_questions').select('*').in('template_id', templateIds); if (questionRes.error) throw questionRes.error; questions = questionRes.data ?? []; const questionIds = questions.map((q: Json) => q.id); if (questionIds.length) { const optionRes = await client.from('questionnaire_options').select('*').in('question_id', questionIds); if (optionRes.error) throw optionRes.error; options = optionRes.data ?? []; } }
-  const sessionIds = sessions.map((s: Json) => s.id); if (sessionIds.length) { const [answerRes, qpiRes, esgRes] = await Promise.all([client.from('questionnaire_answers').select('*').in('session_id', sessionIds), client.from('qpi_results').select('*').in('session_id', sessionIds), client.from('esg_preferences').select('*').in('session_id', sessionIds)]); for (const r of [answerRes, qpiRes, esgRes]) if (r.error) throw r.error; answers = answerRes.data ?? []; qpiResults = qpiRes.data ?? []; esgPreferences = esgRes.data ?? []; }
-  const templateById: Json = Object.fromEntries(templates.map((t: Json) => [t.id, t])); const optionMap = new Map(options.map((o: Json) => [o.id, o])); const recueilDates = links.map((x: Json) => x.recueil_validated_at).filter(Boolean).sort(); const qpiDates = sessions.filter((s: Json) => templateById[s.template_id]?.type_questionnaire === 'QPI').map((s: Json) => s.completed_at ?? s.validated_at).filter(Boolean).sort(); const esgDates = sessions.filter((s: Json) => templateById[s.template_id]?.type_questionnaire === 'ESG').map((s: Json) => s.completed_at ?? s.validated_at).filter(Boolean).sort(); return { dossier: dossierRes.data, investors, sections: sectionRes.data ?? [], sessions, templates, templateById, questions, answers, options, optionMap, qpiResults, esgPreferences, recueil_date: recueilDates.at(-1) ?? dossierRes.data.updated_at, qpi_date: qpiDates.at(-1) ?? dossierRes.data.updated_at, esg_date: esgDates.at(-1) ?? dossierRes.data.updated_at };
+  const sessionIds = sessions.map((s: Json) => s.id); if (sessionIds.length) { const [answerRes, qpiRes, esgRes, expRes, expDetailsRes] = await Promise.all([client.from('questionnaire_answers').select('*').in('session_id', sessionIds), client.from('qpi_results').select('*').in('session_id', sessionIds), client.from('esg_preferences').select('*').in('session_id', sessionIds), client.from('qpi_product_experience').select('*').in('session_id', sessionIds), client.from('qpi_experience_details').select('*').in('session_id', sessionIds)]); for (const r of [answerRes, qpiRes, esgRes, expRes, expDetailsRes]) if (r.error) throw r.error; answers = answerRes.data ?? []; qpiResults = qpiRes.data ?? []; esgPreferences = esgRes.data ?? []; qpiProductExperience = expRes.data ?? []; qpiExperienceDetails = expDetailsRes.data ?? []; }
+  const templateById: Json = Object.fromEntries(templates.map((t: Json) => [t.id, t])); const optionMap = new Map(options.map((o: Json) => [o.id, o])); const recueilDates = links.map((x: Json) => x.recueil_validated_at).filter(Boolean).sort(); const qpiDates = sessions.filter((s: Json) => templateById[s.template_id]?.type_questionnaire === 'QPI').map((s: Json) => s.completed_at ?? s.validated_at).filter(Boolean).sort(); const esgDates = sessions.filter((s: Json) => templateById[s.template_id]?.type_questionnaire === 'ESG').map((s: Json) => s.completed_at ?? s.validated_at).filter(Boolean).sort(); return { dossier: dossierRes.data, investors, sections: sectionRes.data ?? [], sessions, templates, templateById, questions, answers, options, optionMap, qpiResults, esgPreferences, qpiProductExperience, qpiExperienceDetails, recueil_date: recueilDates.at(-1) ?? dossierRes.data.updated_at, qpi_date: qpiDates.at(-1) ?? dossierRes.data.updated_at, esg_date: esgDates.at(-1) ?? dossierRes.data.updated_at };
 }
 function validateReady(snapshot: Json, type: DocumentType) { if (type === 'recueil') { const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated'].includes(i.recueil_status)); if (invalid.length) throw new Error('Le recueil doit être terminé pour tous les investisseurs avant génération du PDF.'); } if (type === 'qpi') { const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated'].includes(i.qpi_status)); if (invalid.length) throw new Error('Le profil investisseur doit être terminé pour tous les investisseurs avant génération du PDF.'); } if (type === 'esg') { const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated', 'not_applicable'].includes(i.esg_status)); if (invalid.length) throw new Error('Le choix ESG doit être finalisé pour tous les investisseurs avant génération du PDF.'); } }
 
@@ -233,6 +295,8 @@ function scopeSnapshotToInvestor(snapshot: Json, investorId: string) {
     answers: snapshot.answers.filter((answer: Json) => sessionIds.has(answer.session_id)),
     qpiResults: snapshot.qpiResults.filter((result: Json) => sessionIds.has(result.session_id)),
     esgPreferences: snapshot.esgPreferences.filter((result: Json) => sessionIds.has(result.session_id)),
+    qpiProductExperience: snapshot.qpiProductExperience.filter((result: Json) => sessionIds.has(result.session_id)),
+    qpiExperienceDetails: snapshot.qpiExperienceDetails.filter((result: Json) => sessionIds.has(result.session_id)),
     recueil_date: investor.recueil_validated_at ?? snapshot.recueil_date,
     qpi_date: qpiDates.at(-1) ?? snapshot.qpi_date,
     esg_date: esgDates.at(-1) ?? snapshot.esg_date,
@@ -245,7 +309,7 @@ Deno.serve(async (req) => {
     const auth = req.headers.get('Authorization') ?? ''; if (!auth.startsWith('Bearer ')) return new Response(JSON.stringify({ error: 'Authentification requise' }), { status: 401, headers }); const supabaseUrl = Deno.env.get('SUPABASE_URL'); const anonKey = Deno.env.get('SUPABASE_ANON_KEY'); const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); if (!supabaseUrl || !anonKey || !serviceKey) throw new Error('Configuration Supabase incomplète'); const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } }); const { data: appUser, error: userError } = await userClient.from('app_users').select('role,actif').maybeSingle(); if (userError) throw userError; if (!appUser?.actif || !['cif', 'admin'].includes(appUser.role)) return new Response(JSON.stringify({ error: 'Accès réservé au cabinet' }), { status: 403, headers });
     const payload = await req.json(); const dossierId = typeof payload?.dossier_id === 'string' ? payload.dossier_id : ''; if (!/^[0-9a-f-]{36}$/i.test(dossierId)) return new Response(JSON.stringify({ error: 'Dossier invalide' }), { status: 400, headers }); const targetInvestorId = typeof payload?.investisseur_id === 'string' ? payload.investisseur_id : ''; if (targetInvestorId && !/^[0-9a-f-]{36}$/i.test(targetInvestorId)) return new Response(JSON.stringify({ error: 'Investisseur invalide' }), { status: 400, headers }); const requested = Array.isArray(payload?.document_types) ? payload.document_types : ['recueil', 'qpi', 'esg']; const types = requested.filter((x: string): x is DocumentType => ['recueil', 'qpi', 'esg'].includes(x)); if (!types.length) return new Response(JSON.stringify({ error: 'Aucun type de document demandé' }), { status: 400, headers }); const fullSnapshot = await loadSnapshot(userClient, dossierId); const snapshot = targetInvestorId ? scopeSnapshotToInvestor(fullSnapshot, targetInvestorId) : fullSnapshot; for (const type of types) validateReady(snapshot, type); const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }); const results: Json[] = [];
     for (const type of types) {
-      const snapshotHash = await sha256Hex(JSON.stringify({ type, version: PDF_VERSION, dossier: snapshot.dossier, investor_id: targetInvestorId || null, investors: snapshot.investors, sections: snapshot.sections, sessions: snapshot.sessions, qpi: snapshot.qpiResults, esg: snapshot.esgPreferences, answers: snapshot.answers })); const { data: existing } = await admin.from('documents_reglementaires').select('id,storage_bucket,storage_path_pdf,metadata,date_generation').eq('dossier_id', dossierId).eq('type_document', type).eq('version_modele', PDF_VERSION).eq('metadata->>snapshot_hash', snapshotHash).eq('statut', 'generated').order('created_at', { ascending: false }).limit(1).maybeSingle(); if (existing?.storage_path_pdf) { const { data: signed } = await admin.storage.from(existing.storage_bucket ?? BUCKET).createSignedUrl(existing.storage_path_pdf, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: existing.id, reused: true, signed_url: signed?.signedUrl ?? null, path: existing.storage_path_pdf }); continue; }
+      const snapshotHash = await sha256Hex(JSON.stringify({ type, version: PDF_VERSION, dossier: snapshot.dossier, investor_id: targetInvestorId || null, investors: snapshot.investors, sections: snapshot.sections, sessions: snapshot.sessions, qpi: snapshot.qpiResults, esg: snapshot.esgPreferences, qpi_experience: snapshot.qpiProductExperience, qpi_experience_details: snapshot.qpiExperienceDetails, answers: snapshot.answers })); const { data: existing } = await admin.from('documents_reglementaires').select('id,storage_bucket,storage_path_pdf,metadata,date_generation').eq('dossier_id', dossierId).eq('type_document', type).eq('version_modele', PDF_VERSION).eq('metadata->>snapshot_hash', snapshotHash).eq('statut', 'generated').order('created_at', { ascending: false }).limit(1).maybeSingle(); if (existing?.storage_path_pdf) { const { data: signed } = await admin.storage.from(existing.storage_bucket ?? BUCKET).createSignedUrl(existing.storage_path_pdf, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: existing.id, reused: true, signed_url: signed?.signedUrl ?? null, path: existing.storage_path_pdf }); continue; }
       const bytes = type === 'recueil' ? await buildRecueil(snapshot) : await buildQuestionnaire(snapshot, type === 'qpi' ? 'QPI' : 'ESG'); const fileHash = await sha256Hex(bytes); const datePart = new Date().toISOString().slice(0, 10); const reference = slug(snapshot.dossier.reference || snapshot.dossier.libelle || dossierId.slice(0, 8)); const investorSlug = targetInvestorId ? `-${slug(investorName(snapshot.investors[0]))}` : ''; const fileName = `${type}-${reference}${investorSlug}-${datePart}-${fileHash.slice(0, 10)}.pdf`; const storagePath = targetInvestorId ? `${dossierId}/${targetInvestorId}/${type}/${fileName}` : `${dossierId}/${type}/${fileName}`; const { error: uploadError } = await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'application/pdf', upsert: false }); if (uploadError) throw uploadError; const { data: row, error: insertError } = await admin.from('documents_reglementaires').insert({ dossier_id: dossierId, type_document: type, version_modele: PDF_VERSION, statut: 'generated', storage_bucket: BUCKET, storage_path_pdf: storagePath, date_generation: new Date().toISOString(), hash_sha256: fileHash, metadata: { snapshot_hash: snapshotHash, generated_from: 'portal_supabase_pdf', final_format: 'pdf', signature_provider: 'youtrust', signature_status: 'ready_to_send', document_date: type === 'recueil' ? snapshot.recueil_date : type === 'qpi' ? snapshot.qpi_date : snapshot.esg_date, investor_id: targetInvestorId || null, investor_ids: snapshot.investors.map((i: Json) => i.id), source_word_generator: 'generate-cif-documents' } }).select('id').single(); if (insertError) throw insertError; const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: row.id, reused: false, signed_url: signed?.signedUrl ?? null, path: storagePath, hash_sha256: fileHash });
     }
     return new Response(JSON.stringify({ ok: true, version: PDF_VERSION, format: 'pdf', documents: results }), { status: 200, headers });
