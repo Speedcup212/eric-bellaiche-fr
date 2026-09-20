@@ -494,13 +494,13 @@ export default function CifDossierSummaryPage() {
         const review = selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review').length;
         return <div className="mt-6 space-y-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+            <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 shadow-[0_14px_34px_rgba(2,10,25,0.18)] sm:p-5">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-700">{identifierLabel}</p>
-                  <h3 className="mt-1 text-lg font-bold text-slate-950">{name}</h3>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-300">{identifierLabel}</p>
+                  <h3 className="mt-1 text-lg font-bold text-white">{name}</h3>
                 </div>
-                <span className="text-xs font-semibold text-slate-500">Parcours client</span>
+                <span className="text-xs font-semibold text-slate-300">Parcours client</span>
               </div>
 
               <div className="mt-4 space-y-2">
@@ -510,11 +510,11 @@ export default function CifDossierSummaryPage() {
                   const recueilInProgress = type === 'recueil' && state.recueilPdfAvailable && !state.recueil;
                   const document = generatedDocuments.find((item) => item.investisseur_id === investor.investisseur_id && item.type === type && item.signed_url);
                   const theme = type === 'recueil'
-                    ? { row:'border-blue-200 bg-blue-50', title:'text-blue-950', badge:'bg-blue-700 text-white', button:'bg-blue-700 hover:bg-blue-800' }
+                    ? { row:'border-blue-200 bg-[#EAF3FF]', title:'text-blue-950', badge:'bg-blue-700 text-white', button:'bg-blue-700 hover:bg-blue-800' }
                     : type === 'qpi'
-                      ? { row:'border-indigo-200 bg-indigo-50', title:'text-indigo-950', badge:'bg-indigo-700 text-white', button:'bg-indigo-700 hover:bg-indigo-800' }
-                      : { row:'border-teal-200 bg-teal-50', title:'text-teal-950', badge:'bg-teal-700 text-white', button:'bg-teal-700 hover:bg-teal-800' };
-                  const rowClass = notApplicable ? 'border-teal-200 bg-teal-50' : completed ? theme.row : recueilInProgress ? 'border-amber-200 bg-amber-50' : 'border-rose-200 bg-rose-50';
+                      ? { row:'border-indigo-200 bg-[#EEF0FF]', title:'text-indigo-950', badge:'bg-indigo-700 text-white', button:'bg-indigo-700 hover:bg-indigo-800' }
+                      : { row:'border-teal-200 bg-[#ECFDF5]', title:'text-teal-950', badge:'bg-teal-700 text-white', button:'bg-teal-700 hover:bg-teal-800' };
+                  const rowClass = notApplicable ? 'border-teal-200 bg-[#ECFDF5]' : completed ? theme.row : recueilInProgress ? 'border-amber-200 bg-[#FFF8E6]' : 'border-rose-200 bg-[#FFF1F2]';
                   const badgeClass = notApplicable ? 'border border-teal-200 bg-teal-100 text-teal-800' : completed ? theme.badge : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-rose-200 bg-rose-100 text-rose-800';
                   const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
                   const title = type === 'recueil' ? 'Recueil d’informations' : type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
@@ -540,20 +540,20 @@ export default function CifDossierSummaryPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Documents réglementaires</p>
+            <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 shadow-[0_14px_34px_rgba(2,10,25,0.18)] sm:p-5">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-300">Documents réglementaires</p>
               <div className="mt-4 space-y-2">
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">DER</p><span className="rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className="rounded-xl border border-[#315173] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">DER</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
                 </div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">Lettre de mission</p><span className="rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className="rounded-xl border border-[#315173] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">Lettre de mission</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
                 </div>
-                <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 transition hover:bg-blue-100">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">Déclaration d’adéquation</p><span className="rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-700">Ouvrir</span></div>
+                <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-200 bg-[#EAF3FF] px-4 py-3 transition hover:bg-blue-100">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">Déclaration d’adéquation</p><span className="rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-700">Ouvrir</span></div>
                 </Link>
               </div>
-              <p className="mt-3 text-[11px] leading-5 text-slate-500">DER et lettre de mission avant recommandation. Adéquation après validation de la stratégie et des supports.</p>
+              <p className="mt-3 text-[11px] leading-5 text-slate-300">DER et lettre de mission avant recommandation. Adéquation après validation de la stratégie et des supports.</p>
             </div>
           </div>
 
