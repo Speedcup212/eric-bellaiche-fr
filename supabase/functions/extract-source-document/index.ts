@@ -681,7 +681,9 @@ function parseCredit(
   if (totalCreditCost) fact.cout_total_credit=Math.round(totalCreditCost.value*100)/100;
 
   if (/suspension totale du paiement de vos [ée]ch[ée]ances/i.test(all)) {
-    fact.phase_credit='Suspension totale des échéances';
+    fact.phase_credit = changedPayment
+      ? `Suspension totale des échéances jusqu'à la reprise du ${changedPayment.date}`
+      : 'Suspension totale des échéances';
   } else if (scheduleRows.length && scheduleRows.slice(0,Math.min(12,scheduleRows.length)).every((row)=>row.capital===0) && scheduleRows.some((row)=>row.interest>0)) {
     fact.phase_credit="Échéances d'intérêts seuls avant amortissement du capital";
   }
