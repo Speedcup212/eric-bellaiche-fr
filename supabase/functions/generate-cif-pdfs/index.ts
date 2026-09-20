@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.6';
+const PDF_VERSION = '2026-MAITRE-PDF-1.7';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -175,12 +175,13 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
           ['Score de tolérance au risque', score],
           ['Profil indicatif de tolérance', clean(result.profil_indicatif)],
           ['Profil opérationnel final', clean(result.profil_operationnel_final)],
-          ['Niveau retenu', clean(result.niveau_tolerance_retenu)],
+          ['Niveau opérationnel retenu', clean(result.synthese_dimensions?.profil_operationnel?.rang ?? result.niveau_tolerance_retenu)],
           ['Perte maximale déclarée', pct(result.perte_max_declairee_pct)],
           ['Montant correspondant', result.perte_max_declairee_montant === null || result.perte_max_declairee_montant === undefined ? 'Non renseigné' : eur(result.perte_max_declairee_montant)],
           ['Capacité de perte retenue', pct(result.capacite_perte_retenue_pct)],
           ['Montant de capacité de perte', result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? 'Non renseigné' : eur(result.capacite_perte_retenue_montant)],
           ['Niveau de connaissances', clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)],
+          ['Familles de produits déjà pratiquées', clean(result.synthese_dimensions?.experience?.familles_pratiquees)],
           ['Écart tolérance / capacité de perte', result.ecart_declared_objective === true ? 'Oui' : result.ecart_declared_objective === false ? 'Non' : 'Non déterminé'],
           ['Motif du plafonnement', result.ecart_declared_objective === true ? clean(result.justification_ecart) : 'Sans objet'],
         ], [56, 44]);
@@ -197,6 +198,7 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
     const q8 = questions.find((q: Json) => q.ordre === 8); const q8a = q8 ? answerByQuestion.get(q8.id) : null; const q8code = q8a?.option_id ? snapshot.optionMap.get(q8a.option_id)?.code_option : null;
     ensure(ctx, 165); heading(ctx, 'Détail réglementaire du questionnaire', 2);
     if (type === 'QPI') {
+      drawText(ctx, 'Méthode de lecture : seules les questions comportementales 21 à 25 alimentent le score de tolérance au risque sur 25 points. Les autres questions documentent séparément l’horizon, la liquidité, les projets, la capacité de perte, les connaissances et l’expérience.', { size: 8.2, bold: true, color: NAVY, after: 7 });
       const unansweredOptional = questions.filter((q: Json) => q.obligatoire === false && !(answerByQuestion.get(q.id)?.id));
       if (unansweredOptional.length) {
         drawText(ctx, `Les questions non renseignées suivantes sont facultatives dans le questionnaire actuel : ${unansweredOptional.map((q: Json) => q.code ?? `Q${q.ordre}`).join(', ')}. Leur absence de réponse n’empêche pas la finalisation du profil, mais l’information reste non documentée.`, { size: 8.2, color: rgb(0.32, 0.38, 0.46), after: 8 });
