@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.3';
+const PDF_VERSION = '2026-MAITRE-PDF-2.4';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -83,7 +83,7 @@ function objectiveLabel(code: string) { const labels: Record<string, string> = {
 function readable(value: unknown) { if (Array.isArray(value)) return value.map((v) => ESG_LABELS[String(v)] ?? clean(v)).join(', '); const s = clean(value); return ESG_LABELS[s] ?? ESG_LABELS[s.toLowerCase()] ?? s; }
 function wrap(font: PDFFont, value: string, size: number, width: number) { const words = clean(value).split(/\s+/).filter(Boolean); if (!words.length) return ['']; const lines: string[] = []; let line = words[0]; for (const word of words.slice(1)) { const candidate = `${line} ${word}`; if (font.widthOfTextAtSize(candidate, size) <= width) line = candidate; else { lines.push(line); line = word; } } lines.push(line); return lines; }
 async function newPdfContext() { const pdf = await PDFDocument.create(); const regular = await pdf.embedFont(StandardFonts.Helvetica); const bold = await pdf.embedFont(StandardFonts.HelveticaBold); const page = pdf.addPage([A4.width, A4.height]); return { pdf, page, regular, bold, y: A4.height - MARGIN, pageNumber: 1 } as PdfContext; }
-function footer(ctx: PdfContext) { ctx.page.drawText(`Cabinet Eric Bellaiche - page ${ctx.pageNumber}`, { x: MARGIN, y: 20, size: 7, font: ctx.regular, color: rgb(0.45, 0.5, 0.6) }); }
+function footer(ctx: PdfContext) { ctx.page.drawText(`Cabinet Eric Bellaiche - page ${ctx.pageNumber} - modèle ${PDF_VERSION}`, { x: MARGIN, y: 20, size: 7, font: ctx.regular, color: rgb(0.45, 0.5, 0.6) }); }
 function addPage(ctx: PdfContext) { footer(ctx); ctx.page = ctx.pdf.addPage([A4.width, A4.height]); ctx.pageNumber += 1; ctx.y = A4.height - MARGIN; }
 function ensure(ctx: PdfContext, height: number) { if (ctx.y - height < 44) addPage(ctx); }
 function drawText(ctx: PdfContext, value: string, options: Json = {}) { const size = options.size ?? 9.5; const font = options.bold ? ctx.bold : ctx.regular; const width = options.width ?? (A4.width - 2 * MARGIN); const x = options.x ?? MARGIN; const lineHeight = options.lineHeight ?? size * 1.28; const lines = wrap(font, clean(value), size, width); const height = lines.length * lineHeight + (options.after ?? 4); ensure(ctx, height); for (const line of lines) { ctx.page.drawText(line, { x, y: ctx.y - size, size, font, color: options.color ?? NAVY }); ctx.y -= lineHeight; } ctx.y -= options.after ?? 4; }
@@ -198,6 +198,16 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
         const q4Code = answerCode('Q4');
         const q9Code = answerCode('Q9');
         const q25Label = answerLabel('Q25');
+        const liquidity = result.synthese_dimensions?.liquidite ?? {};
+        const capitalConstraintMin = Number(liquidity.capital_contraint_min);
+        const capitalConstraintMax = Number(liquidity.capital_contraint_max);
+        const capitalInvestableMin = Number(liquidity.capital_investissable_lt_min);
+        const capitalInvestableMax = Number(liquidity.capital_investissable_lt_max);
+        const hasConstraintRange = Number.isFinite(capitalConstraintMin) && Number.isFinite(capitalConstraintMax);
+        const hasInvestableRange = Number.isFinite(capitalInvestableMin) && Number.isFinite(capitalInvestableMax);
+        const constrainedLabel = hasConstraintRange ? (capitalConstraintMin === capitalConstraintMax ? eur(capitalConstraintMin) : `${eur(capitalConstraintMin)} à ${eur(capitalConstraintMax)}`) : 'À confirmer';
+        const investableLabel = hasInvestableRange ? `${eur(capitalInvestableMin)} à ${eur(capitalInvestableMax)}` : 'Non calculable précisément';
+        const investableQualification = liquidity.estimation === 'fourchette_a_confirmer' ? ' (à confirmer : possible recouvrement entre projet et épargne de précaution)' : '';
         const q4Answer = answerFor('Q4');
         const futureNeed = q4Answer?.answer_json && typeof q4Answer.answer_json === 'object' ? q4Answer.answer_json : {};
         const futureAmount = futureNeed?.montant_besoin_futur ? eur(futureNeed.montant_besoin_futur) : null;
@@ -230,20 +240,22 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
           ctx,
           'RÉSULTAT DU PROFIL INVESTISSEUR',
           score,
-          `${level} - niveau ${operationalRank}/7`,
-          `Le score de ${score} mesure la tolérance comportementale au risque. Il conduit à un profil indicatif ${clean(result.profil_indicatif)}. Après prise en compte séparée de la capacité de perte, le niveau de risque maximal compatible avec les réponses est ${level} - niveau ${operationalRank}/7.`,
+          `${level} - classe interne ${operationalRank}`,
+          `Le score de ${score} mesure la tolérance comportementale au risque. Il conduit à un profil indicatif ${clean(result.profil_indicatif)}. Après prise en compte séparée de la capacité de perte, le niveau de risque maximal compatible avec les réponses est ${level} - classe interne ${operationalRank}.`,
           'Ce niveau ne constitue pas une allocation de portefeuille. Il s’applique uniquement à la part du capital réellement disponible pour un investissement de long terme. Les besoins de liquidité, les projets à financer, la capacité de perte, les connaissances et l’expérience déterminent ensuite la façon de répartir cette épargne.',
-          'Le profil de risque ne constitue pas une allocation : une partie de l’épargne peut devoir rester disponible ou sécurisée même avec un profil dynamique.'
+          'Le profil de risque ne constitue pas une allocation. La classe interne du profil client est distincte du SRI des produits ; une partie de l’épargne peut devoir rester disponible ou sécurisée même avec un profil dynamique.'
         );
 
         heading(ctx, 'Synthèse à retenir', 2);
         drawTable(ctx, ['Critère', 'Lecture pratique'], [
           ['Tolérance au risque', `${score} correspond à ${clean(result.profil_indicatif)}.`],
           ['Capacité de perte', `Jusqu’à ${pct(result.capacite_perte_retenue_pct)} sur les placements concernés. Ce pourcentage ne signifie pas que l’ensemble du patrimoine doit être exposé à cette perte.`],
+          ['Capital à réserver / sécuriser', constrainedLabel],
+          ['Capital long terme indicatif', `${investableLabel}${investableQualification}. Cette fourchette est calculée à partir de la tranche de patrimoine financier déclarée et des besoins de court terme connus.`],
           ['Part acceptée en forte exposition', `${q25Label}. Cette donnée limite la part des sommes investissables que le client accepte de soumettre à une forte baisse temporaire.`],
           ['Connaissances', `${clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)}${knowledgeGaps.length ? `. Points à expliquer / vérifier : ${knowledgeGaps.join(', ')}.` : '. Aucun point de vigilance spécifique identifié sur les questions obligatoires.'}`],
           ['Expérience', practicedFamilies.length ? `${practicedFamilies.length} famille(s) déjà pratiquée(s) : ${practicedFamilies.join(' ; ')}.` : 'Aucune famille de placements déjà pratiquée déclarée.'],
-          ['Conclusion', `Niveau de risque maximal compatible : ${level} - niveau ${operationalRank}/7. Ce niveau ne s’applique qu’au capital réellement investissable à long terme.`],
+          ['Conclusion', `Niveau de risque maximal compatible : ${level} - classe interne ${operationalRank}. Cette classe interne ne correspond pas au SRI d’un produit et ne s’applique qu’au capital réellement investissable à long terme.`],
         ], [35, 65]);
 
         if (expDetails) {
@@ -262,7 +274,7 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
         if (liquidityAlerts.length) {
           heading(ctx, 'Point d’attention : liquidité et projets', 2);
           drawText(ctx, `Contraintes identifiées : ${liquidityAlerts.join(' ; ')}. En pratique, il faut distinguer une poche disponible / sécurisée à court terme du capital réellement investissable à long terme.`, { size: 8.8, color: NAVY, after: 6 });
-          drawText(ctx, `Conclusion pour le conseil : le niveau ${operationalRank}/7 est compatible avec la partie du capital réellement disponible pour un investissement de long terme. Il ne doit pas être appliqué indistinctement à l’ensemble de l’épargne.`, { size: 8.8, bold: true, color: GREEN, after: 8 });
+          drawText(ctx, `Conclusion pour le conseil : la classe interne ${operationalRank} est compatible avec la partie du capital réellement disponible pour un investissement de long terme. Elle ne doit pas être appliquée indistinctement à l’ensemble de l’épargne et reste distincte du SRI des produits.`, { size: 8.8, bold: true, color: GREEN, after: 8 });
         }
       }
     } else {
