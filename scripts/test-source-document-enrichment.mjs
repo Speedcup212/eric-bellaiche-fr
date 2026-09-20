@@ -24,6 +24,7 @@ const checks = [
   ['credit parser merges into real credit items', edge.includes('__merge_credit_items') && mergeMigration.includes("v_field='__merge_credit_items'") && mergeMigration.includes("'{items}'")],
   ['parallel documented loan facts are no longer generated', !edge.includes('documented_loan_facts')],
   ['credit CRD extraction is same-line strict', edge.includes("safe_crd_rule: 'same-line-label-only'") && edge.includes('capital restant')],
+  ['initial credit amount is read before duration on mixed lines', edge.includes("montant emprunt") && edge.includes("max: 10000000, preferLast: false")],
   ['financial parser writes only safe real recueil fields', edge.includes("section_code: 'financial'") && edge.includes('total_band') && !edge.includes('documented_accounts')],
   ['financial PNG evidence uses workerless OCR', edge.includes("npm:nocr@1.2.0") && edge.includes('financial_image_ocr_v1') && edge.includes('ocrImage(bytes)')],
   ['OCR financial items merge into real holdings', edge.includes('__merge_financial_items') && financialMergeMigration.includes("__merge_financial_items") && financialMergeMigration.includes("financial.items")],
