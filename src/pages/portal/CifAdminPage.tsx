@@ -30,7 +30,7 @@ Avant de commencer, je vous conseille de préparer les principaux documents util
 - les éléments utiles relatifs à votre patrimoine immobilier ;
 - vos justificatifs de revenus si nécessaire.
 
-Si votre situation familiale est « Marié » ou « Pacsé », le conjoint sera rattaché automatiquement au dossier lors du recueil et disposera ensuite de son propre accès pour ses questionnaires personnels.
+Si votre dossier concerne deux personnes, chacun dispose de son propre accès. Les informations communes du foyer (notamment situation familiale, immobilier et crédits) sont renseignées une seule fois puis vérifiées par le second membre, afin d’éviter les doublons. Les informations personnelles et réglementaires restent individuelles.
 
 Pour activer votre accès, utilisez votre lien personnel :
 ${link}
