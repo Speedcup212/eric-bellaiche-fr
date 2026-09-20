@@ -442,69 +442,165 @@ export default function CifDossierSummaryPage() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{householdConfirmations.map((item) => <div key={item.section_code} className={`rounded-2xl border p-4 ${item.status==='change_requested'?'border-amber-300 bg-amber-50':'border-emerald-200 bg-emerald-50'}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold text-slate-950">{sectionLabel[item.section_code] ?? item.section_code}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status==='change_requested'?'bg-amber-200 text-amber-900':'bg-emerald-200 text-emerald-900'}`}>{item.status==='change_requested'?'À arbitrer':'Confirmé'}</span></div>{item.note&&<p className="mt-3 text-sm leading-5 text-slate-700">{item.note}</p>}<p className="mt-3 text-[11px] text-slate-400">Mis à jour le {new Date(item.updated_at).toLocaleString('fr-FR')}</p></div>)}</div>
     </section>}
 
-    {activeTab === 'documents' && <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents du dossier</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Collecte client et chaîne réglementaire</h2><p className="mt-1 text-sm text-slate-500">Les documents sont regroupés selon leur rôle dans le parcours : collecte, justificatifs reçus, mission puis adéquation du conseil.</p></div></div>{sourceAnalysisMessage && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{sourceAnalysisMessage}</p>}
-    <div className="mt-6">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Clients du dossier</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {[...investorDocumentStates].sort((a, b) => (a.investor.role_dossier === 'investisseur_1' ? 0 : 1) - (b.investor.role_dossier === 'investisseur_1' ? 0 : 1)).map((state) => {
-          const investor = state.investor;
-          const name = `${investor.investisseurs?.prenom ?? ''} ${investor.investisseurs?.nom ?? ''}`.trim() || 'Client';
-          const individualDone = state.recueil && state.qpi && (state.esg || state.esgNotApplicable);
-          const identifierLabel = investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
-          return <div key={`identity-${investor.investisseur_id}`} className={`rounded-2xl border px-4 py-4 ${individualDone ? 'border-emerald-200 bg-emerald-50/70' : 'border-blue-200 bg-blue-50/70'}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${individualDone ? 'text-emerald-700' : 'text-blue-700'}`}>{identifierLabel}</p>
-                <p className="mt-1 break-words text-base font-bold text-slate-950">{name}</p>
-                {investor.investisseurs?.email && <p className="mt-1 break-all text-[11px] text-slate-500">{investor.investisseurs.email}</p>}
-              </div>
-              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${individualDone ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : 'border-blue-200 bg-blue-100 text-blue-700'}`}>{individualDone ? 'Parcours terminé' : 'Parcours en cours'}</span>
-            </div>
-          </div>;
-        })}
+    {activeTab === 'documents' && <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents du dossier</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">Collecte client et chaîne réglementaire</h2>
+          <p className="mt-1 text-sm text-slate-500">Sélectionne d’abord la personne, puis travaille uniquement sur son parcours et ses justificatifs.</p>
+        </div>
       </div>
-    </div>
-    <div className="mt-6 grid gap-5 lg:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Collecte et justificatifs</p><div className="mt-3 space-y-3">{[...investorDocumentStates].sort((a, b) => (a.investor.role_dossier === 'investisseur_1' ? 0 : 1) - (b.investor.role_dossier === 'investisseur_1' ? 0 : 1)).map((state) => { const investor = state.investor; const name = `${investor.investisseurs?.prenom ?? ''} ${investor.investisseurs?.nom ?? ''}`.trim() || 'Client'; const individualDone = state.recueil && state.qpi && (state.esg || state.esgNotApplicable); return <div key={investor.investisseur_id} className={`relative overflow-hidden rounded-2xl border p-4 pl-5 shadow-[0_10px_28px_rgba(15,23,42,0.07)] ${individualDone ? 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/95 via-white to-white' : 'border-blue-200/80 bg-gradient-to-r from-blue-50/95 via-white to-white'}`}><span aria-hidden="true" className={`absolute bottom-4 left-0 top-4 w-1 rounded-r-full ${individualDone ? 'bg-emerald-400' : 'bg-blue-400'}`} /><div className="flex flex-wrap items-center justify-between gap-3"><div><p className={`font-semibold ${individualDone ? 'text-emerald-950' : 'text-blue-950'}`}>{name}</p><p className={`mt-0.5 text-xs ${individualDone ? 'text-emerald-700/70' : 'text-blue-700/70'}`}>{investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2'}</p></div><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase shadow-sm ${individualDone ? 'border-emerald-200 bg-emerald-100/80 text-emerald-700' : 'border-blue-200 bg-blue-100/80 text-blue-700'}`}>{individualDone ? 'Parcours terminé' : 'Parcours en cours'}</span></div><div className="mt-3 space-y-2">{(['recueil','qpi','esg'] as GeneratedDocument['type'][]).map((type) => {
-          const notApplicable = type === 'esg' && state.esgNotApplicable;
-          const completed = type === 'recueil' ? state.recueil : type === 'qpi' ? state.qpi : state.esg;
-          const recueilInProgress = type === 'recueil' && state.recueilPdfAvailable && !state.recueil;
-          const document = generatedDocuments.find((item) => item.investisseur_id === investor.investisseur_id && item.type === type && item.signed_url);
-          const typeTheme = type === 'recueil'
-            ? { card:'border-blue-200 bg-blue-50/70', title:'text-blue-950', badgeDone:'bg-blue-700 text-white', action:'bg-blue-700 hover:bg-blue-800', soft:'border-blue-200 text-blue-800 hover:bg-blue-50' }
-            : type === 'qpi'
-              ? { card:'border-indigo-200 bg-indigo-50/70', title:'text-indigo-950', badgeDone:'bg-indigo-700 text-white', action:'bg-indigo-700 hover:bg-indigo-800', soft:'border-indigo-200 text-indigo-800 hover:bg-indigo-50' }
-              : { card:'border-teal-200 bg-teal-50/70', title:'text-teal-950', badgeDone:'bg-teal-700 text-white', action:'bg-teal-700 hover:bg-teal-800', soft:'border-teal-200 text-teal-800 hover:bg-teal-50' };
-          const classes = notApplicable ? typeTheme.card : recueilInProgress ? 'border-amber-300 bg-amber-50' : completed ? typeTheme.card : 'border-red-200 bg-red-50';
-          const badge = notApplicable ? 'border border-teal-200 bg-teal-100 text-teal-800' : completed ? typeTheme.badgeDone : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-red-200 bg-red-100 text-red-800';
-          const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
-          const cardTitle = type === 'recueil' ? 'Recueil d’informations' : type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
-          const cardSubtitle = type === 'recueil' ? 'Données déclarées par le client' : type === 'qpi' ? 'Questionnaire de profil de risque' : 'Préférences ESG';
-          const showRecueilActions = type === 'recueil' && state.recueilPdfAvailable;
-          const generationError = generationErrors[`${investor.investisseur_id}:${type}`];
-          return <div key={type} className={`min-w-0 rounded-xl border px-3.5 py-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)] ${classes}`}>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-              <div className="min-w-0">
-                <p className={`break-words text-[13px] font-extrabold leading-4 ${typeTheme.title}`}>{cardTitle}</p>
-                <p className="mt-1 break-words text-[10px] font-medium leading-4 text-slate-500">{cardSubtitle}</p>
+
+      {sourceAnalysisMessage && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{sourceAnalysisMessage}</p>}
+
+      <div className="mt-6">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Clients du dossier</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {orderedInvestorDocumentStates.map((state) => {
+            const investor = state.investor;
+            const name = `${investor.investisseurs?.prenom ?? ''} ${investor.investisseurs?.nom ?? ''}`.trim() || 'Client';
+            const individualDone = state.recueil && state.qpi && (state.esg || state.esgNotApplicable);
+            const identifierLabel = investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
+            const isSelected = selectedDocumentState?.investor.investisseur_id === investor.investisseur_id;
+            const investorDocs = sourceDocuments.filter((doc) => doc.investisseur_id === investor.investisseur_id || doc.concerne_investisseur_ids?.includes(investor.investisseur_id));
+            const reviewCount = investorDocs.filter((doc) => doc.statut_analyse === 'to_review').length;
+            return <button
+              key={`identity-${investor.investisseur_id}`}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => { setSelectedDocumentInvestorId(investor.investisseur_id); setDocumentReviewOnly(false); }}
+              className={`group rounded-2xl border px-4 py-4 text-left transition ${isSelected ? 'border-blue-500 bg-blue-50 shadow-[0_8px_24px_rgba(37,99,235,0.12)] ring-2 ring-blue-100' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${isSelected ? 'text-blue-700' : 'text-slate-500'}`}>{identifierLabel}</p>
+                  <p className="mt-1 break-words text-base font-bold text-slate-950">{name}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{investorDocs.length} pièce{investorDocs.length > 1 ? 's' : ''}{reviewCount ? ` · ${reviewCount} à contrôler` : ''}</p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${individualDone ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : 'border-amber-200 bg-amber-100 text-amber-800'}`}>{individualDone ? 'Parcours terminé' : `En cours · ${state.recueilPercentage} %`}</span>
               </div>
-              <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold leading-none whitespace-nowrap ${badge}`}>{status}</span>
+            </button>;
+          })}
+        </div>
+      </div>
+
+      {selectedDocumentState && (() => {
+        const state = selectedDocumentState;
+        const investor = state.investor;
+        const name = `${investor.investisseurs?.prenom ?? ''} ${investor.investisseurs?.nom ?? ''}`.trim() || 'Client';
+        const identifierLabel = investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
+        const analysed = selectedSourceDocuments.filter((doc) => ['extracted','validated'].includes(doc.statut_analyse)).length;
+        const review = selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review').length;
+        return <div className="mt-6 space-y-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-700">{identifierLabel}</p>
+                  <h3 className="mt-1 text-lg font-bold text-slate-950">{name}</h3>
+                </div>
+                <span className="text-xs font-semibold text-slate-500">Parcours client</span>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {(['recueil','qpi','esg'] as GeneratedDocument['type'][]).map((type) => {
+                  const notApplicable = type === 'esg' && state.esgNotApplicable;
+                  const completed = type === 'recueil' ? state.recueil : type === 'qpi' ? state.qpi : state.esg;
+                  const recueilInProgress = type === 'recueil' && state.recueilPdfAvailable && !state.recueil;
+                  const document = generatedDocuments.find((item) => item.investisseur_id === investor.investisseur_id && item.type === type && item.signed_url);
+                  const theme = type === 'recueil'
+                    ? { row:'border-blue-200 bg-blue-50', title:'text-blue-950', badge:'bg-blue-700 text-white', button:'bg-blue-700 hover:bg-blue-800' }
+                    : type === 'qpi'
+                      ? { row:'border-indigo-200 bg-indigo-50', title:'text-indigo-950', badge:'bg-indigo-700 text-white', button:'bg-indigo-700 hover:bg-indigo-800' }
+                      : { row:'border-teal-200 bg-teal-50', title:'text-teal-950', badge:'bg-teal-700 text-white', button:'bg-teal-700 hover:bg-teal-800' };
+                  const rowClass = notApplicable ? 'border-teal-200 bg-teal-50' : completed ? theme.row : recueilInProgress ? 'border-amber-200 bg-amber-50' : 'border-rose-200 bg-rose-50';
+                  const badgeClass = notApplicable ? 'border border-teal-200 bg-teal-100 text-teal-800' : completed ? theme.badge : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-rose-200 bg-rose-100 text-rose-800';
+                  const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
+                  const title = type === 'recueil' ? 'Recueil d’informations' : type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
+                  const subtitle = type === 'recueil' ? 'Données déclarées par le client' : type === 'qpi' ? 'Questionnaire de profil de risque' : 'Préférences ESG';
+                  const showRecueilActions = type === 'recueil' && state.recueilPdfAvailable;
+                  const generationError = generationErrors[`${investor.investisseur_id}:${type}`];
+                  return <div key={type} className={`rounded-xl border px-3.5 py-3 ${rowClass}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold leading-5 ${theme.title}`}>{title}</p>
+                        <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{subtitle}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase leading-none ${badgeClass}`}>{status}</span>
+                    </div>
+                    {notApplicable && <p className="mt-2 text-[11px] text-teal-700">Aucune préférence de durabilité exprimée.</p>}
+                    {(completed || showRecueilActions) && <div className="mt-3 flex flex-wrap gap-2">
+                      {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white transition ${completed ? theme.button : 'bg-slate-800 hover:bg-slate-900'}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
+                      {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-slate-50">Voir les réponses</button>}
+                    </div>}
+                    {generationError && !document?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-700">{generationError}</p>}
+                  </div>;
+                })}
+              </div>
             </div>
-            {notApplicable && <p className="mt-2 text-[10px] font-medium leading-4 text-teal-700">Aucune préférence exprimée.</p>}
-            {(completed || showRecueilActions) && <div className="mt-3 flex flex-wrap gap-2">
-              {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white shadow-sm transition ${completed ? typeTheme.action : 'bg-slate-950 hover:bg-slate-800'}`}><Download className="h-3.5 w-3.5 shrink-0" /><span className="whitespace-nowrap">Voir le PDF</span></a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
-              {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className={`inline-flex items-center justify-center rounded-lg border bg-white px-3 py-2 text-[10px] font-bold transition ${typeTheme.soft}`}><span className="whitespace-nowrap">Voir les réponses</span></button>}
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Documents réglementaires</p>
+              <div className="mt-4 space-y-2">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">DER</p><span className="rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">Lettre de mission</p><span className="rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                </div>
+                <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 transition hover:bg-blue-100">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">Déclaration d’adéquation</p><span className="rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-700">Ouvrir</span></div>
+                </Link>
+              </div>
+              <p className="mt-3 text-[11px] leading-5 text-slate-500">DER et lettre de mission avant recommandation. Adéquation après validation de la stratégie et des supports.</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white">
+            <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Justificatifs du client</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedSourceDocuments.length} pièce{selectedSourceDocuments.length > 1 ? 's' : ''} · {analysed} intégrée{analysed > 1 ? 's' : ''}{review ? ` · ${review} à contrôler` : ''}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setDocumentReviewOnly(false)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${!documentReviewOnly ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Toutes · {selectedSourceDocuments.length}</button>
+                <button type="button" onClick={() => setDocumentReviewOnly(true)} disabled={review === 0} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${documentReviewOnly ? 'bg-amber-600 text-white' : 'border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'}`}>À contrôler · {review}</button>
+              </div>
+            </div>
+
+            {displayedSourceDocuments.length > 0 ? <div className="divide-y divide-slate-100">
+              <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] gap-4 bg-slate-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 md:grid">
+                <span>Document</span><span>Catégorie</span><span>État</span><span className="text-right">Action</span>
+              </div>
+              {displayedSourceDocuments.map((doc) => {
+                const status = sourceAnalysisLabel(doc.statut_analyse);
+                const busy = analyzingSourceIds.has(doc.id) || doc.statut_analyse === 'processing';
+                const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0);
+                const conflicts = Number(doc.metadata?.conflicts_detected ?? 0);
+                const analysisError = typeof doc.metadata?.analysis_error === 'string' ? doc.metadata.analysis_error : '';
+                return <div key={doc.id} className="grid gap-3 px-4 py-3.5 hover:bg-slate-50/70 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
+                  <div className="min-w-0">
+                    <p className="break-words text-xs font-bold text-slate-900">{doc.nom_fichier}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleDateString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''}` : ''}</p>
+                    {analysisError && <p className="mt-1 text-[10px] font-medium text-amber-700">{analysisError}</p>}
+                  </div>
+                  <div><span className="text-[11px] font-semibold text-slate-700">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
+                  <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
+                    {['uploaded','to_review'].includes(doc.statut_analyse) && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser</button>}
+                  </div>
+                </div>;
+              })}
+            </div> : <div className="px-5 py-10 text-center">
+              <p className="text-sm font-semibold text-slate-700">{documentReviewOnly ? 'Aucune pièce à contrôler.' : 'Aucun justificatif reçu pour ce client.'}</p>
+              <p className="mt-1 text-xs text-slate-400">{documentReviewOnly ? 'Toutes les pièces actuellement reçues sont traitées.' : 'Les pièces apparaîtront ici dès leur réception.'}</p>
             </div>}
-            {generationError && !document?.signed_url && <p className="mt-2 break-words text-[10px] font-semibold leading-4 text-amber-700">{generationError}</p>}
-          </div>;
-        })}</div>{(() => {
-        const docs = sourceDocuments.filter((doc) => doc.investisseur_id === investor.investisseur_id);
-        const analysed = docs.filter((doc) => ['extracted','validated'].includes(doc.statut_analyse)).length;
-        const review = docs.filter((doc) => doc.statut_analyse === 'to_review').length;
-        const blocking = investorDocumentStates.find((item) => item.investor.investisseur_id !== investor.investisseur_id && !(item.recueil && item.qpi && (item.esg || item.esgNotApplicable)));
-        const blockingName = blocking ? [blocking.investor.investisseurs?.prenom, blocking.investor.investisseurs?.nom].filter(Boolean).join(' ') : '';
-        return <div className="mt-4 border-t border-slate-200 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-slate-900">Justificatifs clients</p><p className="mt-0.5 text-xs text-slate-500">{docs.length} pièce{docs.length > 1 ? 's' : ''} reçue{docs.length > 1 ? 's' : ''} · {analysed} intégrée{analysed > 1 ? 's' : ''}{review ? ` · ${review} à contrôler` : ''}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${investor.transmitted_at ? 'bg-emerald-100 text-emerald-700' : docs.length ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>{investor.transmitted_at ? 'Dossier transmis' : docs.length ? (blockingName ? `Transmission en attente de ${blockingName}` : 'Transmission finale en attente') : 'Aucune pièce reçue'}</span></div>
-        {docs.length > 0 && <div className="mt-3 space-y-2">{docs.map((doc) => { const status = sourceAnalysisLabel(doc.statut_analyse); const busy = analyzingSourceIds.has(doc.id) || doc.statut_analyse === 'processing'; const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0); const conflicts = Number(doc.metadata?.conflicts_detected ?? 0); const analysisError = typeof doc.metadata?.analysis_error === 'string' ? doc.metadata.analysis_error : ''; return <div key={doc.id} className="rounded-xl border border-slate-200 bg-white px-3 py-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-bold text-slate-800">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</p><p className="mt-1 break-all text-[11px] text-slate-500">{doc.nom_fichier}</p><p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''} à vérifier` : ''}</p>{analysisError && <p className="mt-1 text-[10px] font-medium text-amber-700">{analysisError}</p>}</div><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div><div className="mt-2 flex flex-wrap gap-2">{doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}{['uploaded','to_review'].includes(doc.statut_analyse) && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser / réessayer</button>}</div></div>; })}</div>}</div>;
-      })()}</div>; })}</div></div><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Documents réglementaires</p><div className="mt-3 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-[#315173] bg-[#0B1A2F] px-4 py-3 shadow-sm"><p className="text-sm font-semibold text-white">DER</p><p className="mt-1 text-[11px] font-semibold text-amber-300">À générer</p></div><div className="rounded-xl border border-[#315173] bg-[#0B1A2F] px-4 py-3 shadow-sm"><p className="text-sm font-semibold text-white">Lettre de mission</p><p className="mt-1 text-[11px] font-semibold text-amber-300">À générer</p></div><Link to={`/cabinet/adequation?dossier=${dossierId}`} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 transition hover:bg-blue-100"><p className="text-sm font-semibold text-slate-900">Déclaration d’adéquation</p><p className="mt-1 text-[11px] font-semibold text-blue-700">Ouvrir / vérifier</p></Link></div><p className="mt-3 text-xs leading-5 text-slate-500">Le DER et la lettre de mission interviennent avant la recommandation. La déclaration d’adéquation est finalisée après validation de la stratégie et des supports.</p></div></div></section>}
+          </div>
+        </div>;
+      })()}
+    </section>}
 
     {activeTab === 'synthese' && <div className="overflow-hidden rounded-2xl border border-amber-500/60 bg-[#0B1A2F] shadow-[0_16px_40px_rgba(2,10,25,0.18)]">
         <div className="flex flex-col gap-3 border-b border-[#25405F] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
