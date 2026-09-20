@@ -27,7 +27,9 @@
     "test:generated-documents": "node scripts/test-generated-document-pipeline.mjs",
     "test:audit-documents": "node scripts/test-audit-document-pipeline.mjs",
     "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs",
-    "test:source-documents": "node scripts/test-source-document-enrichment.mjs"
+    "test:source-documents": "node scripts/test-source-document-enrichment.mjs",
+    "lint:portal": "eslint src/lib src/portal src/pages/portal src/App.tsx scripts",
+    "test:deploy-gate": "npm run test:recueil-100 && npm run typecheck:portal && npm run lint:portal"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
