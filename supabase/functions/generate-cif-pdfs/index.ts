@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.12';
+const PDF_VERSION = '2026-MAITRE-PDF-2.13';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -207,14 +207,16 @@ async function buildRecueil(snapshot: Json) {
     const objs = map.objectives?.items ?? []; heading(ctx, `${n++}. Objectifs et horizons`); drawTable(ctx, ['Priorité', 'Objectif', 'Horizon'], objs.length ? objs.map((o: Json, idx: number) => [String(idx + 1), o.code_objectif === 'autre' ? clean(o.libelle_autre) : objectiveLabel(clean(o.code_objectif, '')), clean(o.horizon_annees)]) : [['-', 'Aucun objectif renseigné', '-']], [12, 62, 26]);
     const cap = map.capacity ?? {}; incomeAnnual += num(cap.estimation_revenus_travail_annuels) + num(cap.estimation_revenus_fonciers_annuels); heading(ctx, `${n++}. Revenus et équilibre financier`); drawTable(ctx, ['Donnée', 'Valeur'], [['Revenus professionnels nets estimés - année en cours', eur(cap.estimation_revenus_travail_annuels)], ['Revenus immobiliers estimés - année en cours', eur(cap.estimation_revenus_fonciers_annuels)], ['Capacité d’épargne mensuelle', eur(cap.capacite_epargne_mensuelle)], ['Réserve de sécurité souhaitée', eur(cap.epargne_precaution_cible)], ['Apport immobilier mobilisable', eur(cap.apport_immobilier_possible)]], [58, 42]);
     const tax = map.tax ?? {}; heading(ctx, `${n++}. Situation fiscale détaillée`);
+    const id1Name = clean(tax.nom_identifiant_1 ?? 'Identifiant 1');
+    const id2Name = clean(tax.nom_identifiant_2 ?? 'Identifiant 2');
     const taxRows = (rows: Array<[string, unknown, 'eur' | 'pct' | 'date' | 'text']>) => rows.filter(([, value]) => hasValue(value)).map(([label, value, kind]) => [label, kind === 'eur' ? eur(value) : kind === 'pct' ? pct(value) : kind === 'date' ? frDate(value) : clean(value)]);
     const taxTable = (title: string, rows: Array<[string, unknown, 'eur' | 'pct' | 'date' | 'text']>) => { const filtered = taxRows(rows); if (filtered.length) { heading(ctx, title, 2); drawTable(ctx, ['Donnée fiscale', 'Valeur'], filtered, [62, 38]); } };
 
     taxTable('Identifiants fiscaux et avis', [
-      ['Numéro fiscal - déclarant 1', tax.numero_fiscal_declarant_1, 'text'],
-      ['Nom - déclarant 1', tax.nom_declarant_1, 'text'],
-      ['Numéro fiscal - déclarant 2', tax.numero_fiscal_declarant_2, 'text'],
-      ['Nom - déclarant 2', tax.nom_declarant_2, 'text'],
+      ['Identifiant 1', id1Name, 'text'],
+      [`Numéro fiscal - ${id1Name}`, tax.numero_fiscal_identifiant_1, 'text'],
+      ['Identifiant 2', id2Name, 'text'],
+      [`Numéro fiscal - ${id2Name}`, tax.numero_fiscal_identifiant_2, 'text'],
       ['Référence de l’avis', tax.reference_avis, 'text'],
       ['Référence du foyer fiscal', tax.reference_foyer, 'text'],
       ['Adresse fiscale', tax.adresse_fiscale, 'text'],
@@ -226,15 +228,16 @@ async function buildRecueil(snapshot: Json) {
     ]);
 
     taxTable('Revenus déclarés', [
-      ['Salaires - déclarant 1', tax.salaires_declarant_1, 'eur'],
-      ['Heures supplémentaires non exonérées - déclarant 1', tax.heures_supp_non_exonerees_declarant_1, 'eur'],
-      ['Total salaires - déclarant 1', tax.total_salaires_declarant_1, 'eur'],
-      ['Déduction 10 % / frais réels - déclarant 1', tax.deduction_10_declarant_1, 'eur'],
-      ['Salaires nets - déclarant 1', tax.salaires_nets_declarant_1, 'eur'],
-      ['Salaires - déclarant 2', tax.salaires_declarant_2, 'eur'],
-      ['Total salaires - déclarant 2', tax.total_salaires_declarant_2, 'eur'],
-      ['Déduction 10 % / frais réels - déclarant 2', tax.deduction_10_declarant_2, 'eur'],
-      ['Salaires nets - déclarant 2', tax.salaires_nets_declarant_2, 'eur'],
+      [`Salaires - ${id1Name}`, tax.salaires_identifiant_1, 'eur'],
+      [`Heures supplémentaires non exonérées - ${id1Name}`, tax.heures_supp_non_exonerees_identifiant_1, 'eur'],
+      [`Total salaires - ${id1Name}`, tax.total_salaires_identifiant_1, 'eur'],
+      [`Déduction 10 % / frais réels - ${id1Name}`, tax.deduction_10_identifiant_1, 'eur'],
+      [`Salaires nets - ${id1Name}`, tax.salaires_nets_identifiant_1, 'eur'],
+      [`Salaires - ${id2Name}`, tax.salaires_identifiant_2, 'eur'],
+      [`Heures supplémentaires non exonérées - ${id2Name}`, tax.heures_supp_non_exonerees_identifiant_2, 'eur'],
+      [`Total salaires - ${id2Name}`, tax.total_salaires_identifiant_2, 'eur'],
+      [`Déduction 10 % / frais réels - ${id2Name}`, tax.deduction_10_identifiant_2, 'eur'],
+      [`Salaires nets - ${id2Name}`, tax.salaires_nets_identifiant_2, 'eur'],
       ['Revenu brut global', tax.revenu_brut_global, 'eur'],
       ['CSG déductible du revenu global', tax.csg_deductible_revenu_global, 'eur'],
       ['Revenu imposable', tax.revenu_imposable, 'eur'],
@@ -284,28 +287,30 @@ async function buildRecueil(snapshot: Json) {
     taxTable('Informations complémentaires', [
       ['Revenu fiscal de référence', tax.revenu_fiscal_reference, 'eur'],
       ['RCM déjà soumis aux prélèvements sociaux avec CSG déductible', tax.rcm_deja_soumis_ps_csg_deductible, 'eur'],
-      ['Heures supplémentaires exonérées déclarées - déclarant 1', tax.heures_supp_exonerees_declarant_1_brut, 'eur'],
-      ['Heures supplémentaires exonérées nettes - déclarant 1', tax.heures_supp_exonerees_declarant_1_net, 'eur'],
+      [`Heures supplémentaires exonérées déclarées - ${id1Name}`, tax.heures_supp_exonerees_identifiant_1_brut, 'eur'],
+      [`Heures supplémentaires exonérées nettes - ${id1Name}`, tax.heures_supp_exonerees_identifiant_1_net, 'eur'],
+      [`Heures supplémentaires exonérées déclarées - ${id2Name}`, tax.heures_supp_exonerees_identifiant_2_brut, 'eur'],
+      [`Heures supplémentaires exonérées nettes - ${id2Name}`, tax.heures_supp_exonerees_identifiant_2_net, 'eur'],
       ['Taux moyen d’imposition', tax.taux_imposition, 'pct'],
       ['Taux marginal d’imposition (TMI)', tax.tmi, 'pct'],
     ]);
 
-    taxTable('Plafond épargne retraite - déclarant 1', [
-      ['Plafond total de 2024', tax.plafond_total_2024_declarant_1, 'eur'],
-      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_declarant_1, 'eur'],
-      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_declarant_1, 'eur'],
-      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_declarant_1, 'eur'],
-      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_declarant_1, 'eur'],
-      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_declarant_1 ?? tax.plafond_disponible_avis, 'eur'],
+    taxTable(`Plafond épargne retraite - ${id1Name}`, [
+      ['Plafond total de 2024', tax.plafond_total_2024_identifiant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_identifiant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_identifiant_1, 'eur'],
+      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_identifiant_1, 'eur'],
+      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_identifiant_1, 'eur'],
+      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_identifiant_1, 'eur'],
     ]);
 
-    taxTable('Plafond épargne retraite - déclarant 2', [
-      ['Plafond total de 2024', tax.plafond_total_2024_declarant_2, 'eur'],
-      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_declarant_2, 'eur'],
-      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_declarant_2, 'eur'],
-      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_declarant_2, 'eur'],
-      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_declarant_2, 'eur'],
-      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_declarant_2, 'eur'],
+    taxTable(`Plafond épargne retraite - ${id2Name}`, [
+      ['Plafond total de 2024', tax.plafond_total_2024_identifiant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_identifiant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_identifiant_2, 'eur'],
+      ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_identifiant_2, 'eur'],
+      ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_identifiant_2, 'eur'],
+      ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_identifiant_2, 'eur'],
     ]);
 
     if (tax.ifi_concerne === true) { taxTable('IFI', [['Base imposable IFI', tax.ifi_base_imposable, 'eur'], ['TMI IFI', tax.ifi_tmi, 'pct'], ['IFI net à payer', tax.ifi_net_a_payer, 'eur']]); }
