@@ -68,8 +68,8 @@ while (Date.now() - startedAt < timeoutMs) {
   if (!run) {
     // Commits pushed by GitHub Actions with GITHUB_TOKEN do not trigger another
     // push workflow. In that case Portal CI can never appear. Netlify still runs
-    // the full local test/typecheck/build chain immediately after this gate, so
-    // skipping only the remote wait is safe and prevents an artificial timeout.
+    // the full local test/typecheck/lint/build chain immediately after this gate,
+    // so skipping only the remote wait is safe and prevents an artificial timeout.
     if (!checkedBotCommit) {
       checkedBotCommit = true;
       if (await isGitHubActionsBotCommit()) {
@@ -78,25 +78,31 @@ while (Date.now() - startedAt < timeoutMs) {
       }
     }
     console.log(`CI deploy gate: Portal CI not visible yet for ${sha.slice(0, 8)}; retrying…`);
-  } else if (run.status !== 'completed') {
-    // The independent dependency audit may take longer or become stuck on the
-    // npm registry. Production safety is carried by the quality job (all portal
-    // tests, typecheck, lint, build and browser smoke test), followed by the
-    // same local test/typecheck/build chain on Netlify.
+  } else {
     const quality = await readQualityJob(run);
+
+    // Production authorization is based on the quality job only. The separate
+    // dependency-audit job is informative and must not create race-dependent
+    // production failures when all core quality checks already passed.
     if (qualityCorePassed(quality)) {
       console.log(`CI deploy gate: Portal CI core quality checks passed for ${sha.slice(0, 8)}. Production build authorized.`);
       process.exit(0);
     }
+
     if (quality?.status === 'completed' && quality.conclusion !== 'success') {
-      throw new Error(`Production deployment blocked: Portal CI quality job concluded ${quality.conclusion || 'unknown'} for ${sha}.`);
+      const failedSteps = (quality.steps || [])
+        .filter((step) => ['failure', 'cancelled', 'timed_out', 'action_required'].includes(step.conclusion))
+        .map((step) => step.name)
+        .filter(Boolean);
+      const detail = failedSteps.length ? ` Failed step(s): ${failedSteps.join(', ')}.` : '';
+      throw new Error(`Production deployment blocked: Portal CI quality job concluded ${quality.conclusion || 'unknown'} for ${sha}.${detail}`);
     }
+
+    if (run.status === 'completed' && !quality) {
+      throw new Error(`Production deployment blocked: Portal CI completed but the quality job is unavailable for ${sha}.`);
+    }
+
     console.log(`CI deploy gate: Portal CI quality job ${quality?.status || run.status}; waiting…`);
-  } else if (run.conclusion === 'success') {
-    console.log(`CI deploy gate: Portal CI passed for ${sha.slice(0, 8)}. Production build authorized.`);
-    process.exit(0);
-  } else {
-    throw new Error(`Production deployment blocked: Portal CI concluded ${run.conclusion || 'unknown'} for ${sha}.`);
   }
 
   await new Promise((resolve) => setTimeout(resolve, pollMs));
