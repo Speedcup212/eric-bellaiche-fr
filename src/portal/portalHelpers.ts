@@ -21,6 +21,7 @@ export interface PortalProgress {
   dossier_ready_for_documents: boolean;
   is_couple: boolean;
   partner_activated: boolean;
+  partner_name: string | null;
   next_step: 'DOCUMENTS' | 'RECUEIL' | 'QPI' | 'ESG' | 'TERMINE';
 }
 
