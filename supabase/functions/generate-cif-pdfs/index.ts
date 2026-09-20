@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-1.5';
+const PDF_VERSION = '2026-MAITRE-PDF-1.6';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -145,16 +145,66 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
     const questions = snapshot.questions.filter((q: Json) => q.template_id === session.template_id).sort((a: Json, b: Json) => a.ordre - b.ordre); const answers = snapshot.answers.filter((a: Json) => a.session_id === session.id); const answerByQuestion = new Map(answers.map((a: Json) => [a.question_id, a]));
     if (type === 'QPI') {
       const result = snapshot.qpiResults.find((r: Json) => r.session_id === session.id);
-      if (result) { const score = `${clean(result.score_tolerance)} / ${clean(result.score_max)}`; const level = clean(result.profil_operationnel_final ?? result.profil_indicatif); drawResultPanel(ctx, 'RÉSULTAT DU PROFIL INVESTISSEUR', score, level, `Ce résultat synthétise les réponses relatives aux connaissances, à l’expérience, à la tolérance au risque, à l’horizon d’investissement et à la capacité à supporter des pertes. Le profil retenu est ${level}.`, 'Le profil retenu encadre le niveau de risque des solutions pouvant être recommandées. La capacité de perte, l’horizon et les objectifs restent analysés séparément : un score élevé ne justifie pas à lui seul une solution plus risquée.', 'Ce score est un outil de synthèse du questionnaire. Il ne constitue ni une garantie de performance ni une autorisation automatique à prendre davantage de risque.'); drawTable(ctx, ['Indicateur', 'Résultat'], [['Score de tolérance', score], ['Profil indicatif', clean(result.profil_indicatif)], ['Profil opérationnel final', clean(result.profil_operationnel_final)], ['Niveau retenu', clean(result.niveau_tolerance_retenu)], ['Perte maximale déclarée', `${result.perte_max_declairee_montant === null || result.perte_max_declairee_montant === undefined ? 'Non renseigné' : eur(result.perte_max_declairee_montant)} / ${pct(result.perte_max_declairee_pct)}`], ['Capacité de perte retenue', `${result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? 'Non renseigné' : eur(result.capacite_perte_retenue_montant)} / ${pct(result.capacite_perte_retenue_pct)}`], ['Écart déclaré / objectif', clean(result.ecart_declared_objective)], ['Justification', clean(result.justification_ecart)]], [56, 44]); }
+      if (result) {
+        const score = `${clean(result.score_tolerance)} / ${clean(result.score_max)}`;
+        const level = clean(result.profil_operationnel_final ?? result.profil_indicatif);
+        const qByCode = new Map(questions.map((question: Json) => [question.code, question]));
+        const answerCode = (code: string) => {
+          const question = qByCode.get(code);
+          if (!question) return null;
+          const answer = answerByQuestion.get(question.id);
+          return answer?.option_id ? snapshot.optionMap.get(answer.option_id)?.code_option ?? null : null;
+        };
+        const q4Code = answerCode('Q4');
+        const q9Code = answerCode('Q9');
+        const liquidityAlerts: string[] = [];
+        if (q4Code === 'B') liquidityAlerts.push('projet ou dépense importante susceptible de mobiliser de l’épargne dans moins de 2 ans');
+        if (q9Code === 'B') liquidityAlerts.push('une baisse du patrimoine financier pourrait conduire à réduire des dépenses ou reporter certains projets');
+
+        drawResultPanel(
+          ctx,
+          'RÉSULTAT DU PROFIL INVESTISSEUR',
+          score,
+          level,
+          `Le score de ${score} mesure la tolérance au risque à partir des questions comportementales du questionnaire. Il correspond à un profil indicatif ${clean(result.profil_indicatif)}. Le profil opérationnel final est ${level} après prise en compte séparée de la capacité de perte.`,
+          'Le profil opérationnel encadre le niveau de risque des solutions pouvant être recommandées. L’horizon de placement, les besoins de liquidité, les projets à financer, les connaissances et l’expérience restent analysés séparément et peuvent conduire à sécuriser une partie de l’épargne sans modifier mécaniquement le profil de risque.',
+          'Le score de tolérance ne constitue ni une garantie de performance ni une autorisation automatique à prendre davantage de risque.'
+        );
+
+        drawTable(ctx, ['Indicateur', 'Résultat'], [
+          ['Score de tolérance au risque', score],
+          ['Profil indicatif de tolérance', clean(result.profil_indicatif)],
+          ['Profil opérationnel final', clean(result.profil_operationnel_final)],
+          ['Niveau retenu', clean(result.niveau_tolerance_retenu)],
+          ['Perte maximale déclarée', pct(result.perte_max_declairee_pct)],
+          ['Montant correspondant', result.perte_max_declairee_montant === null || result.perte_max_declairee_montant === undefined ? 'Non renseigné' : eur(result.perte_max_declairee_montant)],
+          ['Capacité de perte retenue', pct(result.capacite_perte_retenue_pct)],
+          ['Montant de capacité de perte', result.capacite_perte_retenue_montant === null || result.capacite_perte_retenue_montant === undefined ? 'Non renseigné' : eur(result.capacite_perte_retenue_montant)],
+          ['Niveau de connaissances', clean(result.niveau_connaissances ?? result.synthese_dimensions?.connaissances?.niveau)],
+          ['Écart tolérance / capacité de perte', result.ecart_declared_objective === true ? 'Oui' : result.ecart_declared_objective === false ? 'Non' : 'Non déterminé'],
+          ['Motif du plafonnement', result.ecart_declared_objective === true ? clean(result.justification_ecart) : 'Sans objet'],
+        ], [56, 44]);
+
+        if (liquidityAlerts.length) {
+          heading(ctx, 'Contraintes de liquidité / projet', 2);
+          drawText(ctx, `À prendre en compte dans le conseil : ${liquidityAlerts.join(' ; ')}. Ces éléments imposent de distinguer les sommes à conserver disponibles ou à sécuriser à court terme de celles pouvant être investies sur un horizon plus long.`, { size: 8.8, color: NAVY, after: 8 });
+        }
+      }
     } else {
       const pref = snapshot.esgPreferences.find((r: Json) => r.session_id === session.id); const esgScore = Math.max(0, Math.min(100, answers.reduce((sum: number, a: Json) => sum + num(a.points_awarded), 0))); const level = esgLevel(esgScore); const taxo = pref?.taxonomie_choix === 'oui' ? `Taxonomie européenne : minimum ${pct(pref.taxonomie_min_pct)}` : 'Taxonomie européenne : non retenue'; const sfdr = pref?.sfdr_choix === 'oui' ? `Investissements durables : minimum ${pct(pref.sfdr_min_pct)}` : 'Investissements durables : non retenus'; const exclusions = Array.isArray(pref?.exclusions_sectorielles) && pref.exclusions_sectorielles.length ? `Exclusions : ${readable(pref.exclusions_sectorielles)}` : 'Aucune exclusion sectorielle détaillée'; drawResultPanel(ctx, 'PROFIL DE DURABILITÉ', `${esgScore} / 100`, level, `Sensibilité à la durabilité ${level.toLowerCase()}. ${taxo}. ${sfdr}. ${exclusions}.`, 'Ces préférences doivent être confrontées aux caractéristiques de durabilité des solutions proposées. Elles peuvent réduire l’univers de produits compatibles. Tout écart entre les préférences exprimées et une solution envisagée doit être identifié et traité dans le processus d’adéquation avant recommandation.', 'Le score ESG est un indicateur interne du cabinet destiné à synthétiser l’intensité des préférences exprimées. Ce n’est ni une note de performance financière, ni une note de risque, ni un score réglementaire officiel.');
       if (pref) drawTable(ctx, ['Thème', 'Préférence'], [['Périmètre', readable(pref.perimetre)], ['Taxonomie - choix', readable(pref.taxonomie_choix)], ['Taxonomie - minimum', pct(pref.taxonomie_min_pct)], ['Objectifs environnementaux', readable(pref.taxonomie_objectifs)], ['Investissements durables - choix', readable(pref.sfdr_choix)], ['Investissements durables - minimum', pct(pref.sfdr_min_pct)], ['Thématiques durables', readable(pref.sfdr_thematiques)], ['PAI - choix', readable(pref.pai_choix)], ['Priorités PAI', readable(pref.pai_priorites)], ['Exclusions sectorielles', readable(pref.exclusions_sectorielles)], ['Conséquences acceptées', readable(pref.limitations_sectorielles)], ['Besoins spécifiques', clean(pref.besoins_specifiques, 'Aucune précision complémentaire')], ['Synthèse', clean(pref.synthese_reglementaire)]], [44, 56]);
     }
     const q8 = questions.find((q: Json) => q.ordre === 8); const q8a = q8 ? answerByQuestion.get(q8.id) : null; const q8code = q8a?.option_id ? snapshot.optionMap.get(q8a.option_id)?.code_option : null;
     ensure(ctx, 165); heading(ctx, 'Détail réglementaire du questionnaire', 2);
+    if (type === 'QPI') {
+      const unansweredOptional = questions.filter((q: Json) => q.obligatoire === false && !(answerByQuestion.get(q.id)?.id));
+      if (unansweredOptional.length) {
+        drawText(ctx, `Les questions non renseignées suivantes sont facultatives dans le questionnaire actuel : ${unansweredOptional.map((q: Json) => q.code ?? `Q${q.ordre}`).join(', ')}. Leur absence de réponse n’empêche pas la finalisation du profil, mais l’information reste non documentée.`, { size: 8.2, color: rgb(0.32, 0.38, 0.46), after: 8 });
+      }
+    }
     drawTable(ctx, ['N', 'Question', 'Réponse', 'Points'], questions.map((q: Json) => { const a = answerByQuestion.get(q.id) ?? {}; let response = answerValue(a, snapshot.optionMap); let points = a.points_awarded === null || a.points_awarded === undefined ? '-' : clean(a.points_awarded); if (type === 'ESG' && !a.id) { if ([9, 10].includes(q.ordre) && q8code === 'NON') { response = 'Non applicable compte tenu de la réponse précédente'; points = '-'; } else if (q.ordre === 13) { response = 'Aucune précision complémentaire'; points = '-'; } } return [String(q.ordre), clean(q.libelle), response, points]; }), [7, 52, 31, 10]);
   }
-  ensure(ctx, 155); heading(ctx, 'Validation et signatures'); drawText(ctx, type === 'QPI' ? 'En signant, les clients confirment avoir pris connaissance des réponses reproduites, du résultat du profil et des éventuelles limites de capacité de perte.' : 'En signant, les clients confirment que les préférences de durabilité reproduites correspondent à leurs réponses à la date du questionnaire.', { size: 8.6, after: 12 }); const signers = type === 'ESG' ? investors.filter((inv: Json) => sessions.some((s: Json) => s.investisseur_id === inv.id)) : investors; signatureBoxes(ctx, signers); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
+  ensure(ctx, 155); heading(ctx, 'Validation et signatures'); const signers = type === 'ESG' ? investors.filter((inv: Json) => sessions.some((s: Json) => s.investisseur_id === inv.id)) : investors; const singular = signers.length === 1; drawText(ctx, type === 'QPI' ? (singular ? 'En signant, le client confirme avoir pris connaissance des réponses reproduites, du résultat du profil, de sa capacité de perte et des éventuelles contraintes de liquidité ou de projet identifiées.' : 'En signant, les clients confirment avoir pris connaissance des réponses reproduites, du résultat de leur profil, de leur capacité de perte et des éventuelles contraintes de liquidité ou de projet identifiées.') : (singular ? 'En signant, le client confirme que les préférences de durabilité reproduites correspondent à ses réponses à la date du questionnaire.' : 'En signant, les clients confirment que les préférences de durabilité reproduites correspondent à leurs réponses à la date du questionnaire.'), { size: 8.6, after: 12 }); signatureBoxes(ctx, signers); footer(ctx); return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 
 async function loadSnapshot(client: any, dossierId: string) {
