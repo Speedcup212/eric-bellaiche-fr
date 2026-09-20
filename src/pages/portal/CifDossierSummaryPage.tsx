@@ -442,13 +442,13 @@ export default function CifDossierSummaryPage() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{householdConfirmations.map((item) => <div key={item.section_code} className={`rounded-2xl border p-4 ${item.status==='change_requested'?'border-amber-300 bg-amber-50':'border-emerald-200 bg-emerald-50'}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold text-slate-950">{sectionLabel[item.section_code] ?? item.section_code}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status==='change_requested'?'bg-amber-200 text-amber-900':'bg-emerald-200 text-emerald-900'}`}>{item.status==='change_requested'?'À arbitrer':'Confirmé'}</span></div>{item.note&&<p className="mt-3 text-sm leading-5 text-slate-700">{item.note}</p>}<p className="mt-3 text-[11px] text-slate-400">Mis à jour le {new Date(item.updated_at).toLocaleString('fr-FR')}</p></div>)}</div>
     </section>}
 
-    {activeTab === 'documents' && <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
+    {activeTab === 'documents' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
       <div className="flex items-start gap-3">
         <div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Documents du dossier</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">Collecte client et chaîne réglementaire</h2>
-          <p className="mt-1 text-sm text-slate-500">Sélectionne d’abord la personne, puis travaille uniquement sur son parcours et ses justificatifs.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-300">Documents du dossier</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">Collecte client et chaîne réglementaire</h2>
+          <p className="mt-1 text-sm text-slate-300">Sélectionne d’abord la personne, puis travaille uniquement sur son parcours et ses justificatifs.</p>
         </div>
       </div>
 
@@ -470,13 +470,13 @@ export default function CifDossierSummaryPage() {
               type="button"
               aria-pressed={isSelected}
               onClick={() => { setSelectedDocumentInvestorId(investor.investisseur_id); setDocumentReviewOnly(false); }}
-              className={`group rounded-2xl border px-4 py-4 text-left transition ${isSelected ? 'border-blue-500 bg-blue-50 shadow-[0_8px_24px_rgba(37,99,235,0.12)] ring-2 ring-blue-100' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'}`}
+              className={`group rounded-2xl border px-4 py-4 text-left transition ${isSelected ? 'border-blue-400 bg-[#12345B] shadow-[0_8px_24px_rgba(37,99,235,0.18)] ring-2 ring-blue-900/40' : 'border-[#25405F] bg-[#0F223A] hover:border-blue-400 hover:bg-[#12304F]'}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${isSelected ? 'text-blue-700' : 'text-slate-500'}`}>{identifierLabel}</p>
-                  <p className="mt-1 break-words text-base font-bold text-slate-950">{name}</p>
-                  <p className="mt-1 text-[11px] text-slate-500">{investorDocs.length} pièce{investorDocs.length > 1 ? 's' : ''}{reviewCount ? ` · ${reviewCount} à contrôler` : ''}</p>
+                  <p className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>{identifierLabel}</p>
+                  <p className="mt-1 break-words text-base font-bold text-white">{name}</p>
+                  <p className="mt-1 text-[11px] text-slate-300">{investorDocs.length} pièce{investorDocs.length > 1 ? 's' : ''}{reviewCount ? ` · ${reviewCount} à contrôler` : ''}</p>
                 </div>
                 <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${individualDone ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : 'border-amber-200 bg-amber-100 text-amber-800'}`}>{individualDone ? 'Parcours terminé' : `En cours · ${state.recueilPercentage} %`}</span>
               </div>
@@ -510,12 +510,12 @@ export default function CifDossierSummaryPage() {
                   const recueilInProgress = type === 'recueil' && state.recueilPdfAvailable && !state.recueil;
                   const document = generatedDocuments.find((item) => item.investisseur_id === investor.investisseur_id && item.type === type && item.signed_url);
                   const theme = type === 'recueil'
-                    ? { row:'border-blue-200 bg-[#EAF3FF]', title:'text-blue-950', badge:'bg-blue-700 text-white', button:'bg-blue-700 hover:bg-blue-800' }
+                    ? { row:'border-blue-500/40 bg-[#102A4C]', title:'text-blue-100', badge:'bg-blue-500 text-white', button:'bg-blue-600 hover:bg-blue-500' }
                     : type === 'qpi'
-                      ? { row:'border-indigo-200 bg-[#EEF0FF]', title:'text-indigo-950', badge:'bg-indigo-700 text-white', button:'bg-indigo-700 hover:bg-indigo-800' }
-                      : { row:'border-teal-200 bg-[#ECFDF5]', title:'text-teal-950', badge:'bg-teal-700 text-white', button:'bg-teal-700 hover:bg-teal-800' };
-                  const rowClass = notApplicable ? 'border-teal-200 bg-[#ECFDF5]' : completed ? theme.row : recueilInProgress ? 'border-amber-200 bg-[#FFF8E6]' : 'border-rose-200 bg-[#FFF1F2]';
-                  const badgeClass = notApplicable ? 'border border-teal-200 bg-teal-100 text-teal-800' : completed ? theme.badge : recueilInProgress ? 'border border-amber-200 bg-amber-100 text-amber-900' : 'border border-rose-200 bg-rose-100 text-rose-800';
+                      ? { row:'border-indigo-500/40 bg-[#24274F]', title:'text-indigo-100', badge:'bg-indigo-500 text-white', button:'bg-indigo-600 hover:bg-indigo-500' }
+                      : { row:'border-teal-500/40 bg-[#103A35]', title:'text-teal-100', badge:'bg-teal-500 text-white', button:'bg-teal-600 hover:bg-teal-500' };
+                  const rowClass = notApplicable ? 'border-teal-500/40 bg-[#103A35]' : completed ? theme.row : recueilInProgress ? 'border-amber-500/40 bg-[#3A2A0A]' : 'border-rose-500/40 bg-[#3B1622]';
+                  const badgeClass = notApplicable ? 'border border-teal-400/40 bg-teal-400/15 text-teal-100' : completed ? theme.badge : recueilInProgress ? 'border border-amber-400/40 bg-amber-400/15 text-amber-100' : 'border border-rose-400/40 bg-rose-400/15 text-rose-100';
                   const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
                   const title = type === 'recueil' ? 'Recueil d’informations' : type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
                   const subtitle = type === 'recueil' ? 'Données déclarées par le client' : type === 'qpi' ? 'Questionnaire de profil de risque' : 'Préférences ESG';
@@ -525,14 +525,14 @@ export default function CifDossierSummaryPage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className={`text-sm font-bold leading-5 ${theme.title}`}>{title}</p>
-                        <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{subtitle}</p>
+                        <p className="mt-0.5 text-[11px] leading-4 text-slate-300">{subtitle}</p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase leading-none ${badgeClass}`}>{status}</span>
                     </div>
-                    {notApplicable && <p className="mt-2 text-[11px] text-teal-700">Aucune préférence de durabilité exprimée.</p>}
+                    {notApplicable && <p className="mt-2 text-[11px] text-teal-200">Aucune préférence de durabilité exprimée.</p>}
                     {(completed || showRecueilActions) && <div className="mt-3 flex flex-wrap gap-2">
-                      {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white transition ${completed ? theme.button : 'bg-slate-800 hover:bg-slate-900'}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
-                      {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-slate-50">Voir les réponses</button>}
+                      {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white transition ${completed ? theme.button : 'bg-slate-800 hover:bg-slate-900'}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
+                      {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-[#315173] bg-[#10243E] px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]">Voir les réponses</button>}
                     </div>}
                     {generationError && !document?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-700">{generationError}</p>}
                   </div>;
@@ -543,34 +543,34 @@ export default function CifDossierSummaryPage() {
             <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-4 shadow-[0_14px_34px_rgba(2,10,25,0.18)] sm:p-5">
               <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-300">Documents réglementaires</p>
               <div className="mt-4 space-y-2">
-                <div className="rounded-xl border border-[#315173] bg-white px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">DER</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className="rounded-xl border border-[#315173] bg-[#10243E] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">DER</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
                 </div>
-                <div className="rounded-xl border border-[#315173] bg-white px-4 py-3">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">Lettre de mission</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
+                <div className="rounded-xl border border-[#315173] bg-[#10243E] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Lettre de mission</p><span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase text-amber-800">À générer</span></div>
                 </div>
-                <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-200 bg-[#EAF3FF] px-4 py-3 transition hover:bg-blue-100">
-                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-950">Déclaration d’adéquation</p><span className="rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-700">Ouvrir</span></div>
+                <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-500/40 bg-[#12345B] px-4 py-3 transition hover:bg-[#173E69]">
+                  <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Déclaration d’adéquation</p><span className="rounded-full border border-blue-400/40 bg-blue-400/15 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-100">Ouvrir</span></div>
                 </Link>
               </div>
               <p className="mt-3 text-[11px] leading-5 text-slate-300">DER et lettre de mission avant recommandation. Adéquation après validation de la stratégie et des supports.</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white">
-            <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
+            <div className="flex flex-col gap-3 border-b border-[#25405F] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Justificatifs du client</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedSourceDocuments.length} pièce{selectedSourceDocuments.length > 1 ? 's' : ''} · {analysed} intégrée{analysed > 1 ? 's' : ''}{review ? ` · ${review} à contrôler` : ''}</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-300">Justificatifs du client</p>
+                <p className="mt-1 text-sm font-semibold text-white">{selectedSourceDocuments.length} pièce{selectedSourceDocuments.length > 1 ? 's' : ''} · {analysed} intégrée{analysed > 1 ? 's' : ''}{review ? ` · ${review} à contrôler` : ''}</p>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setDocumentReviewOnly(false)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${!documentReviewOnly ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Toutes · {selectedSourceDocuments.length}</button>
+                <button type="button" onClick={() => setDocumentReviewOnly(false)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${!documentReviewOnly ? 'bg-slate-900 text-white' : 'border border-[#315173] bg-[#10243E] text-blue-100 hover:bg-[#17365E]'}`}>Toutes · {selectedSourceDocuments.length}</button>
                 <button type="button" onClick={() => setDocumentReviewOnly(true)} disabled={review === 0} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${documentReviewOnly ? 'bg-amber-600 text-white' : 'border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'}`}>À contrôler · {review}</button>
               </div>
             </div>
 
             {displayedSourceDocuments.length > 0 ? <div className="divide-y divide-slate-100">
-              <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] gap-4 bg-slate-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 md:grid">
+              <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] gap-4 bg-[#10243E] px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300 md:grid">
                 <span>Document</span><span>Catégorie</span><span>État</span><span className="text-right">Action</span>
               </div>
               {displayedSourceDocuments.map((doc) => {
@@ -579,22 +579,22 @@ export default function CifDossierSummaryPage() {
                 const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0);
                 const conflicts = Number(doc.metadata?.conflicts_detected ?? 0);
                 const analysisError = typeof doc.metadata?.analysis_error === 'string' ? doc.metadata.analysis_error : '';
-                return <div key={doc.id} className="grid gap-3 px-4 py-3.5 hover:bg-slate-50/70 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
+                return <div key={doc.id} className="grid gap-3 px-4 py-3.5 hover:bg-[#10243E]/80 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
                   <div className="min-w-0">
-                    <p className="break-words text-xs font-bold text-slate-900">{doc.nom_fichier}</p>
+                    <p className="break-words text-xs font-bold text-white">{doc.nom_fichier}</p>
                     <p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleDateString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''}` : ''}</p>
                     {analysisError && <p className="mt-1 text-[10px] font-medium text-amber-700">{analysisError}</p>}
                   </div>
-                  <div><span className="text-[11px] font-semibold text-slate-700">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
+                  <div><span className="text-[11px] font-semibold text-slate-200">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
                   <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
                   <div className="flex flex-wrap gap-2 md:justify-end">
-                    {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
+                    {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
                     {['uploaded','to_review'].includes(doc.statut_analyse) && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser</button>}
                   </div>
                 </div>;
               })}
             </div> : <div className="px-5 py-10 text-center">
-              <p className="text-sm font-semibold text-slate-700">{documentReviewOnly ? 'Aucune pièce à contrôler.' : 'Aucun justificatif reçu pour ce client.'}</p>
+              <p className="text-sm font-semibold text-slate-200">{documentReviewOnly ? 'Aucune pièce à contrôler.' : 'Aucun justificatif reçu pour ce client.'}</p>
               <p className="mt-1 text-xs text-slate-400">{documentReviewOnly ? 'Toutes les pièces actuellement reçues sont traitées.' : 'Les pièces apparaîtront ici dès leur réception.'}</p>
             </div>}
           </div>
