@@ -6,7 +6,7 @@ const auditUi = fs.readFileSync('src/pages/portal/CifAuditPage.tsx', 'utf8');
 const app = fs.readFileSync('src/App.tsx', 'utf8');
 
 const checks = [
-  ['client audit version bumped', fn.includes("AUDIT-CLIENT-2026-08-31-1")],
+  ['client audit version bumped', fn.includes("AUDIT-CLIENT-2026-09-20-2")],
   ['validated recommendation required', fn.includes("eq('statut','validated')") && fn.includes('recommandation conseiller doit être validée')],
   ['audit prepared for manual signature', fn.includes("signature_required:true") && fn.includes("signature_mode:'manual_youtrust'")],
   ['signature blocks rendered', fn.includes("h(c,'Signatures')") && fn.includes("{name:'Eric Bellaiche',role:'Conseiller'}")],
