@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Mail, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { verifyCabinetCode } from '../../portal/cabinetAccess';
 
 interface Props {
   onAuthenticated: () => void;
@@ -19,7 +18,6 @@ function friendlyError(message: string) {
 export default function CifCabinetLogin({ onAuthenticated }: Props) {
   const [email] = useState(CABINET_EMAIL);
   const [password, setPassword] = useState('');
-  const [accessCode, setAccessCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -30,12 +28,6 @@ export default function CifCabinetLogin({ onAuthenticated }: Props) {
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
-      try {
-        await verifyCabinetCode(accessCode);
-      } catch (codeError) {
-        await supabase.auth.signOut();
-        throw codeError;
-      }
       onAuthenticated();
     } catch (e) {
       setError(friendlyError(e instanceof Error ? e.message : 'Connexion impossible.'));
@@ -55,7 +47,7 @@ export default function CifCabinetLogin({ onAuthenticated }: Props) {
         },
       });
       if (otpError) throw otpError;
-      setMessage('Lien sécurisé envoyé à ton adresse Gmail. Après ouverture du lien, ton code personnel sera demandé.');
+      setMessage('Lien sécurisé envoyé à ton adresse Gmail. Ouvre uniquement le dernier email reçu puis clique une seule fois sur le lien.');
     } catch (e) {
       setError(friendlyError(e instanceof Error ? e.message : 'Envoi impossible.'));
     } finally {
@@ -73,19 +65,7 @@ export default function CifCabinetLogin({ onAuthenticated }: Props) {
       <form onSubmit={signIn} className="mt-7 space-y-4">
         <input type="email" readOnly value={email} className="w-full rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] px-4 py-3.5 text-[#52627A] outline-none" />
         <input type="password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" autoComplete="current-password" className="w-full rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] px-4 py-3.5 outline-none transition focus:border-[#3B82F6]" />
-        <input
-          type="password"
-          inputMode="numeric"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          required
-          value={accessCode}
-          onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="Code personnel à 6 chiffres"
-          autoComplete="one-time-code"
-          className="w-full rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] px-4 py-3.5 text-center tracking-[.25em] outline-none transition focus:border-[#3B82F6]"
-        />
-        <button disabled={busy || accessCode.length !== 6} className="w-full rounded-2xl bg-[#0F172A] px-5 py-3.5 font-semibold text-white shadow-lg shadow-slate-900/10 disabled:opacity-50">{busy ? 'Connexion…' : 'Ouvrir mon cockpit'}</button>
+        <button disabled={busy} className="w-full rounded-2xl bg-[#0F172A] px-5 py-3.5 font-semibold text-white shadow-lg shadow-slate-900/10 disabled:opacity-50">{busy ? 'Connexion…' : 'Ouvrir mon cockpit'}</button>
       </form>
 
       <div className="my-5 flex items-center gap-3"><span className="h-px flex-1 bg-[#E4EDF8]" /><span className="text-[11px] font-semibold uppercase tracking-[.15em] text-[#8291A6]">ou</span><span className="h-px flex-1 bg-[#E4EDF8]" /></div>
