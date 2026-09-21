@@ -21,12 +21,52 @@ type QpiControlRow = { id:string; session_id:string; control_code:string; alerte
 type QpiResultSummaryRow = { session_id:string; synthese_dimensions:Record<string,unknown> & { liquidite?: Record<string,unknown> } };
 type SourceDocumentRow = { id:string; investisseur_id:string|null; categorie:string; nom_fichier:string; storage_bucket:string|null; storage_path:string|null; statut_analyse:string; portee_document?:'auto'|'investisseur'|'foyer'; concerne_investisseur_ids?:string[]; metadata:Record<string,unknown>|null; created_at:string };
 type RecueilCompletenessRow = { dossier_id:string; investisseur_id:string; percentage:number; complete:boolean; details:{ sections?:Array<{section_code:string;complete:boolean;missing_fields:string[];source:string}>; validated_with_current_gaps?:boolean } };
-type WorkspaceTab = 'synthese' | 'clients' | 'patrimoine' | 'fiscalite' | 'documents' | 'conformite';
+
+type AuditAllocationItem = { poche:string; montant:string; decision:string };
+type AuditSupportItem = { support:string; analyse:string; decision:string };
+type AuditSequenceItem = { ordre:string; action:string; echeance:string };
+type AuditFiscalItem = { sujet:string; analyse:string };
+type AuditControlItem = { scenario:string; impact:string; reponse:string };
+type AuditRecommendationRow = {
+  id:string;
+  dossier_id:string;
+  statut:'draft'|'validated';
+  diagnostic:string|null;
+  projet_a_preserver:string|null;
+  reserve_securite:number|null;
+  epargne_a_arbitrer:number|null;
+  allocation:unknown;
+  supports:unknown;
+  sequencing:unknown;
+  fiscal_notes:unknown;
+  protection_notes:string|null;
+  controls:unknown;
+  validated_at:string|null;
+  created_at:string;
+  updated_at:string;
+};
+type AuditDraft = {
+  statut:'draft'|'validated';
+  diagnostic:string;
+  projet_a_preserver:string;
+  reserve_securite:string;
+  epargne_a_arbitrer:string;
+  allocation:AuditAllocationItem[];
+  supports:AuditSupportItem[];
+  sequencing:AuditSequenceItem[];
+  fiscal_notes:AuditFiscalItem[];
+  protection_notes:string;
+  controls:AuditControlItem[];
+  validated_at:string|null;
+};
+
+type WorkspaceTab = 'synthese' | 'clients' | 'patrimoine' | 'fiscalite' | 'audit' | 'documents' | 'conformite';
 const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: 'synthese', label: 'Synthèse' },
   { id: 'clients', label: 'Clients' },
   { id: 'patrimoine', label: 'Patrimoine' },
   { id: 'fiscalite', label: 'Fiscalité' },
+  { id: 'audit', label: 'Audit' },
   { id: 'documents', label: 'Documents' },
   { id: 'conformite', label: 'Conformité' },
 ];
@@ -127,6 +167,58 @@ function numberValue(value: unknown): number | null {
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
 }
+function auditArray<T extends Record<string,string>>(value: unknown, fields: Array<keyof T>): T[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => {
+      const source = item as Record<string,unknown>;
+      return Object.fromEntries(fields.map((field) => [field, String(source[String(field)] ?? '')])) as T;
+    });
+}
+function auditSupports(value: unknown): AuditSupportItem[] {
+  if (Array.isArray(value)) return auditArray<AuditSupportItem>(value, ['support','analyse','decision']);
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string,unknown>;
+    if (Array.isArray(obj.items)) return auditArray<AuditSupportItem>(obj.items, ['support','analyse','decision']);
+    return Object.entries(obj)
+      .filter(([,v]) => typeof v === 'string' && String(v).trim())
+      .map(([support, analyse]) => ({ support: humanize(support), analyse: String(analyse), decision: '' }));
+  }
+  return [];
+}
+function auditFiscalNotes(value: unknown): AuditFiscalItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item, index) => {
+    if (typeof item === 'string') return { sujet: `Point fiscal ${index + 1}`, analyse: item };
+    if (item && typeof item === 'object') {
+      const row = item as Record<string,unknown>;
+      return { sujet: String(row.sujet ?? row.title ?? ''), analyse: String(row.analyse ?? row.note ?? '') };
+    }
+    return { sujet:'', analyse:'' };
+  });
+}
+function auditDraftFromRow(row: AuditRecommendationRow | null): AuditDraft {
+  return {
+    statut: row?.statut ?? 'draft',
+    diagnostic: row?.diagnostic ?? '',
+    projet_a_preserver: row?.projet_a_preserver ?? '',
+    reserve_securite: row?.reserve_securite === null || row?.reserve_securite === undefined ? '' : String(row.reserve_securite),
+    epargne_a_arbitrer: row?.epargne_a_arbitrer === null || row?.epargne_a_arbitrer === undefined ? '' : String(row.epargne_a_arbitrer),
+    allocation: auditArray<AuditAllocationItem>(row?.allocation, ['poche','montant','decision']),
+    supports: auditSupports(row?.supports),
+    sequencing: auditArray<AuditSequenceItem>(row?.sequencing, ['ordre','action','echeance']),
+    fiscal_notes: auditFiscalNotes(row?.fiscal_notes),
+    protection_notes: row?.protection_notes ?? '',
+    controls: auditArray<AuditControlItem>(row?.controls, ['scenario','impact','reponse']),
+    validated_at: row?.validated_at ?? null,
+  };
+}
+function auditNumber(value: string): number | null {
+  const parsed = numberValue(value);
+  return parsed === null ? null : parsed;
+}
+
 function flattenNumbers(value: unknown, prefix = '', out: Array<{ key: string; value: number }> = []) {
   if (Array.isArray(value)) { value.forEach((item, index) => flattenNumbers(item, `${prefix}[${index}]`, out)); return out; }
   if (value && typeof value === 'object') { Object.entries(value as Record<string, unknown>).forEach(([key, child]) => flattenNumbers(child, prefix ? `${prefix}.${key}` : key, out)); return out; }
