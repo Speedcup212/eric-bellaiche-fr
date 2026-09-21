@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.16-ORIGINAUX';
+const PDF_VERSION = '2026-MAITRE-PDF-2.17-ERGONOMIE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -573,20 +573,177 @@ function primaryClientCity(snapshot: Json) {
   const identity = extractByCode(snapshot.sections, primary.id).identity ?? {};
   return clean(identity?.address?.ville, '____________________');
 }
-function originalHeadingText(value: string) {
+function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type: 'der' | 'mission') {
   const t = clean(value).trim();
-  return t.length <= 90 && (
-    t === t.toUpperCase() ||
-    /^\d+(?:\.\d+)*[. ]/.test(t) ||
-    ['Statuts légaux et autorités de tutelle :','Votre Contact','Responsabilité civile professionnelle','Garanties financières','Politique en matière de durabilité','Rémunération IOBSP','Mise à jour des informations','Lieu, date et signature','Caractéristiques de la Prestation','Contexte de la Prestation'].includes(t)
-  );
+  const normalized = t.toUpperCase();
+  if (!t) return 0;
+
+  if (type === 'mission') {
+    if (/^\d{1,2}\.\s/.test(t) || /^ANNEXE\b/.test(normalized) || /^ENTRE LES SOUSSIGN/.test(normalized)) return 1;
+    if (/^\d{1,2}\.\d+\.\s/.test(t) || /^\d{1,2}\.\d+\s/.test(t)) return 2;
+    if (/^\d{1,2}\.\d+\.\d+/.test(t)) return 3;
+    if (['PRÉAMBULE', 'CONTEXTE DE LA PRESTATION', 'CARACTÉRISTIQUES DE LA PRESTATION'].includes(normalized)) return 2;
+  } else {
+    if (
+      normalized === 'INTRODUCTION' ||
+      normalized.startsWith('SECTEUR ') ||
+      normalized === 'ASSISTANCE PATRIMONIALE ET FISCALE' ||
+      normalized === 'RÉMUNÉRATION' ||
+      normalized.startsWith('RÉCLAMATIONS') ||
+      normalized === 'RGPD' ||
+      normalized.startsWith('MOYENS DE COMMUNICATION')
+    ) return 1;
+
+    if (
+      normalized === 'CONSEILLER EN INVESTISSEMENTS FINANCIERS' ||
+      normalized.startsWith('INTERMÉDIAIRE EN ASSURANCE') ||
+      normalized.startsWith('INTERMÉDIAIRE EN OPÉRATIONS') ||
+      normalized.startsWith('TRANSACTION IMMOBILIERE') ||
+      normalized === 'RESPONSABILITÉ CIVILE PROFESSIONNELLE' ||
+      normalized === 'GARANTIES FINANCIÈRES' ||
+      normalized === 'PARTENAIRES' ||
+      normalized === 'POLITIQUE EN MATIÈRE DE DURABILITÉ' ||
+      normalized === 'RÉMUNÉRATION IOBSP' ||
+      normalized.startsWith("QU'EST-CE QU'UN CONSEIL") ||
+      normalized === 'COMMISSIONNEMENT :' ||
+      normalized === "MODALITÉS DE SAISINE DE L'ENTREPRISE" ||
+      normalized.startsWith('TRAITEMENT DES RÉCLAMATIONS') ||
+      normalized === 'MISE À JOUR DES INFORMATIONS' ||
+      normalized === 'VOTRE CONTACT'
+    ) return 2;
+
+    if (/^\d+\.\s/.test(t) || /^HONORAIRES\b/.test(normalized) || /^COMMISSION\b/.test(normalized)) return 3;
+  }
+
+  if (block.k === 'h' && t.length <= 74 && !/:\s+\S{3,}/.test(t) && !/\d{4,}/.test(t)) return 2;
+  return 0;
 }
-function renderOriginalTable(ctx: PdfContext, rows: string[][]) {
+function drawRegulatoryHeading(ctx: PdfContext, value: string, level: number) {
+  const size = level === 1 ? 13.2 : level === 2 ? 10.8 : 9.8;
+  const before = level === 1 ? 14 : level === 2 ? 9 : 6;
+  const after = level === 1 ? 7 : level === 2 ? 5 : 3;
+  const color = level === 1 ? BLUE : NAVY;
+  ensure(ctx, before + size * 1.4 + after);
+  ctx.y -= before;
+  drawText(ctx, value, { bold: true, size, lineHeight: size * 1.25, color, after });
+}
+function drawClientCards(ctx: PdfContext, clients: Array<{ heading: string; details: string[] }>) {
+  const width = A4.width - 2 * MARGIN;
+  const gap = 7;
+  for (const client of clients) {
+    const detailText = client.details.join(' - ');
+    const detailLines = detailText ? wrap(ctx.regular, clean(detailText), 8.8, width - 22) : [];
+    const height = Math.max(48, 31 + detailLines.length * 11);
+    ensure(ctx, height + gap);
+    ctx.page.drawRectangle({
+      x: MARGIN,
+      y: ctx.y - height,
+      width,
+      height,
+      borderWidth: 0.8,
+      borderColor: BORDER,
+      color: LIGHT_BLUE,
+    });
+    ctx.page.drawText(clean(client.heading), { x: MARGIN + 10, y: ctx.y - 17, size: 10.2, font: ctx.bold, color: NAVY });
+    let ty = ctx.y - 32;
+    for (const line of detailLines) {
+      ctx.page.drawText(line, { x: MARGIN + 10, y: ty, size: 8.8, font: ctx.regular, color: NAVY });
+      ty -= 11;
+    }
+    ctx.y -= height + gap;
+  }
+}
+function drawRegulatoryTable(ctx: PdfContext, rows: string[][]) {
   if (!rows.length) return;
   const normalized = rows.map((row) => row.map((value) => clean(value)));
   const headers = normalized[0];
   const body = normalized.slice(1);
-  drawTable(ctx, headers, body);
+  const available = A4.width - 2 * MARGIN;
+  const colCount = Math.max(...normalized.map((row) => row.length), 1);
+  const colWidths = Array.from({ length: colCount }, () => available / colCount);
+  const padding = 5.5;
+  const fontSize = colCount >= 4 ? 7.25 : 7.75;
+  const lineHeight = fontSize * 1.3;
+
+  const measure = (values: string[], bold: boolean) => {
+    const font = bold ? ctx.bold : ctx.regular;
+    const wrapped = Array.from({ length: colCount }, (_, i) => wrap(font, clean(values[i] ?? ''), fontSize, colWidths[i] - padding * 2));
+    return { wrapped, height: Math.max(22, Math.max(...wrapped.map((lines) => lines.length), 1) * lineHeight + padding * 2) };
+  };
+  const drawRow = (values: string[], isHeader: boolean) => {
+    const measured = measure(values, isHeader);
+    const font = isHeader ? ctx.bold : ctx.regular;
+    let x = MARGIN;
+    for (let i = 0; i < colCount; i++) {
+      ctx.page.drawRectangle({
+        x,
+        y: ctx.y - measured.height,
+        width: colWidths[i],
+        height: measured.height,
+        borderWidth: 0.65,
+        borderColor: BORDER,
+        color: isHeader ? NAVY : WHITE,
+      });
+      let ty = ctx.y - padding - fontSize;
+      for (const line of measured.wrapped[i]) {
+        ctx.page.drawText(line, { x: x + padding, y: ty, size: fontSize, font, color: isHeader ? WHITE : NAVY });
+        ty -= lineHeight;
+      }
+      x += colWidths[i];
+    }
+    ctx.y -= measured.height;
+  };
+
+  const headerHeight = measure(headers, true).height;
+  const firstHeight = body.length ? measure(body[0], false).height : 0;
+  ensure(ctx, headerHeight + firstHeight + 12);
+  drawRow(headers, true);
+  for (let i = 0; i < body.length; i++) {
+    const rowHeight = measure(body[i], false).height;
+    if (ctx.y - rowHeight < 54) {
+      addPage(ctx);
+      drawRow(headers, true);
+    }
+    drawRow(body[i], false);
+  }
+  ctx.y -= 12;
+}
+function drawSignaturePanel(ctx: PdfContext, snapshot: Json, type: 'der' | 'mission') {
+  const city = primaryClientCity(snapshot);
+  const clients = originalClientLines(snapshot);
+  const titleText = type === 'der' ? 'Lieu, date et signature' : 'Signatures';
+  const panelHeight = Math.max(178, 118 + Math.max(0, clients.length - 1) * 24);
+  if (ctx.y - panelHeight - 48 < 52) addPage(ctx);
+  drawRegulatoryHeading(ctx, titleText, 1);
+
+  const gap = 12;
+  const totalWidth = A4.width - 2 * MARGIN;
+  const colWidth = (totalWidth - gap) / 2;
+  const top = ctx.y;
+  const clientX = MARGIN;
+  const adviserX = MARGIN + colWidth + gap;
+
+  for (const [x, headingText] of [[clientX, 'Le(s) Client(s)'], [adviserX, 'Le Conseiller']] as Array<[number,string]>) {
+    ctx.page.drawRectangle({ x, y: top - panelHeight, width: colWidth, height: panelHeight, borderWidth: 1, borderColor: BORDER, color: WHITE });
+    ctx.page.drawRectangle({ x, y: top - 31, width: colWidth, height: 31, borderWidth: 0, color: LIGHT_BLUE });
+    ctx.page.drawText(headingText, { x: x + 10, y: top - 20, size: 10, font: ctx.bold, color: NAVY });
+  }
+
+  let clientY = top - 50;
+  for (const client of clients) {
+    ctx.page.drawText(clean(client.heading), { x: clientX + 10, y: clientY, size: 9.3, font: ctx.bold, color: NAVY });
+    clientY -= 15;
+  }
+  ctx.page.drawText(clean(`Lieu : ${city}`), { x: clientX + 10, y: top - 92, size: 8.5, font: ctx.regular, color: NAVY });
+  ctx.page.drawText('Date :', { x: clientX + 10, y: top - 110, size: 8.5, font: ctx.regular, color: NAVY });
+  ctx.page.drawText('Zone de signature Youtrust', { x: clientX + 10, y: top - panelHeight + 30, size: 8.2, font: ctx.bold, color: BLUE });
+
+  ctx.page.drawText('Eric Bellaiche', { x: adviserX + 10, y: top - 50, size: 9.3, font: ctx.bold, color: NAVY });
+  ctx.page.drawText('Lieu : Allevard', { x: adviserX + 10, y: top - 92, size: 8.5, font: ctx.regular, color: NAVY });
+  ctx.page.drawText('Date :', { x: adviserX + 10, y: top - 110, size: 8.5, font: ctx.regular, color: NAVY });
+  ctx.page.drawText('Zone de signature Youtrust', { x: adviserX + 10, y: top - panelHeight + 30, size: 8.2, font: ctx.bold, color: GREEN });
+
+  ctx.y -= panelHeight + 8;
 }
 function replaceSignatureProvider(value: string, type: 'der' | 'mission') {
   if (type !== 'mission') return value;
@@ -596,60 +753,75 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   const clientLines = originalClientLines(snapshot);
   const clientCity = primaryClientCity(snapshot);
   let insertedMissionClients = false;
+  let skipOriginalSignatureLines = false;
 
   for (const block of blocks) {
     if (block.k === 'table') {
-      renderOriginalTable(ctx, block.rows);
+      if (!skipOriginalSignatureLines) drawRegulatoryTable(ctx, block.rows);
       continue;
     }
 
-    let value = replaceSignatureProvider(block.t, type);
+    let value = replaceSignatureProvider(block.t, type).trim();
+    if (!value) continue;
 
     if (type === 'der' && value === 'Mr') {
-      for (const client of clientLines) {
-        drawText(ctx, client.heading, { bold: true, size: 10.2, after: 2 });
-        if (client.details.length) drawText(ctx, client.details.join(' - '), { size: 8.4, after: 5 });
-      }
+      drawClientCards(ctx, clientLines);
       continue;
     }
     if (type === 'der' && /^Lieu\s*:$/.test(value)) {
       value = `Lieu : ${clientCity}`;
     }
-    if (type === 'der' && value === 'Lieu : Lieu : Allevard les bains') {
-      value = `Lieu : ${clientCity}     Lieu : Allevard les bains`;
-    }
 
     if (type === 'mission' && !insertedMissionClients && value.includes('Ci-après le(s) « Client(s) »')) {
-      for (const client of clientLines) {
-        drawText(ctx, client.heading, { bold: true, size: 9.4, after: 1 });
-        if (client.details.length) drawText(ctx, client.details.join(' - '), { size: 8.1, after: 4 });
-      }
+      drawClientCards(ctx, clientLines);
       insertedMissionClients = true;
     }
-    if (type === 'mission' && value === 'Fait à : Fait à : Allevard') {
-      value = `Fait à : ${clientCity}     Fait à : Allevard`;
+
+    if (type === 'der' && value === 'Lieu, date et signature') {
+      drawSignaturePanel(ctx, snapshot, type);
+      skipOriginalSignatureLines = true;
+      continue;
     }
+    if (type === 'der' && skipOriginalSignatureLines && (
+      value.startsWith('Le(s) Client(s)') ||
+      value.startsWith('Lieu :') ||
+      value.startsWith('Date :') ||
+      value.startsWith('Signature :')
+    )) continue;
+
+    if (type === 'mission' && value === 'Fait à : Fait à : Allevard') {
+      drawSignaturePanel(ctx, snapshot, type);
+      skipOriginalSignatureLines = true;
+      continue;
+    }
+    if (type === 'mission' && skipOriginalSignatureLines && (
+      value.startsWith('Date :') ||
+      value.startsWith('Pour le(s) clients') ||
+      value.startsWith('Pour le conseiller')
+    )) continue;
 
     if (type === 'der' && (value === 'DOCUMENT' || value === "D'ENTRÉE EN RELATION")) {
-      drawText(ctx, value, { bold: true, size: value === 'DOCUMENT' ? 16 : 18, color: NAVY, after: 4 });
+      drawText(ctx, value, { bold: true, size: value === 'DOCUMENT' ? 16 : 18, color: NAVY, lineHeight: 21, after: 5 });
       continue;
     }
     if (type === 'mission' && (value === "Lettre de mission d'Audit Patrimonial Global" || value === 'et gestion de patrimoine')) {
-      drawText(ctx, value, { bold: true, size: value.startsWith('Lettre') ? 15 : 13.5, color: NAVY, after: 4 });
+      drawText(ctx, value, { bold: true, size: value.startsWith('Lettre') ? 15 : 13.5, color: NAVY, lineHeight: 19, after: 5 });
       continue;
     }
 
-    if (block.k === 'h' || originalHeadingText(value)) {
-      heading(ctx, value, /^\d+\.\d+/.test(value) ? 2 : 1);
+    const headingLevel = regulatoryHeadingLevel(block, value, type);
+    if (headingLevel) {
+      drawRegulatoryHeading(ctx, value, headingLevel);
       continue;
     }
     if (block.k === 'bullet') {
-      drawText(ctx, `• ${value}`, { size: 8.35, lineHeight: 10.6, after: 4 });
+      drawText(ctx, `- ${value}`, { size: 9.55, lineHeight: 12.7, after: 5 });
       continue;
     }
-    drawText(ctx, value, { size: 8.35, lineHeight: 10.6, after: 4 });
+    drawText(ctx, value, { size: 9.55, lineHeight: 12.7, after: 5.5 });
   }
 }
+
 async function buildDer(snapshot: Json) {
   const ctx = await newPdfContext('der');
   const blocks = await loadDerModel();
