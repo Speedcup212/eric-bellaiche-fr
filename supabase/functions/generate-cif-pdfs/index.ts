@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.45-SIGNATURE-RECUEIL-DER';
+const PDF_VERSION = '2026-MAITRE-PDF-2.46-SIGNATURE-DATE-MARGIN';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -303,7 +303,7 @@ function signatureBoxes(ctx: PdfContext, investors: Json[]) {
       color: BODY,
     });
 
-    const signatureHeight = 104;
+    const signatureHeight = 96;
     ctx.page.drawRectangle({
       x: x + 9,
       y: top - height + 18,
