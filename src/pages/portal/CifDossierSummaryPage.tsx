@@ -405,7 +405,7 @@ export default function CifDossierSummaryPage() {
   const [generatingAuditPdf, setGeneratingAuditPdf] = useState(false);
   const [auditPdfUrl, setAuditPdfUrl] = useState<string | null>(null);
   const [auditPdfError, setAuditPdfError] = useState('');
-  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
+  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
     const results = await Promise.all([
@@ -498,6 +498,56 @@ export default function CifDossierSummaryPage() {
     const { data, error } = await supabase.storage.from(doc.storage_bucket).createSignedUrl(doc.storage_path, 90);
     if (error) { setSourceAnalysisMessage(messageFromError(error)); return; }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const finalizeSourceDocumentReview = async (doc: SourceDocumentRow, decision: 'validated' | 'rejected', target?: { kind:string; key:string; label:string } | null) => {
+    setSourceReviewBusyId(doc.id);
+    setSourceAnalysisMessage('');
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const previous = doc.metadata ?? {};
+      const fieldsApplied = Number(previous.fields_applied ?? 0);
+      const reviewDecision = decision === 'rejected'
+        ? 'rejected'
+        : target
+          ? 'validated_linked'
+          : fieldsApplied > 0
+            ? 'validated_after_control'
+            : 'validated_without_integration';
+      const metadata = {
+        ...previous,
+        manual_review: {
+          decision: reviewDecision,
+          note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
+          target: target ? { kind:target.kind, key:target.key, label:target.label } : null,
+          fields_applied: fieldsApplied,
+          reviewed_at: new Date().toISOString(),
+          reviewer_id: auth.user?.id ?? null,
+        },
+      };
+      const { error } = await supabase
+        .from('documents_sources')
+        .update({
+          statut_analyse: decision,
+          metadata,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', doc.id);
+      if (error) throw error;
+      setReviewingSourceDocumentId(null);
+      setSourceAnalysisMessage(decision === 'validated'
+        ? target
+          ? 'Pièce validée et rattachée à « ' + target.label + ' ».'
+          : fieldsApplied > 0
+            ? 'Pièce contrôlée et validée. Les données déjà intégrées sont conservées.'
+            : 'Pièce contrôlée et validée sans intégration de donnée.'
+        : 'Pièce rejetée : elle ne sera pas utilisée comme justificatif exploitable.');
+      await refreshSourceDocumentData();
+    } catch (error) {
+      setSourceAnalysisMessage(messageFromError(error));
+    } finally {
+      setSourceReviewBusyId(null);
+    }
   };
 
   useEffect(() => {
