@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.31-MISSION-TITRES';
+const PDF_VERSION = '2026-MAITRE-PDF-2.32-MISSION-FINAL';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -943,37 +943,102 @@ function drawSignaturePanel(ctx: PdfContext, snapshot: Json, type: 'der' | 'miss
   const city = primaryClientCity(snapshot);
   const clients = originalClientLines(snapshot);
   const titleText = type === 'der' ? 'Lieu, date et signature' : 'Signatures';
-  const panelHeight = Math.max(150, 104 + Math.max(0, clients.length - 1) * 20);
+  const panelHeight = 158;
 
   if (ctx.y - panelHeight - 48 < 54) addPage(ctx);
   drawRegulatoryHeading(ctx, titleText, 1, type);
 
-  const gap = 12;
+  const gap = 8;
   const totalWidth = A4.width - 2 * REG_MARGIN;
-  const colWidth = (totalWidth - gap) / 2;
+  const columns = [...clients.map((client) => ({
+    heading: client.heading,
+    name: client.heading,
+    place: city,
+    color: BLUE,
+  })), {
+    heading: 'Le Conseiller',
+    name: 'Eric Bellaiche',
+    place: 'Allevard',
+    color: GREEN,
+  }];
+
+  const colWidth = (totalWidth - gap * (columns.length - 1)) / columns.length;
   const top = ctx.y;
-  const clientX = REG_MARGIN;
-  const adviserX = REG_MARGIN + colWidth + gap;
 
-  for (const [x, headingText] of [[clientX, 'Le(s) Client(s)'], [adviserX, 'Le Conseiller']] as Array<[number,string]>) {
-    ctx.page.drawRectangle({ x, y: top - panelHeight, width: colWidth, height: panelHeight, borderWidth: 0.9, borderColor: BORDER, color: WHITE });
-    ctx.page.drawRectangle({ x, y: top - 30, width: colWidth, height: 30, borderWidth: 0, color: LIGHT_BLUE });
-    ctx.page.drawText(headingText, { x: x + 10, y: top - 20, size: 9.8, font: ctx.bold, color: NAVY });
-  }
+  columns.forEach((column, index) => {
+    const x = REG_MARGIN + index * (colWidth + gap);
+    ctx.page.drawRectangle({
+      x,
+      y: top - panelHeight,
+      width: colWidth,
+      height: panelHeight,
+      borderWidth: 0.9,
+      borderColor: BORDER,
+      color: WHITE,
+    });
+    ctx.page.drawRectangle({
+      x,
+      y: top - 30,
+      width: colWidth,
+      height: 30,
+      borderWidth: 0,
+      color: LIGHT_BLUE,
+    });
 
-  let clientY = top - 48;
-  for (const client of clients) {
-    ctx.page.drawText(clean(client.heading), { x: clientX + 10, y: clientY, size: 9.1, font: ctx.bold, color: BODY });
-    clientY -= 14;
-  }
-  ctx.page.drawText(clean(`Lieu : ${city}`), { x: clientX + 10, y: top - 88, size: 8.5, font: ctx.regular, color: BODY });
-  ctx.page.drawText('Date :', { x: clientX + 10, y: top - 104, size: 8.5, font: ctx.regular, color: BODY });
-  ctx.page.drawText('Zone de signature Youtrust', { x: clientX + 10, y: top - panelHeight + 22, size: 8, font: ctx.bold, color: BLUE });
+    const header = index < clients.length ? `Client ${index + 1}` : column.heading;
+    ctx.page.drawText(header, {
+      x: x + 9,
+      y: top - 20,
+      size: 9.2,
+      font: ctx.bold,
+      color: NAVY,
+    });
 
-  ctx.page.drawText('Eric Bellaiche', { x: adviserX + 10, y: top - 48, size: 9.1, font: ctx.bold, color: BODY });
-  ctx.page.drawText('Lieu : Allevard', { x: adviserX + 10, y: top - 88, size: 8.5, font: ctx.regular, color: BODY });
-  ctx.page.drawText('Date :', { x: adviserX + 10, y: top - 104, size: 8.5, font: ctx.regular, color: BODY });
-  ctx.page.drawText('Zone de signature Youtrust', { x: adviserX + 10, y: top - panelHeight + 22, size: 8, font: ctx.bold, color: GREEN });
+    const nameLines = wrap(ctx.bold, clean(column.name), 8.7, colWidth - 18);
+    let nameY = top - 48;
+    for (const line of nameLines.slice(0, 2)) {
+      ctx.page.drawText(line, {
+        x: x + 9,
+        y: nameY,
+        size: 8.7,
+        font: ctx.bold,
+        color: BODY,
+      });
+      nameY -= 12;
+    }
+
+    ctx.page.drawText(clean(`Lieu : ${column.place}`), {
+      x: x + 9,
+      y: top - 86,
+      size: 8.1,
+      font: ctx.regular,
+      color: BODY,
+    });
+    ctx.page.drawText('Date :', {
+      x: x + 9,
+      y: top - 102,
+      size: 8.1,
+      font: ctx.regular,
+      color: BODY,
+    });
+
+    ctx.page.drawRectangle({
+      x: x + 9,
+      y: top - panelHeight + 18,
+      width: colWidth - 18,
+      height: 38,
+      borderWidth: 0.7,
+      borderColor: column.color,
+      color: WHITE,
+    });
+    ctx.page.drawText('Signature Youtrust', {
+      x: x + 14,
+      y: top - panelHeight + 34,
+      size: 7.6,
+      font: ctx.bold,
+      color: column.color,
+    });
+  });
 
   ctx.y -= panelHeight + 8;
 }
@@ -1020,6 +1085,8 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   let insertedMissionClients = false;
   let skipOriginalSignatureLines = false;
   let missionSignatureDrawn = false;
+  let inMissionRetraction = false;
+  let missionRetractionDateDrawn = false;
   let inDerActivitiesList = false;
   let inDerCommunicationsList = false;
   let inMissionProductList = false;
@@ -1164,6 +1231,30 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
         missionSignatureDrawn = true;
       }
       addPage(ctx);
+      inMissionRetraction = true;
+    }
+
+    if (type === 'mission' && value === 'Les différents types de produits susceptibles d’être proposés :') {
+      drawRegulatoryHeading(ctx, "Les différents types de produits susceptibles d'être proposés", 2, type);
+      continue;
+    }
+
+    if (type === 'mission' && inMissionRetraction && /^Date\s*:/i.test(value)) {
+      missionRetractionDateDrawn = true;
+    }
+
+    if (
+      type === 'mission' &&
+      inMissionRetraction &&
+      value.startsWith('Signature du (des) Client(s)') &&
+      !missionRetractionDateDrawn
+    ) {
+      regulatoryText(ctx, 'Date : __________________________', {
+        size: 9.7,
+        lineHeight: 13.1,
+        after: 6,
+      });
+      missionRetractionDateDrawn = true;
     }
 
     if (type === 'mission' && inMissionProductList && !/^Les différents types/.test(value)) {
