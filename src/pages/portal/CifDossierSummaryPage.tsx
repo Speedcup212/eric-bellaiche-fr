@@ -521,7 +521,6 @@ export default function CifDossierSummaryPage() {
         const identifierLabel = investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
         const analysed = selectedSourceDocuments.filter((doc) => ['extracted','validated'].includes(doc.statut_analyse)).length;
         const review = selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review').length;
-        const selectedIdentity = sections.find((row) => row.investisseur_id === investor.investisseur_id && row.section_code === 'identity')?.payload ?? {};
         const primaryInvestor = orderedInvestorDocumentStates.find((item) => item.investor.role_dossier === 'investisseur_1')?.investor ?? orderedInvestorDocumentStates[0]?.investor;
         const primarySections = primaryInvestor ? sections.filter((row) => row.investisseur_id === primaryInvestor.investisseur_id) : [];
         const primaryObjectives = primarySections.find((row) => row.section_code === 'objectives')?.payload as Record<string, unknown> | undefined;
