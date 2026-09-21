@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.44-PAGINATION-BLOCS';
+const PDF_VERSION = '2026-MAITRE-PDF-2.45-SIGNATURE-RECUEIL-DER';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -236,7 +236,96 @@ function drawTable(ctx: PdfContext, headers: string[], rows: string[][], widths?
   });
   ctx.y -= 9;
 }
-function signatureBoxes(ctx: PdfContext, investors: Json[]) { const boxes = [...investors.map((inv) => ({ name: investorName(inv), color: BLUE })), { name: 'Eric Bellaiche', color: GREEN }]; const gap = 8; const width = (A4.width - 2 * MARGIN - gap * (boxes.length - 1)) / boxes.length; const height = 92; ensure(ctx, height + 10); let x = MARGIN; for (const box of boxes) { ctx.page.drawRectangle({ x, y: ctx.y - height, width, height, borderWidth: 1, borderColor: box.color, color: WHITE }); ctx.page.drawText(clean(box.name), { x: x + 7, y: ctx.y - 16, size: 8, font: ctx.bold, color: box.color }); ctx.page.drawText('Signature électronique', { x: x + 7, y: ctx.y - 35, size: 7.2, font: ctx.bold, color: NAVY }); ctx.page.drawText('Date et horodatage apposés', { x: x + 7, y: ctx.y - 50, size: 6.8, font: ctx.regular, color: NAVY }); ctx.page.drawText('par le prestataire de signature', { x: x + 7, y: ctx.y - 63, size: 6.8, font: ctx.regular, color: NAVY }); x += width + gap; } ctx.y -= height + 10; }
+function signatureBoxes(ctx: PdfContext, investors: Json[]) {
+  // Zone de signature dimensionnée comme le DER afin de laisser
+  // une vraie surface exploitable par la signature électronique Youtrust.
+  const boxes = [
+    ...investors.map((inv, index) => ({
+      header: `Client ${index + 1}`,
+      name: investorName(inv),
+      color: BLUE,
+    })),
+    { header: 'Le Conseiller', name: 'Eric Bellaiche', color: GREEN },
+  ];
+  const gap = 8;
+  const totalWidth = A4.width - 2 * MARGIN;
+  const width = (totalWidth - gap * (boxes.length - 1)) / boxes.length;
+  const height = 205;
+
+  ensure(ctx, height + 14);
+  const top = ctx.y;
+  let x = MARGIN;
+
+  for (const box of boxes) {
+    ctx.page.drawRectangle({
+      x,
+      y: top - height,
+      width,
+      height,
+      borderWidth: 0.9,
+      borderColor: BORDER,
+      color: WHITE,
+    });
+    ctx.page.drawRectangle({
+      x,
+      y: top - 30,
+      width,
+      height: 30,
+      borderWidth: 0,
+      color: LIGHT_BLUE,
+    });
+    ctx.page.drawText(box.header, {
+      x: x + 9,
+      y: top - 20,
+      size: 8.8,
+      font: ctx.bold,
+      color: NAVY,
+    });
+
+    const nameLines = wrap(ctx.bold, clean(box.name), 8.5, width - 18);
+    let nameY = top - 48;
+    for (const line of nameLines.slice(0, 2)) {
+      ctx.page.drawText(line, {
+        x: x + 9,
+        y: nameY,
+        size: 8.5,
+        font: ctx.bold,
+        color: BODY,
+      });
+      nameY -= 12;
+    }
+
+    ctx.page.drawText('Date :', {
+      x: x + 9,
+      y: top - 82,
+      size: 7.8,
+      font: ctx.regular,
+      color: BODY,
+    });
+
+    const signatureHeight = 104;
+    ctx.page.drawRectangle({
+      x: x + 9,
+      y: top - height + 18,
+      width: width - 18,
+      height: signatureHeight,
+      borderWidth: 0.7,
+      borderColor: box.color,
+      color: WHITE,
+    });
+    ctx.page.drawText('Signature', {
+      x: x + 14,
+      y: top - height + 31,
+      size: 7.4,
+      font: ctx.bold,
+      color: box.color,
+    });
+
+    x += width + gap;
+  }
+
+  ctx.y -= height + 12;
+}
 function answerValue(answer: Json, optionMap: Map<string, Json>) { if (answer.option_id && optionMap.has(answer.option_id)) return clean(optionMap.get(answer.option_id)?.libelle); if (answer.answer_text) return clean(answer.answer_text); if (answer.answer_numeric !== null && answer.answer_numeric !== undefined) return clean(answer.answer_numeric); if (answer.answer_date) return frDate(answer.answer_date); if (Array.isArray(answer.answer_json) && answer.answer_json.length) return readable(answer.answer_json); if (answer.answer_json && Object.keys(answer.answer_json).length) return readable(answer.answer_json); return 'Néant'; }
 function drawResultPanel(ctx: PdfContext, label: string, score: string, level: string, explanation: string, incidences: string, note: string) { const width = A4.width - 2 * MARGIN; const explanationLines = wrap(ctx.regular, explanation, 9, width - 28); const incidenceLines = wrap(ctx.regular, incidences, 9, width - 28); const noteLines = wrap(ctx.regular, note, 8, width - 28); const height = 100 + (explanationLines.length + incidenceLines.length) * 11.5 + noteLines.length * 10.5; ensure(ctx, height + 10); const top = ctx.y; ctx.page.drawRectangle({ x: MARGIN, y: top - height, width, height, color: LIGHT_BLUE, borderWidth: 1.2, borderColor: BLUE }); ctx.page.drawText(label, { x: MARGIN + 14, y: top - 20, size: 8.5, font: ctx.bold, color: BLUE }); ctx.page.drawText(score, { x: MARGIN + 14, y: top - 52, size: 25, font: ctx.bold, color: NAVY }); ctx.page.drawText(level, { x: MARGIN + 162, y: top - 47, size: 15, font: ctx.bold, color: GREEN }); let y = top - 73; ctx.page.drawText('INTERPRÉTATION', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of explanationLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 4; ctx.page.drawText('INCIDENCES POUR LE CONSEIL', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of incidenceLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 5; for (const line of noteLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 8, font: ctx.regular, color: rgb(0.28, 0.36, 0.46) }); y -= 10.5; } ctx.y = top - height - 12; }
 function esgLevel(score: number) { if (score >= 75) return 'Très forte'; if (score >= 50) return 'Forte'; if (score >= 25) return 'Modérée'; return 'Faible'; }
@@ -455,8 +544,9 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Souhaite prendre en compte des critères ESG', (map) => clean(map.regulatory?.esg_opt_in)],
   ]), [46,27,27]);
 
-  // Le bloc de validation + signatures doit rester visuellement cohérent sur une même page.
-  ensure(ctx, 245);
+  // Le bloc de validation + signatures doit rester sur une même page.
+  // Réserve la hauteur du texte de validation + des grandes zones Youtrust.
+  ensure(ctx, 355);
   recueilHeading(ctx, `${n++}. Validation des informations`);
   drawText(ctx,'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.',{size:8.6});
   drawText(ctx,'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.',{bold:true,color:GREEN,size:8.6,after:12});
