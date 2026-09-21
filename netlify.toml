@@ -1,3 +1,4 @@
+# Verified release marker: household recueil 2026-09-21
 [build]
   command = "npm run test:deploy-gate && npm run build"
   ignore = "node scripts/netlify-verified-deploy-gate.mjs"
