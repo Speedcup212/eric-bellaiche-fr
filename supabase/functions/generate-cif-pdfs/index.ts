@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.40-RECUEIL-FOYER-COMPARATIF';
+const PDF_VERSION = '2026-MAITRE-PDF-2.41-RECUEIL-NEANT';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -61,7 +61,7 @@ function corsHeaders(origin: string | null) {
   const allowed = origin && allowedOrigins.has(origin) ? origin : 'https://eric-bellaiche.fr';
   return { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json', 'Vary': 'Origin' };
 }
-function clean(value: unknown, fallback = 'Non renseigné') {
+function clean(value: unknown, fallback = 'Néant') {
   if (value === null || value === undefined || value === '') return fallback;
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (Array.isArray(value)) return value.length ? value.map((x) => clean(x, '')).join(', ') : fallback;
@@ -90,9 +90,9 @@ function frNumber(value: unknown) {
     .format(num(value))
     .replace(/[\u00A0\u202F]/g, ' ');
 }
-function eur(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${frNumber(value)} EUR`; }
-function pct(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${frNumber(value)} %`; }
-function frDate(value: unknown) { if (!value) return 'Non renseignée'; const d = new Date(String(value)); if (Number.isNaN(d.getTime())) return clean(value); return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d); }
+function eur(value: unknown) { if (!hasValue(value)) return 'Néant'; return `${frNumber(value)} EUR`; }
+function pct(value: unknown) { if (!hasValue(value)) return 'Néant'; return `${frNumber(value)} %`; }
+function frDate(value: unknown) { if (!value) return 'Néant'; const d = new Date(String(value)); if (Number.isNaN(d.getTime())) return clean(value); return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d); }
 function slug(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase(); }
 function fileNamePart(value: unknown, fallback = 'Client') {
   const raw = clean(value, fallback).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -119,7 +119,7 @@ function financialCategoryLabel(value: unknown) {
     other: 'Autres placements',
   };
   if (!Array.isArray(value)) return clean(value);
-  return value.length ? value.map((item) => labels[String(item)] ?? clean(item)).join(', ') : 'Non renseigné';
+  return value.length ? value.map((item) => labels[String(item)] ?? clean(item)).join(', ') : 'Néant';
 }
 function financialBandLabel(value: unknown) {
   const labels: Record<string,string> = {
@@ -133,7 +133,7 @@ function financialBandLabel(value: unknown) {
   return labels[String(value ?? '')] ?? clean(value);
 }
 function monthYearLabel(value: unknown) {
-  if (!hasValue(value)) return 'Non renseigné';
+  if (!hasValue(value)) return 'Néant';
   const raw = String(value);
   if (/^\d{4}-\d{2}$/.test(raw)) {
     const parts = raw.split('-');
@@ -143,7 +143,7 @@ function monthYearLabel(value: unknown) {
   return frDate(value);
 }
 function creditPaymentLabel(x: Json) {
-  const current = hasValue(x.mensualite_actuelle) ? eur(x.mensualite_actuelle) : hasValue(x.mensualite) ? eur(x.mensualite) : 'Non renseigné';
+  const current = hasValue(x.mensualite_actuelle) ? eur(x.mensualite_actuelle) : hasValue(x.mensualite) ? eur(x.mensualite) : 'Néant';
   if (hasValue(x.mensualite_future)) return `${current} actuellement ; ${eur(x.mensualite_future)} dès ${monthYearLabel(x.mensualite_future_date)}`;
   return current;
 }
@@ -236,7 +236,7 @@ function drawTable(ctx: PdfContext, headers: string[], rows: string[][], widths?
   ctx.y -= 9;
 }
 function signatureBoxes(ctx: PdfContext, investors: Json[]) { const boxes = [...investors.map((inv) => ({ name: investorName(inv), color: BLUE })), { name: 'Eric Bellaiche', color: GREEN }]; const gap = 8; const width = (A4.width - 2 * MARGIN - gap * (boxes.length - 1)) / boxes.length; const height = 92; ensure(ctx, height + 10); let x = MARGIN; for (const box of boxes) { ctx.page.drawRectangle({ x, y: ctx.y - height, width, height, borderWidth: 1, borderColor: box.color, color: WHITE }); ctx.page.drawText(clean(box.name), { x: x + 7, y: ctx.y - 16, size: 8, font: ctx.bold, color: box.color }); ctx.page.drawText('Signature électronique', { x: x + 7, y: ctx.y - 35, size: 7.2, font: ctx.bold, color: NAVY }); ctx.page.drawText('Date et horodatage apposés', { x: x + 7, y: ctx.y - 50, size: 6.8, font: ctx.regular, color: NAVY }); ctx.page.drawText('par le prestataire de signature', { x: x + 7, y: ctx.y - 63, size: 6.8, font: ctx.regular, color: NAVY }); x += width + gap; } ctx.y -= height + 10; }
-function answerValue(answer: Json, optionMap: Map<string, Json>) { if (answer.option_id && optionMap.has(answer.option_id)) return clean(optionMap.get(answer.option_id)?.libelle); if (answer.answer_text) return clean(answer.answer_text); if (answer.answer_numeric !== null && answer.answer_numeric !== undefined) return clean(answer.answer_numeric); if (answer.answer_date) return frDate(answer.answer_date); if (Array.isArray(answer.answer_json) && answer.answer_json.length) return readable(answer.answer_json); if (answer.answer_json && Object.keys(answer.answer_json).length) return readable(answer.answer_json); return 'Non renseigné'; }
+function answerValue(answer: Json, optionMap: Map<string, Json>) { if (answer.option_id && optionMap.has(answer.option_id)) return clean(optionMap.get(answer.option_id)?.libelle); if (answer.answer_text) return clean(answer.answer_text); if (answer.answer_numeric !== null && answer.answer_numeric !== undefined) return clean(answer.answer_numeric); if (answer.answer_date) return frDate(answer.answer_date); if (Array.isArray(answer.answer_json) && answer.answer_json.length) return readable(answer.answer_json); if (answer.answer_json && Object.keys(answer.answer_json).length) return readable(answer.answer_json); return 'Néant'; }
 function drawResultPanel(ctx: PdfContext, label: string, score: string, level: string, explanation: string, incidences: string, note: string) { const width = A4.width - 2 * MARGIN; const explanationLines = wrap(ctx.regular, explanation, 9, width - 28); const incidenceLines = wrap(ctx.regular, incidences, 9, width - 28); const noteLines = wrap(ctx.regular, note, 8, width - 28); const height = 100 + (explanationLines.length + incidenceLines.length) * 11.5 + noteLines.length * 10.5; ensure(ctx, height + 10); const top = ctx.y; ctx.page.drawRectangle({ x: MARGIN, y: top - height, width, height, color: LIGHT_BLUE, borderWidth: 1.2, borderColor: BLUE }); ctx.page.drawText(label, { x: MARGIN + 14, y: top - 20, size: 8.5, font: ctx.bold, color: BLUE }); ctx.page.drawText(score, { x: MARGIN + 14, y: top - 52, size: 25, font: ctx.bold, color: NAVY }); ctx.page.drawText(level, { x: MARGIN + 162, y: top - 47, size: 15, font: ctx.bold, color: GREEN }); let y = top - 73; ctx.page.drawText('INTERPRÉTATION', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of explanationLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 4; ctx.page.drawText('INCIDENCES POUR LE CONSEIL', { x: MARGIN + 14, y, size: 7.5, font: ctx.bold, color: BLUE }); y -= 13; for (const line of incidenceLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 9, font: ctx.regular, color: NAVY }); y -= 11.5; } y -= 5; for (const line of noteLines) { ctx.page.drawText(line, { x: MARGIN + 14, y, size: 8, font: ctx.regular, color: rgb(0.28, 0.36, 0.46) }); y -= 10.5; } ctx.y = top - height - 12; }
 function esgLevel(score: number) { if (score >= 75) return 'Très forte'; if (score >= 50) return 'Forte'; if (score >= 25) return 'Modérée'; return 'Faible'; }
 
@@ -295,7 +295,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Numéro fiscal', (map, inv) => clean(map.identity?.numero_fiscal ?? inv.numero_fiscal)],
     ['Adresse', (map) => {
       const id = map.identity ?? {};
-      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée';
+      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Néant';
     }],
   ]), [40,30,30]);
 
@@ -367,7 +367,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ]), [28,20,18,17,17]);
     drawTable(ctx, ['Donnée','Valeur'], [
       ['Sous-total directement justifié par pièces', documentedTotal > 0 ? eur(documentedTotal) : 'Non consolidé'],
-      ['Total financier indicatif du dossier', hasValue(fin.estimated_total_amount) ? eur(fin.estimated_total_amount) : 'Non renseigné'],
+      ['Total financier indicatif du dossier', hasValue(fin.estimated_total_amount) ? eur(fin.estimated_total_amount) : 'Néant'],
       ['Liquidités importantes volontairement conservées sur comptes courants', clean(fin.current_accounts_intentional)],
       ['Catégories de placements', financialCategoryLabel(fin.categories)],
       ['Fourchette déclarée', financialBandLabel(fin.total_band)],
@@ -415,12 +415,12 @@ async function buildRecueilCouple(snapshot: Json) {
   drawTable(ctx,['Ratio','Résultat'],[
     ['Revenus annuels consolidés', eur(incomeAnnual)],
     ['Mensualités actuelles de crédits', eur(monthlyDebt)],
-    ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Non renseigné'],
+    ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Néant'],
     ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)],
     ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)],
     ['Patrimoine immobilier brut', eur(propertyTotal)],
     ['Patrimoine financier directement justifié', financialExact > 0 ? eur(financialExact) : 'Non consolidé'],
-    ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Non renseigné'],
+    ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Néant'],
     ['CRD total', eur(crdTotal)],
     ['Patrimoine net calculable sur montants justifiés', financialExact > 0 ? eur(propertyTotal + financialExact - crdTotal) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non justifié`],
   ], [64,36]);
@@ -470,7 +470,7 @@ async function buildRecueil(snapshot: Json) {
       ctx.page.drawText(investorName(inv), { x: MARGIN + 10, y: ctx.y - 25, size: 12.5, font: ctx.bold, color: NAVY });
       ctx.y -= 44;
     }
-    const id = map.identity ?? {}; heading(ctx, `${n++}. Identité et coordonnées`); drawTable(ctx, ['Donnée', 'Valeur'], [['Civilité', clean(id.civilite ?? inv.civilite)], ['Prénom', clean(id.prenom ?? inv.prenom)], ['Nom', clean(id.nom ?? inv.nom)], ['Nom de naissance', clean(id.nom_naissance ?? inv.nom_naissance)], ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)], ['Lieu / pays de naissance', `${clean(id.lieu_naissance ?? inv.lieu_naissance)} / ${clean(id.pays_naissance ?? inv.pays_naissance)}`], ['Nationalité', clean(id.nationalite ?? inv.nationalite)], ['Mobile', clean(id.mobile ?? inv.mobile)], ['E-mail', clean(inv.email)], ['Numéro fiscal', clean(id.numero_fiscal ?? inv.numero_fiscal)], ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée']], [34, 66]);
+    const id = map.identity ?? {}; heading(ctx, `${n++}. Identité et coordonnées`); drawTable(ctx, ['Donnée', 'Valeur'], [['Civilité', clean(id.civilite ?? inv.civilite)], ['Prénom', clean(id.prenom ?? inv.prenom)], ['Nom', clean(id.nom ?? inv.nom)], ['Nom de naissance', clean(id.nom_naissance ?? inv.nom_naissance)], ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)], ['Lieu / pays de naissance', `${clean(id.lieu_naissance ?? inv.lieu_naissance)} / ${clean(id.pays_naissance ?? inv.pays_naissance)}`], ['Nationalité', clean(id.nationalite ?? inv.nationalite)], ['Mobile', clean(id.mobile ?? inv.mobile)], ['E-mail', clean(inv.email)], ['Numéro fiscal', clean(id.numero_fiscal ?? inv.numero_fiscal)], ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Néant']], [34, 66]);
     const fam = map.family ?? {}; heading(ctx, `${n++}. Situation familiale`); drawTable(ctx, ['Donnée', 'Valeur'], [['Situation familiale', clean(fam.situation)], ['Date de l’événement', frDate(fam.date_evenement)], ['Régime / convention', clean(fam.regime_convention)], ['Avantage / clause particulière', clean(fam.avantage_matrimonial)], ['Évolution prévue', clean(fam.evolution_prevue)], ['Notaire', clean(fam.notaire_nom_ville)], ['Expert-comptable', clean(fam.expert_comptable_nom_ville)], ['Nombre d’enfants', clean(fam.nombre_enfants, '0')], ['Commentaires', clean(fam.commentaires)]], [34, 66]);
     const pro = map.professional ?? {}; heading(ctx, `${n++}. Situation professionnelle`); drawTable(ctx, ['Donnée', 'Valeur'], [['Profession', clean(pro.profession_actuelle)], ['Société / employeur', clean(pro.societe)], ['Secteur', clean(pro.secteur_activite)], ['Statut', clean(pro.statut)], ['Date d’entrée', frDate(pro.date_entree)], ['Ancienneté déclarée', clean(pro.anciennete_annees)], ['Changement prévu', clean(pro.changement_professionnel_prevu)], ['Détails', clean(pro.changement_professionnel_details)]], [34, 66]);
     const objs = map.objectives?.items ?? []; heading(ctx, `${n++}. Objectifs et horizons`); drawTable(ctx, ['Priorité', 'Objectif', 'Horizon'], objs.length ? objs.map((o: Json, idx: number) => [String(idx + 1), o.code_objectif === 'autre' ? clean(o.libelle_autre) : objectiveLabel(clean(o.code_objectif, '')), clean(o.horizon_annees)]) : [['-', 'Aucun objectif renseigné', '-']], [12, 62, 26]);
@@ -586,7 +586,7 @@ async function buildRecueil(snapshot: Json) {
     if (map.patrimony?.has_real_estate === true) properties.push(...(map.patrimony?.immobilier ?? [])); if (map.credits?.has_credits === true) credits.push(...(map.credits?.items ?? [])); const placements = map.financial?.items ?? map.patrimony?.placements ?? []; financialExact += placements.filter((x: Json) => Boolean(x.source_document_id)).reduce((sum: number, x: Json) => sum + num(x.montant ?? x.valeur ?? x.encours), 0); financialEstimated += num(map.financial?.estimated_total_amount);
   }
   heading(ctx, `${n++}. Patrimoine immobilier consolidé`); drawTable(ctx, ['Bien', 'Ville', 'Usage', 'Détention', 'Propriétaire', 'Valeur'], properties.length ? properties.map((x, idx) => [`Bien ${idx + 1}`, clean(x.ville), clean(x.usage), clean(x.mode_detention), clean(x.proprietaire), eur(x.valeur_actuelle)]) : [['-', '-', 'Aucun bien déclaré', '-', '-', '0 EUR']], [10, 18, 18, 18, 18, 18]);
-  heading(ctx, `${n++}. Patrimoine financier et liquidités`); for (const { inv, map } of maps) { const fin = map.financial ?? {}; const items = Array.isArray(fin.items) ? fin.items : []; const documentedItems = items.filter((item: Json) => Boolean(item.source_document_id)); const documentedTotal = documentedItems.reduce((sum: number, item: Json) => sum + num(item.montant ?? item.valeur ?? item.encours), 0); drawText(ctx, investorName(inv), { bold: true, size: 9.5, color: BLUE, after: 5 }); if (items.length) { drawTable(ctx, ['Placement', 'Organisme', 'Titulaire', 'Montant', 'Source'], items.map((item: Json) => [clean(item.type_placement ?? item.type_contrat ?? item.type), clean(item.organisme ?? item.etablissement), clean(item.proprietaire ?? item.titulaire), eur(item.montant ?? item.valeur ?? item.encours), item.source_document_id ? 'Justificatif' : item.source === 'synthese_dossier' || item.source_type === 'synthese_dossier' ? 'Synthèse dossier' : 'Déclaré']), [28, 20, 18, 17, 17]); } drawTable(ctx, ['Donnée', 'Valeur'], [['Sous-total directement justifié par pièces', documentedTotal > 0 ? eur(documentedTotal) : 'Non consolidé'], ['Total financier indicatif du dossier', hasValue(fin.estimated_total_amount) ? eur(fin.estimated_total_amount) : 'Non renseigné'], ['Liquidités importantes volontairement conservées sur comptes courants', clean(fin.current_accounts_intentional)], ['Catégories de placements', financialCategoryLabel(fin.categories)], ['Fourchette déclarée', financialBandLabel(fin.total_band)], ['Autres placements / précisions', clean(fin.other_details)], ['Complétude confirmée', clean(fin.completeness_confirmed)]], [58, 42]); }
+  heading(ctx, `${n++}. Patrimoine financier et liquidités`); for (const { inv, map } of maps) { const fin = map.financial ?? {}; const items = Array.isArray(fin.items) ? fin.items : []; const documentedItems = items.filter((item: Json) => Boolean(item.source_document_id)); const documentedTotal = documentedItems.reduce((sum: number, item: Json) => sum + num(item.montant ?? item.valeur ?? item.encours), 0); drawText(ctx, investorName(inv), { bold: true, size: 9.5, color: BLUE, after: 5 }); if (items.length) { drawTable(ctx, ['Placement', 'Organisme', 'Titulaire', 'Montant', 'Source'], items.map((item: Json) => [clean(item.type_placement ?? item.type_contrat ?? item.type), clean(item.organisme ?? item.etablissement), clean(item.proprietaire ?? item.titulaire), eur(item.montant ?? item.valeur ?? item.encours), item.source_document_id ? 'Justificatif' : item.source === 'synthese_dossier' || item.source_type === 'synthese_dossier' ? 'Synthèse dossier' : 'Déclaré']), [28, 20, 18, 17, 17]); } drawTable(ctx, ['Donnée', 'Valeur'], [['Sous-total directement justifié par pièces', documentedTotal > 0 ? eur(documentedTotal) : 'Non consolidé'], ['Total financier indicatif du dossier', hasValue(fin.estimated_total_amount) ? eur(fin.estimated_total_amount) : 'Néant'], ['Liquidités importantes volontairement conservées sur comptes courants', clean(fin.current_accounts_intentional)], ['Catégories de placements', financialCategoryLabel(fin.categories)], ['Fourchette déclarée', financialBandLabel(fin.total_band)], ['Autres placements / précisions', clean(fin.other_details)], ['Complétude confirmée', clean(fin.completeness_confirmed)]], [58, 42]); }
   const crdTotal = credits.reduce((sum, x) => sum + num(x.crd ?? x.capital_restant_du), 0); const monthlyDebt = credits.reduce((sum, x) => sum + num(hasValue(x.mensualite_actuelle) ? x.mensualite_actuelle : x.mensualite), 0); const futureMonthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite_future), 0); const monthlyIncome = incomeAnnual / 12; const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null; const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null; const propertyTotal = properties.reduce((sum, x) => sum + num(x.valeur_actuelle), 0);
   heading(ctx, `${n++}. Crédits et endettement détaillés`);
   if (!credits.length) {
@@ -635,12 +635,12 @@ async function buildRecueil(snapshot: Json) {
   drawTable(ctx, ['Ratio', 'Résultat'], [
     ['Revenus annuels consolidés', eur(incomeAnnual)],
     ['Mensualités actuelles de crédits', eur(monthlyDebt)],
-    ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Non renseigné'],
+    ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Néant'],
     ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)],
     ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)],
     ['Patrimoine immobilier brut', eur(propertyTotal)],
     ['Patrimoine financier directement justifié', financialExact > 0 ? eur(financialExact) : 'Non consolidé'],
-    ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Non renseigné'],
+    ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Néant'],
     ['CRD total', eur(crdTotal)],
     ['Patrimoine net calculable sur montants justifiés', financialExact > 0 ? eur(propertyTotal + financialExact - crdTotal) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non justifié`],
   ], [64, 36]);
@@ -679,7 +679,7 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
         };
         const answerLabel = (code: string) => {
           const option = optionFor(code);
-          return option?.libelle ? clean(option.libelle) : 'Non renseigné';
+          return option?.libelle ? clean(option.libelle) : 'Néant';
         };
 
         const q4Code = answerCode('Q4');
