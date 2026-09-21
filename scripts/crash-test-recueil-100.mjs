@@ -146,7 +146,7 @@ assert.match(cabinetPage, /100 % · À valider/, 'Un recueil complet mais non va
 assert.match(cabinetPage, /style=\{\{width:`\$\{recueil\}%`\}\}/, 'La barre individuelle du cockpit doit utiliser directement le pourcentage du recueil');
 assert.match(dossierSummary, /Recueil d’informations du foyer/, 'En couple, le cabinet doit afficher un seul recueil du foyer');
 assert.match(dossierSummary, /un seul document signé par les deux clients/, 'Le recueil commun doit expliciter la double signature');
-assert.doesNotMatch(dossierSummary, /\(\['recueil','qpi','esg'\]/, 'Le recueil ne doit plus être rendu comme document individuel');
+assert.doesNotMatch(dossierSummary, /\(\['recueil'\s*,\s*'qpi'\s*,\s*'esg'\]/, 'Le recueil ne doit plus être rendu comme document individuel');
 assert.match(pdfGenerator, /householdRecueil = type === 'recueil' && fullSnapshot\.investors\.length > 1/, 'Le générateur doit forcer le recueil couple au niveau foyer');
 assert.match(pdfGenerator, /signature_scope: type === 'recueil' && snapshot\.investors\.length > 1 \? 'household_all_clients'/, 'Le PDF commun doit être marqué comme signé par tous les clients du foyer');
 assert.match(journeyBase, /Une fois confirmées, elles sont repliées et ne gênent plus le parcours/, 'Le parcours doit masquer les actions déjà traitées');
