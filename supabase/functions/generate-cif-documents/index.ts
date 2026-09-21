@@ -19,7 +19,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const DOC_VERSION = '2026-MAITRE-1.1-NEANT';
+const DOC_VERSION = '2026-MAITRE-1.2-ENDETTEMENT-ACTUEL-FUTUR';
 const BUCKET = 'regulatory-docs';
 const DARK = '0F172A';
 const BLUE = '1E467A';
@@ -165,10 +165,13 @@ function buildRecueil(snapshot: Json) {
   }
   const propertyTotal = properties.reduce((sum, x) => sum + num(x.valeur_actuelle), 0);
   const crdTotal = credits.reduce((sum, x) => sum + num(x.crd ?? x.capital_restant_du), 0);
-  const monthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite), 0);
+  const monthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite_actuelle ?? x.mensualite), 0);
+  const futureMonthlyDebt = credits.reduce((sum, x) => sum + num(x.mensualite_future), 0);
   const monthlyIncome = incomeAnnual / 12;
   const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null;
+  const futureDebtRatio = monthlyIncome > 0 && futureMonthlyDebt > 0 ? futureMonthlyDebt / monthlyIncome * 100 : null;
   const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null;
+  const futureMargin35 = monthlyIncome > 0 && futureMonthlyDebt > 0 ? monthlyIncome * 0.35 - futureMonthlyDebt : null;
   const gross = propertyTotal + financialDeclared;
   const net = gross - crdTotal;
 
@@ -292,7 +295,18 @@ function buildRecueil(snapshot: Json) {
   children.push(heading(`${sectionNumber}. Crédits et endettement`)); sectionNumber++;
   children.push(table(['Crédit', 'Type', 'Banque', 'Montant initial', 'CRD', 'Mensualité', 'Taux', 'Échéance'], credits.length ? credits.map((x, idx) => [`Crédit ${idx + 1}`, text(x.type_credit ?? x.type_pret), text(x.banque), eur(x.montant_initial), eur(x.crd ?? x.capital_restant_du), eur(x.mensualite), pct(x.taux), frDate(x.date_echeance)]) : [['—', 'Aucun crédit déclaré', '—', '0 €', '0 €', '0 €', '—', '—']]));
   children.push(table(['Ratio', 'Résultat'], [
-    ['Revenus annuels consolidés', eur(incomeAnnual)], ['Mensualités de crédits', eur(monthlyDebt)], ['Taux d’endettement', debtRatio === null ? 'Non calculable' : pct(debtRatio)], ['Marge mensuelle théorique à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)], ['Patrimoine immobilier brut', eur(propertyTotal)], ['Patrimoine financier exact disponible', financialDeclared > 0 ? eur(financialDeclared) : 'Non consolidable : fourchettes déclarées'], ['CRD total', eur(crdTotal)], ['Patrimoine net calculable', financialDeclared > 0 ? eur(net) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non chiffré`],
+    ['Revenus annuels consolidés', eur(incomeAnnual)],
+    ['Revenus mensuels consolidés', eur(monthlyIncome)],
+    ['Mensualités actuelles de crédits', eur(monthlyDebt)],
+    ['Mensualités après reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Néant'],
+    ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)],
+    ['Taux d’endettement après reprise', futureDebtRatio === null ? 'Non calculable' : pct(futureDebtRatio)],
+    ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)],
+    ['Marge mensuelle théorique à 35 % après reprise', futureMargin35 === null ? 'Non calculable' : eur(futureMargin35)],
+    ['Patrimoine immobilier brut', eur(propertyTotal)],
+    ['Patrimoine financier exact disponible', financialDeclared > 0 ? eur(financialDeclared) : 'Non consolidable : fourchettes déclarées'],
+    ['CRD total', eur(crdTotal)],
+    ['Patrimoine net calculable', financialDeclared > 0 ? eur(net) : `${eur(propertyTotal - crdTotal)} hors patrimoine financier non chiffré`],
   ]));
   children.push(p('Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.', { color: GREEN, bold: true, before: 100 }));
 
