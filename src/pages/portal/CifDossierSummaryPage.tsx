@@ -30,7 +30,7 @@ type AuditControlItem = { scenario:string; impact:string; reponse:string };
 type AuditRecommendationRow = {
   id:string;
   dossier_id:string;
-  statut:'draft'|'validated';
+  statut:'draft'|'generated'|'validated';
   diagnostic:string|null;
   projet_a_preserver:string|null;
   reserve_securite:number|null;
@@ -46,7 +46,7 @@ type AuditRecommendationRow = {
   updated_at:string;
 };
 type AuditDraft = {
-  statut:'draft'|'validated';
+  statut:'draft'|'generated'|'validated';
   diagnostic:string;
   projet_a_preserver:string;
   reserve_securite:string;
@@ -539,8 +539,65 @@ export default function CifDossierSummaryPage() {
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
 
+  const generateAuditInChatGPT = async () => {
+    if (!dossierId) return;
+    const generationPrompt = [
+      auditChatContext,
+      '',
+      'GÉNÉRER L’AUDIT — ACTION CRM',
+      'Produis maintenant l’audit patrimonial complet comme si je te l’avais demandé directement dans ChatGPT, en conservant la structure de nos deux audits PDF de référence.',
+      'Étudie le dossier, challenge les incohérences, formule des recommandations concrètes, chiffre l’allocation quand les données le permettent, distingue les données certaines des éléments à confirmer, et construis un crash test adapté à ce foyer.',
+      'Ne transforme jamais les données manquantes en 0 €. Utilise "À confirmer" ou une fourchette justifiée quand nécessaire.',
+      'Pour les recommandations par sujet, traite uniquement les sujets pertinents mais passe notamment l’immobilier au filtre suivant : résidence principale, location nue, LMNP, LMP, location meublée / courte durée, Denormandie, Malraux, Monuments historiques, Relance logement (Jeanbrun), déficit foncier, nue-propriété / démembrement, SCI IR, SCI IS, résidences gérées, murs commerciaux / professionnels, SCPI / immobilier collectif.',
+      '',
+      'À la fin, enregistre le résultat structuré dans Supabase, table public.audit_recommendations, pour le dossier ' + dossierId + '.',
+      'Mets statut = "generated".',
+      'Renseigne : diagnostic, projet_a_preserver, reserve_securite, epargne_a_arbitrer, allocation, supports, sequencing, fiscal_notes, protection_notes, controls.',
+      'allocation = tableau d’objets {poche,montant,decision}.',
+      'supports = objet {"items":[{support,analyse,decision,is_investment?,isin?,montant?,poids?}]}.',
+      'sequencing = tableau {ordre,action,echeance}.',
+      'fiscal_notes = tableau {sujet,analyse}.',
+      'controls = tableau {scenario,impact,reponse}.',
+      'Ne passe pas le statut à validated : generated signifie audit ChatGPT produit, validated reste réservé à Eric Bellaiche.',
+      '',
+      'Quand l’enregistrement Supabase est terminé, réponds simplement : "Audit généré et enregistré dans le CRM."',
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(generationPrompt);
+      setAuditMessage('Commande « Générer l’audit » copiée. ChatGPT va produire l’audit puis l’enregistrer dans le CRM.');
+    } catch {
+      setAuditMessage('ChatGPT va être ouvert avec la commande de génération. Si nécessaire, copie manuellement le contexte.');
+    }
+    window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
+  };
+
+  useEffect(() => {
+    if (!dossierId || activeTab !== 'audit') return;
+    let active = true;
+    const refreshAudit = async () => {
+      const { data, error } = await supabase
+        .from('audit_recommendations')
+        .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at')
+        .eq('dossier_id', dossierId)
+        .maybeSingle();
+      if (error || !active || !data) return;
+      const row = data as AuditRecommendationRow;
+      setAuditRecommendation(row);
+      setAuditDraft(auditDraftFromRow(row));
+    };
+    void refreshAudit();
+    const timer = window.setInterval(() => { void refreshAudit(); }, 4000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [activeTab, dossierId]);
+
+  const auditReadyForPdf = auditDraft.statut === 'generated' || auditDraft.statut === 'validated';
+
   const generateAuditPdf = async () => {
     if (!dossierId) return;
+    if (!auditReadyForPdf) {
+      setAuditPdfError('Génère d’abord l’audit avec ChatGPT. Le PDF ne doit pas être construit à partir d’un brouillon.');
+      return;
+    }
     setGeneratingAuditPdf(true);
     setAuditPdfError('');
     try {
@@ -576,15 +633,22 @@ export default function CifDossierSummaryPage() {
     const loadAuditPdf = async () => {
       const { data, error } = await supabase
         .from('documents_reglementaires')
-        .select('storage_bucket,storage_path_pdf,date_generation')
+        .select('storage_bucket,storage_path_pdf,date_generation,metadata')
         .eq('dossier_id', dossierId)
         .eq('type_document', 'audit')
         .eq('statut', 'generated')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error || !data?.storage_path_pdf || !active) return;
-      const { data: signed } = await supabase.storage.from(data.storage_bucket || 'regulatory-docs').createSignedUrl(data.storage_path_pdf, 3600);
+        .limit(10);
+      if (error || !active) return;
+      const usable = (data ?? []).find((row) => {
+        const status = String((row.metadata as Record<string,unknown> | null)?.recommendation_status ?? '');
+        return status === 'generated' || status === 'validated';
+      });
+      if (!usable?.storage_path_pdf) {
+        setAuditPdfUrl(null);
+        return;
+      }
+      const { data: signed } = await supabase.storage.from(usable.storage_bucket || 'regulatory-docs').createSignedUrl(usable.storage_path_pdf, 3600);
       if (active && signed?.signedUrl) setAuditPdfUrl(signed.signedUrl);
     };
     void loadAuditPdf();
@@ -699,30 +763,24 @@ export default function CifDossierSummaryPage() {
         <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Audit patrimonial</p>
-          <h2 className="mt-1 text-xl font-semibold text-white">Discussion ChatGPT + PDF</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-400">Pas de formulaire intermédiaire. Tu travailles l’audit avec ChatGPT, puis tu génères le PDF final.</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">ChatGPT → Générer l’audit → PDF</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-400">Trois étapes seulement : discussion avec ChatGPT, génération de l’audit structuré, puis création du PDF.</p>
         </div>
       </div>
 
       {auditMessage && <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">{auditMessage}</div>}
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_380px]">
+      <div className="mt-6 grid gap-5 xl:grid-cols-3">
         <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">Discussion audit</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Le contexte du dossier et la trame de tes deux audits de référence sont préparés automatiquement.</p>
-            </div>
-            <span className={'rounded-full border px-3 py-1 text-[10px] font-bold uppercase ' + (auditDraft.statut === 'validated' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/30 bg-amber-400/10 text-amber-200')}>{auditDraft.statut === 'validated' ? 'Audit validé' : 'Audit de travail'}</span>
-          </div>
-
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Discussion</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Questions, arbitrages, simulations et modifications de stratégie, comme dans une conversation normale avec ChatGPT.</p>
           <textarea
             value={auditChatPrompt}
             onChange={(event) => setAuditChatPrompt(event.target.value)}
-            rows={8}
+            rows={7}
             placeholder="Ex. Reprends tout le dossier, challenge la réserve de sécurité, compare LMNP / Denormandie / Jeanbrun et refais l’allocation cible."
-            className="mt-5 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+            className="mt-4 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
           />
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400">Ouvrir dans ChatGPT</button>
@@ -730,19 +788,36 @@ export default function CifDossierSummaryPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-5">
+        <div className={'rounded-2xl border p-5 ' + (auditReadyForPdf ? 'border-blue-400/35 bg-blue-950/25' : 'border-amber-400/30 bg-amber-950/20')}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">Document</p>
+              <p className={'text-[10px] font-bold uppercase tracking-[0.12em] ' + (auditReadyForPdf ? 'text-blue-300' : 'text-amber-300')}>2 · Audit</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Générer l’audit</h3>
+            </div>
+            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditDraft.statut === 'validated' ? 'bg-emerald-400/15 text-emerald-200' : auditDraft.statut === 'generated' ? 'bg-blue-400/15 text-blue-200' : 'bg-amber-400/15 text-amber-200')}>
+              {auditDraft.statut === 'validated' ? 'Validé' : auditDraft.statut === 'generated' ? 'Audit généré' : 'À générer'}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-400">ChatGPT transforme le dossier et la discussion en audit complet : diagnostic, montants, allocation, recommandations par sujet, fiscalité, crash test et plan d’action.</p>
+          {auditRecommendation?.updated_at && <p className="mt-3 text-xs text-slate-500">Dernière mise à jour : {new Date(auditRecommendation.updated_at).toLocaleString('fr-FR')}</p>}
+          <button type="button" onClick={() => void generateAuditInChatGPT()} className={'mt-5 w-full rounded-xl px-4 py-3 text-sm font-bold transition ' + (auditReadyForPdf ? 'border border-blue-400/30 bg-blue-500/10 text-blue-100 hover:bg-blue-500/20' : 'bg-amber-400 text-slate-950 hover:bg-amber-300')}>
+            {auditReadyForPdf ? 'Régénérer l’audit' : 'Générer l’audit'}
+          </button>
+          <p className="mt-3 text-xs leading-5 text-slate-500">Le CRM surveille automatiquement l’enregistrement. Quand ChatGPT a terminé, le statut passe à « Audit généré ».</p>
+        </div>
+
+        <div className={'rounded-2xl border p-5 ' + (auditReadyForPdf ? 'border-emerald-500/25 bg-emerald-950/20' : 'border-slate-600/40 bg-slate-900/30')}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">3 · Document</p>
               <h3 className="mt-1 text-lg font-semibold text-white">Audit patrimonial PDF</h3>
             </div>
-            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditPdfUrl ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700/60 text-slate-300')}>{auditPdfUrl ? 'PDF généré' : 'Prêt à générer'}</span>
+            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditPdfUrl ? 'bg-emerald-400/15 text-emerald-200' : auditReadyForPdf ? 'bg-blue-400/15 text-blue-200' : 'bg-slate-700/60 text-slate-300')}>{auditPdfUrl ? 'PDF généré' : auditReadyForPdf ? 'Prêt pour PDF' : 'Audit requis'}</span>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Même logique que le DER et la lettre de mission : génération du PDF, puis dépôt manuel sur Youtrust si nécessaire.</p>
-          {auditRecommendation?.updated_at && <p className="mt-3 text-xs text-slate-500">Audit mis à jour le {new Date(auditRecommendation.updated_at).toLocaleString('fr-FR')}</p>}
+          <p className="mt-3 text-sm leading-6 text-slate-400">Le PDF n’est généré qu’à partir d’un audit ChatGPT réellement produit. Un simple brouillon ne peut plus créer de PDF.</p>
           {auditPdfError && <p className="mt-3 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2 text-xs font-semibold text-rose-200">{auditPdfError}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={generatingAuditPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 disabled:opacity-50">{generatingAuditPdf ? 'Génération…' : auditPdfUrl ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
+            <button disabled={generatingAuditPdf || !auditReadyForPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-35">{generatingAuditPdf ? 'Génération…' : auditPdfUrl ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
             {auditPdfUrl && <button type="button" onClick={() => window.open(auditPdfUrl, '_blank', 'noopener,noreferrer')} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15">Voir le PDF</button>}
           </div>
         </div>
