@@ -19,7 +19,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const DOC_VERSION = '2026-MAITRE-1.0';
+const DOC_VERSION = '2026-MAITRE-1.1-NEANT';
 const BUCKET = 'regulatory-docs';
 const DARK = '0F172A';
 const BLUE = '1E467A';
@@ -42,7 +42,7 @@ function corsHeaders(origin: string | null) {
   };
 }
 
-function text(value: unknown, fallback = 'Non renseigné') {
+function text(value: unknown, fallback = 'Néant') {
   if (value === null || value === undefined || value === '') return fallback;
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (Array.isArray(value)) return value.length ? value.join(', ') : fallback;
@@ -63,7 +63,7 @@ function pct(value: unknown) {
 }
 
 function frDate(value: unknown) {
-  if (!value) return 'Non renseignée';
+  if (!value) return 'Néant';
   const d = new Date(String(value));
   if (Number.isNaN(d.getTime())) return text(value);
   return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d);
@@ -197,7 +197,7 @@ function buildRecueil(snapshot: Json) {
     ['Numéro fiscal', (map, inv) => text(map.identity?.numero_fiscal ?? inv.numero_fiscal)],
     ['Adresse', (map) => {
       const id = map.identity ?? {};
-      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée';
+      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Néant';
     }],
   ]), allSectionMaps.length > 1 ? [36, ...allSectionMaps.map(() => 32)] : [44, 56]));
 
@@ -327,7 +327,7 @@ function answerValue(answer: Json, optionMap: Map<string, Json>) {
   if (answer.answer_numeric !== null && answer.answer_numeric !== undefined) return text(answer.answer_numeric);
   if (answer.answer_date) return frDate(answer.answer_date);
   if (answer.answer_json && Object.keys(answer.answer_json).length) return text(answer.answer_json);
-  return 'Non renseigné';
+  return 'Néant';
 }
 
 function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
