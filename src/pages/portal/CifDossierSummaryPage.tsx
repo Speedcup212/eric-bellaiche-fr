@@ -315,7 +315,7 @@ export default function CifDossierSummaryPage() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('synthese');
   const [selectedDocumentInvestorId, setSelectedDocumentInvestorId] = useState<string | null>(null);
   const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
-  const [, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
+  const [auditRecommendation, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
   const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
   const [auditMessage, setAuditMessage] = useState('');
   const [auditChatPrompt, setAuditChatPrompt] = useState('');
