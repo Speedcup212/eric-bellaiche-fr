@@ -322,9 +322,11 @@ export default function CifDossierSummaryPage() {
   const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
   const [, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
   const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
-  const [savingAudit, setSavingAudit] = useState(false);
   const [auditMessage, setAuditMessage] = useState('');
-  const [auditEditing, setAuditEditing] = useState(false);
+  const [auditChatPrompt, setAuditChatPrompt] = useState('');
+  const [generatingAuditPdf, setGeneratingAuditPdf] = useState(false);
+  const [auditPdfUrl, setAuditPdfUrl] = useState<string | null>(null);
+  const [auditPdfError, setAuditPdfError] = useState('');
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
@@ -472,151 +474,112 @@ export default function CifDossierSummaryPage() {
   }, [sourceDocuments, selectedDocumentState]);
   const displayedSourceDocuments = useMemo(() => documentReviewOnly ? selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review') : selectedSourceDocuments, [documentReviewOnly, selectedSourceDocuments]);
 
-  const auditValidationMissing = useMemo(() => {
-    const missing: string[] = [];
-    if (!auditDraft.diagnostic.trim()) missing.push('diagnostic');
-    if (!auditDraft.projet_a_preserver.trim()) missing.push('objectif / projet à préserver');
-    if (auditNumber(auditDraft.reserve_securite) === null) missing.push('réserve de sécurité');
-    if (auditNumber(auditDraft.epargne_a_arbitrer) === null) missing.push('épargne à arbitrer');
-    if (!auditDraft.allocation.some((item) => item.poche.trim() && item.decision.trim())) missing.push('allocation cible');
-    if (!auditDraft.supports.some((item) => item.support.trim() && item.analyse.trim())) missing.push('analyse des supports / actifs');
-    if (!auditDraft.fiscal_notes.some((item) => item.sujet.trim() && item.analyse.trim())) missing.push('analyse fiscale');
-    if (!auditDraft.controls.some((item) => item.scenario.trim() && item.reponse.trim())) missing.push('risques / crash test');
-    if (!auditDraft.sequencing.some((item) => item.action.trim())) missing.push('plan d’action');
-    return missing;
-  }, [auditDraft]);
+  const auditChatContext = useMemo(() => {
+    const controls = investorSummaries.flatMap((item) => item.unresolvedQpiControls).map((control) => control.commentaire || humanize(control.control_code));
+    const currentAllocation = auditDraft.allocation.map((item) => ({
+      poche: item.poche,
+      montant: item.montant,
+      decision: item.decision,
+    }));
+    const currentSupports = auditDraft.supports.map((item) => ({
+      support: item.support,
+      analyse: item.analyse,
+      decision: item.decision,
+    }));
+    return [
+      'AUDIT PATRIMONIAL — CONTEXTE DOSSIER CRM',
+      `Clients : ${clientDisplayName}`,
+      dossier?.reference ? `Dossier : ${dossier.reference}` : '',
+      '',
+      'DONNÉES CLÉS',
+      `Revenus annuels : ${snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'à compléter'}`,
+      `Capacité d’épargne : ${snapshot.savingsCapacityMonthly.found ? euro(snapshot.savingsCapacityMonthly.value) + ' / mois' : 'à compléter'}`,
+      `Liquidités : ${snapshot.liquidAssets.found ? euro(snapshot.liquidAssets.value) : 'à compléter'}`,
+      `Actifs financiers : ${snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'à compléter'}`,
+      `Immobilier brut : ${household.realEstate.totalValue > 0 ? euro(household.realEstate.totalValue) : 'à compléter'}`,
+      `Capital restant dû : ${snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : 'à compléter'}`,
+      `TMI : ${snapshot.tmi.found ? percent(snapshot.tmi.value) : 'à compléter'}`,
+      '',
+      `Objectifs : ${snapshot.goals.length ? snapshot.goals.join(' | ') : 'à compléter'}`,
+      `Contrôles QPI ouverts : ${controls.length ? controls.join(' | ') : 'aucun'}`,
+      '',
+      'AUDIT DE TRAVAIL ACTUEL',
+      `Statut : ${auditDraft.statut}`,
+      `Diagnostic : ${auditDraft.diagnostic || 'à rédiger'}`,
+      `Projet / objectif prioritaire : ${auditDraft.projet_a_preserver || 'à rédiger'}`,
+      `Réserve de sécurité : ${auditDraft.reserve_securite || 'à valider'}`,
+      `Épargne à arbitrer : ${auditDraft.epargne_a_arbitrer || 'à valider'}`,
+      `Allocation : ${JSON.stringify(currentAllocation)}`,
+      `Recommandations par sujet : ${JSON.stringify(currentSupports)}`,
+      `Fiscalité : ${JSON.stringify(auditDraft.fiscal_notes)}`,
+      `Crash tests / contrôles : ${JSON.stringify(auditDraft.controls)}`,
+      `Plan d’action : ${JSON.stringify(auditDraft.sequencing)}`,
+      '',
+      'TRAME À CONSERVER',
+      '1. Recommandation en une page',
+      '2. Diagnostic patrimonial',
+      '3. Allocation cible et séquencement',
+      '4. Recommandations par sujet',
+      '5. Fiscalité et choix des enveloppes',
+      '6. Adéquation, risques et justification',
+      '7. Crash test et plan d’action',
+      '8. Conclusion, contrôles et documentation',
+      '',
+      'Immobilier à passer au filtre du dossier : résidence principale, location nue, LMNP, LMP, location meublée / courte durée, Denormandie, Malraux, Monuments historiques, Relance logement (Jeanbrun), déficit foncier, nue-propriété / démembrement, SCI IR, SCI IS, résidences gérées, murs commerciaux / professionnels, SCPI / immobilier collectif.',
+    ].filter(Boolean).join('\n');
+  }, [auditDraft, clientDisplayName, dossier?.reference, household.realEstate.totalValue, investorSummaries, snapshot]);
 
-  const auditWorkflowSteps = useMemo(() => [
-    { label:'Diagnostic', done:Boolean(auditDraft.diagnostic.trim()) },
-    { label:'Objectifs / contraintes', done:Boolean(auditDraft.projet_a_preserver.trim()) },
-    { label:'Allocation & liquidité', done:auditNumber(auditDraft.reserve_securite) !== null && auditNumber(auditDraft.epargne_a_arbitrer) !== null && auditDraft.allocation.some((item) => item.poche.trim()) },
-    { label:'Supports / actifs', done:auditDraft.supports.some((item) => item.support.trim() && item.analyse.trim()) },
-    { label:'Fiscalité / protection', done:auditDraft.fiscal_notes.some((item) => item.analyse.trim()) || Boolean(auditDraft.protection_notes.trim()) },
-    { label:'Risques / crash test', done:auditDraft.controls.some((item) => item.scenario.trim() && item.reponse.trim()) },
-    { label:'Plan d’action', done:auditDraft.sequencing.some((item) => item.action.trim()) },
-    { label:'Validation Eric', done:auditDraft.statut === 'validated' && Boolean(auditDraft.validated_at) },
-  ], [auditDraft]);
-
-  const auditProgress = useMemo(() => {
-    const done = auditWorkflowSteps.filter((step) => step.done).length;
-    return { done, total:auditWorkflowSteps.length, percentage:Math.round((done / auditWorkflowSteps.length) * 100) };
-  }, [auditWorkflowSteps]);
-
-  const auditSubjectGroups = useMemo(() => {
-    const groups: Record<string, AuditSupportItem[]> = {
-      assurance_vie: [],
-      pea: [],
-      cto: [],
-      scpi: [],
-      immobilier: [],
-      credit: [],
-      retraite: [],
-      transmission: [],
-      autre: [],
-    };
-    for (const item of auditDraft.supports) {
-      const label = `${item.support} ${item.analyse} ${item.decision}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      const key =
-        /assurance.?vie|contrat av|fonds euro/.test(label) ? 'assurance_vie' :
-        /\bpea\b|msci|cac 40|stoxx/.test(label) ? 'pea' :
-        /\bcto\b|compte.?titres|s&p|nasdaq|japon|emerg/.test(label) ? 'cto' :
-        /scpi|opc[i]?|sci de placement/.test(label) ? 'scpi' :
-        /credit|crédit|pret|prêt|mensualit|banque|financement/.test(label) ? 'credit' :
-        /per\b|retraite|pereco|pee/.test(label) ? 'retraite' :
-        /succession|transmission|donation|beneficiaire|bénéficiaire|demembrement|démembrement/.test(label) ? 'transmission' :
-        /immobilier|lyon|marseille|lmnp|lmp|denormandie|malraux|monument|jeanbrun|relance logement|deficit foncier|déficit foncier|location|residence principale|résidence principale|meuble|meublé|sci\b/.test(label) ? 'immobilier' :
-        'autre';
-      groups[key].push(item);
-    }
-    return groups;
-  }, [auditDraft.supports]);
-
-  const auditRealEstateTypes = [
-    'Résidence principale',
-    'Location nue',
-    'LMNP',
-    'LMP',
-    'Location meublée / courte durée',
-    'Denormandie',
-    'Malraux',
-    'Monuments historiques',
-    'Relance logement (Jeanbrun)',
-    'Déficit foncier',
-    'Nue-propriété / démembrement',
-    'SCI à l’IR',
-    'SCI à l’IS',
-    'Résidences gérées',
-    'Murs commerciaux / professionnels',
-    'SCPI / immobilier collectif',
-  ];
-
-  const auditAllocationTotal = auditDraft.allocation.reduce((sum, item) => sum + (auditNumber(item.montant) ?? 0), 0);
-
-  function updateAuditField<K extends keyof AuditDraft>(key: K, value: AuditDraft[K]) {
-    setAuditMessage('');
-    setAuditDraft((current) => ({ ...current, [key]: value, statut:'draft', validated_at:null }));
-  }
-
-  const saveAuditRecommendation = async (validate = false) => {
-    if (!dossierId) return;
-    if (validate && auditValidationMissing.length) {
-      setAuditMessage(`Validation impossible : ${auditValidationMissing.join(', ')}.`);
-      return;
-    }
-    setSavingAudit(true);
-    setAuditMessage('');
+  const openAuditInChatGPT = async () => {
+    const fullPrompt = [
+      auditChatContext,
+      '',
+      auditChatPrompt.trim() || 'Étudie le dossier comme dans nos audits patrimoniaux habituels. Challenge les données, propose une recommandation complète et conserve strictement la trame cabinet.',
+    ].join('\n');
     try {
-      const validatedAt = validate ? new Date().toISOString() : null;
-      const payload = {
-        dossier_id: dossierId,
-        statut: validate ? 'validated' : 'draft',
-        diagnostic: auditDraft.diagnostic.trim() || null,
-        projet_a_preserver: auditDraft.projet_a_preserver.trim() || null,
-        reserve_securite: auditNumber(auditDraft.reserve_securite),
-        epargne_a_arbitrer: auditNumber(auditDraft.epargne_a_arbitrer),
-        allocation: auditDraft.allocation
-          .filter((item) => item.poche.trim() || item.montant.trim() || item.decision.trim())
-          .map((item) => ({
-            poche:item.poche.trim(),
-            montant:auditNumber(item.montant) ?? item.montant.trim(),
-            decision:item.decision.trim(),
-          })),
-        supports: {
-          items:auditDraft.supports
-            .filter((item) => item.support.trim() || item.analyse.trim() || item.decision.trim())
-            .map((item) => ({ support:item.support.trim(), analyse:item.analyse.trim(), decision:item.decision.trim() })),
-        },
-        sequencing: auditDraft.sequencing
-          .filter((item) => item.action.trim() || item.echeance.trim())
-          .map((item, index) => ({ ordre:item.ordre.trim() || String(index + 1), action:item.action.trim(), echeance:item.echeance.trim() })),
-        fiscal_notes: auditDraft.fiscal_notes
-          .filter((item) => item.sujet.trim() || item.analyse.trim())
-          .map((item) => ({ sujet:item.sujet.trim(), analyse:item.analyse.trim() })),
-        protection_notes: auditDraft.protection_notes.trim() || null,
-        controls: auditDraft.controls
-          .filter((item) => item.scenario.trim() || item.impact.trim() || item.reponse.trim())
-          .map((item) => ({ scenario:item.scenario.trim(), impact:item.impact.trim(), reponse:item.reponse.trim() })),
-        validated_at: validatedAt,
-        updated_at: new Date().toISOString(),
-      };
-      const { data, error } = await supabase
-        .from('audit_recommendations')
-        .upsert(payload, { onConflict:'dossier_id' })
-        .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at')
-        .single();
+      await navigator.clipboard.writeText(fullPrompt);
+      setAuditMessage('Contexte copié. ChatGPT est ouvert dans un nouvel onglet : colle le texte pour poursuivre l’audit.');
+    } catch {
+      setAuditMessage('ChatGPT est ouvert. Copie le contexte affiché dans le presse-papiers si nécessaire.');
+    }
+    window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
+  };
+
+  const generateAuditPdf = async () => {
+    if (!dossierId) return;
+    setGeneratingAuditPdf(true);
+    setAuditPdfError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-cif-audit', { body: { dossier_id: dossierId } });
       if (error) throw error;
-      const saved = data as AuditRecommendationRow;
-      setAuditRecommendation(saved);
-      setAuditDraft(auditDraftFromRow(saved));
-      setAuditMessage(validate
-        ? 'Audit validé. Il alimente maintenant automatiquement la source de la déclaration d’adéquation.'
-        : 'Brouillon de l’audit enregistré.');
+      if (!data?.signed_url) throw new Error(data?.error || 'Génération de l’audit impossible.');
+      setAuditPdfUrl(String(data.signed_url));
     } catch (error) {
-      setAuditMessage(messageFromError(error));
+      setAuditPdfError(messageFromError(error));
     } finally {
-      setSavingAudit(false);
+      setGeneratingAuditPdf(false);
     }
   };
+
+  useEffect(() => {
+    if (!dossierId) return;
+    let active = true;
+    const loadAuditPdf = async () => {
+      const { data, error } = await supabase
+        .from('documents_reglementaires')
+        .select('storage_bucket,storage_path_pdf,date_generation')
+        .eq('dossier_id', dossierId)
+        .eq('type_document', 'audit_patrimonial')
+        .eq('statut', 'generated')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data?.storage_path_pdf || !active) return;
+      const { data: signed } = await supabase.storage.from(data.storage_bucket || 'regulatory-docs').createSignedUrl(data.storage_path_pdf, 3600);
+      if (active && signed?.signedUrl) setAuditPdfUrl(signed.signedUrl);
+    };
+    void loadAuditPdf();
+    return () => { active = false; };
+  }, [dossierId]);
 
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
@@ -721,197 +684,56 @@ export default function CifDossierSummaryPage() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{householdConfirmations.map((item) => <div key={item.section_code} className={`rounded-2xl border p-4 ${item.status==='change_requested'?'border-amber-300 bg-amber-50':'border-emerald-200 bg-emerald-50'}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold text-slate-950">{sectionLabel[item.section_code] ?? item.section_code}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status==='change_requested'?'bg-amber-200 text-amber-900':'bg-emerald-200 text-emerald-900'}`}>{item.status==='change_requested'?'À arbitrer':'Confirmé'}</span></div>{item.note&&<p className="mt-3 text-sm leading-5 text-slate-700">{item.note}</p>}<p className="mt-3 text-[11px] text-slate-400">Mis à jour le {new Date(item.updated_at).toLocaleString('fr-FR')}</p></div>)}</div>
     </section>}
 
-    {activeTab === 'audit' && <section className="flow-root rounded-3xl border border-[#25405F] bg-[#08182B] p-5 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-6">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Étude patrimoniale</p>
-            <h2 className="mt-1 text-2xl font-semibold text-white">Audit patrimonial et proposition d’investissement</h2>
-            <p className="mt-1 text-sm text-slate-300">{clientDisplayName}</p>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">Trame cabinet 2026 conservée : recommandation en une page, diagnostic, allocation et séquencement, recommandations détaillées par sujet, fiscalité, adéquation, crash test, plan d’action, conclusion et contrôles.</p>
+    {activeTab === 'audit' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Audit patrimonial</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">Discussion ChatGPT + PDF</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-400">Pas de formulaire intermédiaire. Tu travailles l’audit avec ChatGPT, puis tu génères le PDF final.</p>
+        </div>
+      </div>
+
+      {auditMessage && <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">{auditMessage}</div>}
+
+      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_380px]">
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">Discussion audit</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Le contexte du dossier et la trame de tes deux audits de référence sont préparés automatiquement.</p>
+            </div>
+            <span className={'rounded-full border px-3 py-1 text-[10px] font-bold uppercase ' + (auditDraft.statut === 'validated' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/30 bg-amber-400/10 text-amber-200')}>{auditDraft.statut === 'validated' ? 'Audit validé' : 'Audit de travail'}</span>
+          </div>
+
+          <textarea
+            value={auditChatPrompt}
+            onChange={(event) => setAuditChatPrompt(event.target.value)}
+            rows={8}
+            placeholder="Ex. Reprends tout le dossier, challenge la réserve de sécurité, compare LMNP / Denormandie / Jeanbrun et refais l’allocation cible."
+            className="mt-5 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400">Ouvrir dans ChatGPT</button>
+            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(auditChatContext); setAuditMessage('Contexte du dossier copié.'); } catch { setAuditMessage('Impossible de copier automatiquement le contexte.'); } }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Copier le contexte</button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <span className={'rounded-full border px-3 py-1.5 text-xs font-bold uppercase ' + (auditDraft.statut === 'validated' ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-200' : 'border-amber-400/40 bg-amber-400/15 text-amber-200')}>{auditDraft.statut === 'validated' ? 'Audit validé' : 'Brouillon'}</span>
-          <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-100">{auditProgress.percentage} % complet</span>
-        </div>
-      </div>
 
-      {auditMessage && <div className={'mt-5 rounded-xl border px-4 py-3 text-sm font-medium ' + (auditMessage.startsWith('Audit validé') || auditMessage.startsWith('Brouillon') ? 'border-emerald-500/30 bg-emerald-950/25 text-emerald-100' : 'border-amber-500/35 bg-amber-950/25 text-amber-100')}>{auditMessage}</div>}
-
-      <div className="mt-4 rounded-2xl border border-[#2D4C6E] bg-[#0B1A2F] p-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Situation</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.familyStatus.found ? snapshot.familyStatus.value : 'À compléter'}</p></div>
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Patrimoine financier</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.financialAssets.found ? euro(snapshot.financialAssets.value + (snapshot.liquidAssets.found ? snapshot.liquidAssets.value : 0)) : 'À compléter'}</p></div>
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Immobilier</p><p className="mt-2 text-sm font-semibold text-white">{household.realEstate.totalValue > 0 ? euro(household.realEstate.totalValue) : 'À compléter'}</p></div>
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Capacité d’épargne</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.savingsCapacityMonthly.found ? euro(snapshot.savingsCapacityMonthly.value) + ' / mois' : 'À compléter'}</p></div>
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">TMI</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.tmi.found ? percent(snapshot.tmi.value) : 'À compléter'}</p></div>
-        </div>
-        <div className="mt-5 rounded-xl border border-cyan-400/30 bg-cyan-950/20 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-300">Décision proposée</p>
-          <p className="mt-2 text-sm leading-6 text-white">{auditDraft.diagnostic || 'Aucune recommandation rédigée pour le moment.'}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">1. Recommandation en une page</p><h3 className="mt-1 text-lg font-semibold text-white">Objectif prioritaire et architecture cible</h3></div>
-          <span className="text-xs text-slate-400">Montants de travail — validation conseiller requise</span>
-        </div>
-        <div className="mt-4 rounded-xl border border-[#315173] bg-[#071425] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Objectif prioritaire</p>
-          <p className="mt-2 text-sm leading-6 text-white">{auditDraft.projet_a_preserver || 'À définir à partir des objectifs et contraintes du dossier.'}</p>
-        </div>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-[#315173]">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[#10243E] text-xs uppercase tracking-[0.08em] text-blue-200"><tr><th className="px-4 py-3">Poche cible</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">%</th><th className="px-4 py-3">Décision</th></tr></thead>
-            <tbody className="divide-y divide-[#25405F] bg-[#071425]">
-              {auditDraft.allocation.map((item,index) => { const amount=auditNumber(item.montant) ?? 0; const weight=auditAllocationTotal > 0 ? amount / auditAllocationTotal * 100 : 0; return <tr key={'audit-allocation-summary-' + index}><td className="px-4 py-3 font-semibold text-white">{item.poche || 'Poche à préciser'}</td><td className="px-4 py-3 text-slate-200">{amount ? euro(amount) : '—'}</td><td className="px-4 py-3 text-slate-200">{amount && auditAllocationTotal ? percent(weight) : '—'}</td><td className="px-4 py-3 text-slate-300">{item.decision || 'À préciser'}</td></tr>; })}
-              {!auditDraft.allocation.length && <tr><td colSpan={4} className="px-4 py-5 text-center text-slate-400">Allocation cible non encore renseignée.</td></tr>}
-              {auditDraft.allocation.length > 0 && <tr className="bg-[#0F223A]"><td className="px-4 py-3 font-bold text-white">Total</td><td className="px-4 py-3 font-bold text-white">{euro(auditAllocationTotal)}</td><td className="px-4 py-3 font-bold text-white">100 %</td><td className="px-4 py-3 text-slate-300">Architecture cible</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Avant</p>
-            <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4"><span className="text-slate-400">Liquidités</span><strong className="text-white">{snapshot.liquidAssets.found ? euro(snapshot.liquidAssets.value) : 'À compléter'}</strong></div><div className="flex justify-between gap-4"><span className="text-slate-400">Actifs financiers investis</span><strong className="text-white">{snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'À compléter'}</strong></div></div>
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">Document</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Audit patrimonial PDF</h3>
+            </div>
+            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditPdfUrl ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700/60 text-slate-300')}>{auditPdfUrl ? 'PDF généré' : 'Prêt à générer'}</span>
           </div>
-          <div className="rounded-xl border border-cyan-400/25 bg-cyan-950/15 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">Après</p>
-            <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4"><span className="text-slate-300">Réserve sécurisée</span><strong className="text-white">{auditNumber(auditDraft.reserve_securite) !== null ? euro(auditNumber(auditDraft.reserve_securite) || 0) : 'À valider'}</strong></div><div className="flex justify-between gap-4"><span className="text-slate-300">Allocation cible</span><strong className="text-white">{auditAllocationTotal ? euro(auditAllocationTotal) : 'À construire'}</strong></div></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">2. Diagnostic patrimonial</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">Photographie, déséquilibres et objectifs hiérarchisés</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            ['Revenus annuels', snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'À compléter'],
-            ['Mensualités crédits', snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) + ' / mois' : 'À compléter'],
-            ['Capital restant dû', snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : 'À compléter'],
-            ['Patrimoine net indicatif', snapshot.patrimonyNet !== null ? euro(snapshot.patrimonyNet) : 'À compléter'],
-          ].map(([label,value]) => <div key={label} className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p><p className="mt-2 text-sm font-bold text-white">{value}</p></div>)}
-        </div>
-        <div className="mt-4 rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Diagnostic</p><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-100">{auditDraft.diagnostic || 'À rédiger.'}</p></div>
-        <div className="mt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Objectifs hiérarchisés</p>
-          <div className="mt-2 flex flex-wrap gap-2">{snapshot.goals.length ? snapshot.goals.map((goal,index) => <span key={goal} className="rounded-full border border-blue-400/25 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-100">{index + 1}. {goal}</span>) : <span className="text-sm text-slate-400">Aucun objectif exploitable détecté.</span>}</div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">3. Allocation cible et séquencement</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">Sécurité et projets d’abord, investissements ensuite</h3>
-        <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Garde-fou de liquidité</p>
-            <p className="mt-2 text-2xl font-bold text-white">{auditNumber(auditDraft.reserve_securite) !== null ? euro(auditNumber(auditDraft.reserve_securite) || 0) : 'À valider'}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">{auditDraft.projet_a_preserver || 'Les projets à court terme doivent être chiffrés avant tout redéploiement de long terme.'}</p>
-            <p className="mt-3 text-xs text-slate-500">Épargne à arbitrer : {auditNumber(auditDraft.epargne_a_arbitrer) !== null ? euro(auditNumber(auditDraft.epargne_a_arbitrer) || 0) : 'À valider'}</p>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-[#315173]">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#10243E] text-xs uppercase tracking-[0.08em] text-blue-200"><tr><th className="px-4 py-3">Étape</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Échéance</th></tr></thead>
-              <tbody className="divide-y divide-[#25405F] bg-[#071425]">{auditDraft.sequencing.map((item,index) => <tr key={'audit-seq-' + index}><td className="px-4 py-3 font-bold text-white">{item.ordre || index + 1}</td><td className="px-4 py-3 text-slate-200">{item.action || 'À préciser'}</td><td className="px-4 py-3 text-slate-400">{item.echeance || '—'}</td></tr>)}{!auditDraft.sequencing.length && <tr><td colSpan={3} className="px-4 py-5 text-center text-slate-400">Aucun séquencement défini.</td></tr>}</tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">4. Recommandations par sujet</p><h3 className="mt-1 text-lg font-semibold text-white">Analyse détaillée des enveloppes, actifs et solutions</h3></div><p className="text-xs text-slate-400">Seules les solutions pertinentes doivent être retenues dans la recommandation finale.</p></div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          {[
-            ['Assurance-vie', auditSubjectGroups.assurance_vie],
-            ['PEA / ETF', auditSubjectGroups.pea],
-            ['Compte-titres', auditSubjectGroups.cto],
-            ['SCPI / immobilier collectif', auditSubjectGroups.scpi],
-            ['Crédits / financement', auditSubjectGroups.credit],
-            ['Retraite / PER / épargne salariale', auditSubjectGroups.retraite],
-            ['Transmission / démembrement', auditSubjectGroups.transmission],
-            ['Autres sujets', auditSubjectGroups.autre],
-          ].map(([title,items]) => <div key={String(title)} className="rounded-xl border border-[#315173] bg-[#071425] p-4">
-            <p className="text-sm font-bold text-white">{String(title)}</p>
-            {(items as AuditSupportItem[]).length ? <div className="mt-3 space-y-3">{(items as AuditSupportItem[]).map((item,index) => <div key={String(title) + index} className="border-t border-[#203954] pt-3 first:border-0 first:pt-0"><p className="text-sm font-semibold text-cyan-100">{item.support || 'Sujet'}</p><p className="mt-1 text-xs leading-5 text-slate-300">{item.analyse || 'Analyse à compléter.'}</p>{item.decision && <p className="mt-2 text-xs font-semibold leading-5 text-emerald-200">Décision : {item.decision}</p>}</div>)}</div> : <p className="mt-3 text-xs text-slate-500">Aucune recommandation retenue à ce stade.</p>}
-          </div>)}
-        </div>
-
-        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-950/15 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-white">Immobilier — solutions à passer au filtre du dossier</p><p className="mt-1 text-xs leading-5 text-slate-400">La présence d’une solution dans cette liste ne constitue pas une recommandation. Elle doit être retenue, écartée ou mise en attente selon le besoin, la fiscalité, la liquidité, le financement et le risque du client.</p></div><span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[10px] font-bold uppercase text-amber-200">Analyse immobilière complète</span></div>
-          <div className="mt-3 flex flex-wrap gap-2">{auditRealEstateTypes.map((type) => <span key={type} className="rounded-lg border border-amber-300/20 bg-amber-300/5 px-2.5 py-1.5 text-xs font-semibold text-amber-100">{type}</span>)}</div>
-          {auditSubjectGroups.immobilier.length > 0 && <div className="mt-4 grid gap-3 lg:grid-cols-2">{auditSubjectGroups.immobilier.map((item,index) => <div key={'immobilier-' + index} className="rounded-lg border border-amber-300/20 bg-[#071425] p-3"><p className="text-sm font-semibold text-white">{item.support || 'Immobilier'}</p><p className="mt-1 text-xs leading-5 text-slate-300">{item.analyse || 'Analyse à compléter.'}</p>{item.decision && <p className="mt-2 text-xs font-semibold leading-5 text-amber-200">Décision : {item.decision}</p>}</div>)}</div>}
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">5. Fiscalité et choix des enveloppes</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">La fiscalité soutient la stratégie, elle ne la dicte pas</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ['RFR', snapshot.rfr.found ? euro(snapshot.rfr.value) : 'À compléter'],
-            ['IR net', snapshot.incomeTax.found ? euro(snapshot.incomeTax.value) : 'À compléter'],
-            ['TMI', snapshot.tmi.found ? percent(snapshot.tmi.value) : 'À compléter'],
-            ['Plafond PER', snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'À compléter'],
-          ].map(([label,value]) => <div key={label} className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p><p className="mt-2 text-sm font-bold text-white">{value}</p></div>)}
-        </div>
-        <div className="mt-4 space-y-3">{auditDraft.fiscal_notes.length ? auditDraft.fiscal_notes.map((item,index) => <div key={'audit-tax-' + index} className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-sm font-semibold text-amber-100">{item.sujet || 'Point fiscal'}</p><p className="mt-1 text-sm leading-6 text-slate-300">{item.analyse || 'Analyse à compléter.'}</p></div>) : <p className="text-sm text-slate-400">Aucune analyse fiscale rédigée.</p>}</div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-violet-300">6. Adéquation, risques et justification</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">Pourquoi la recommandation est compatible avec le dossier</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase text-slate-500">Contrôles QPI ouverts</p><p className="mt-2 text-xl font-bold text-white">{investorSummaries.reduce((sum,item) => sum + item.unresolvedQpiControls.length,0)}</p></div>
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase text-slate-500">Données manquantes</p><p className="mt-2 text-xl font-bold text-white">{snapshot.missing.length}</p></div>
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase text-slate-500">Réserve</p><p className="mt-2 text-xl font-bold text-white">{auditNumber(auditDraft.reserve_securite) !== null ? euro(auditNumber(auditDraft.reserve_securite) || 0) : '—'}</p></div>
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase text-slate-500">Allocation long terme</p><p className="mt-2 text-xl font-bold text-white">{auditAllocationTotal ? euro(auditAllocationTotal) : '—'}</p></div>
-        </div>
-        {auditDraft.protection_notes && <div className="mt-4 rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Protection / retraite / transmission</p><p className="mt-2 text-sm leading-6 text-slate-300">{auditDraft.protection_notes}</p></div>}
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-rose-300">7. Crash test et plan d’action</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">Tester la stratégie lorsque les hypothèses se dégradent</h3>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-[#315173]">
-          <table className="min-w-full text-left text-sm"><thead className="bg-[#10243E] text-xs uppercase tracking-[0.08em] text-rose-200"><tr><th className="px-4 py-3">Scénario</th><th className="px-4 py-3">Impact</th><th className="px-4 py-3">Réponse patrimoniale</th></tr></thead><tbody className="divide-y divide-[#25405F] bg-[#071425]">{auditDraft.controls.map((item,index) => <tr key={'audit-control-' + index}><td className="px-4 py-3 font-semibold text-white">{item.scenario || 'Scénario'}</td><td className="px-4 py-3 text-slate-300">{item.impact || 'À chiffrer'}</td><td className="px-4 py-3 text-slate-300">{item.reponse || 'À définir'}</td></tr>)}{!auditDraft.controls.length && <tr><td colSpan={3} className="px-4 py-5 text-center text-slate-400">Aucun crash test enregistré.</td></tr>}</tbody></table>
-        </div>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-[#315173]">
-          <table className="min-w-full text-left text-sm"><thead className="bg-[#10243E] text-xs uppercase tracking-[0.08em] text-blue-200"><tr><th className="px-4 py-3">Étape</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Échéance</th></tr></thead><tbody className="divide-y divide-[#25405F] bg-[#071425]">{auditDraft.sequencing.map((item,index) => <tr key={'audit-action-' + index}><td className="px-4 py-3 font-bold text-white">{item.ordre || index + 1}</td><td className="px-4 py-3 text-slate-300">{item.action || 'À préciser'}</td><td className="px-4 py-3 text-slate-400">{item.echeance || '—'}</td></tr>)}</tbody></table>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">8. Conclusion, contrôles et documentation</p>
-        <h3 className="mt-1 text-lg font-semibold text-white">Décision patrimoniale et points à lever avant exécution</h3>
-        <div className="mt-4 rounded-xl border border-cyan-400/25 bg-cyan-950/15 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">Décision patrimoniale</p><p className="mt-2 text-sm leading-6 text-white">{auditDraft.diagnostic || 'À rédiger.'}</p></div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-amber-400/25 bg-amber-950/10 p-4"><p className="text-sm font-bold text-amber-100">Contrôles à lever avant exécution complète</p><ul className="mt-3 space-y-2 text-sm leading-5 text-slate-300">{snapshot.missing.map((item) => <li key={item}>• {item}</li>)}{investorSummaries.flatMap((item) => item.unresolvedQpiControls).map((control) => <li key={control.id}>• {control.commentaire || humanize(control.control_code)}</li>)}{!snapshot.missing.length && investorSummaries.every((item) => item.unresolvedQpiControls.length === 0) && <li>• Aucun blocage automatique détecté ; contrôle conseiller final requis.</li>}</ul></div>
-          <div className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-sm font-bold text-white">Prise de connaissance</p><p className="mt-3 text-sm leading-6 text-slate-400">L’audit est une aide à la décision patrimoniale. Les hypothèses chiffrées ne sont pas garanties. Toute mise en œuvre reste conditionnée aux documents précontractuels, aux DIC, aux données actualisées et à la déclaration d’adéquation propre à chaque souscription.</p></div>
-        </div>
-      </div>
-
-      {auditEditing && <div className="mt-4 rounded-2xl border border-fuchsia-400/25 bg-fuchsia-950/10 p-5">
-        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-fuchsia-200">Mode correction conseiller</p><h3 className="mt-1 text-lg font-semibold text-white">Corriger le contenu généré sans transformer l’audit en formulaire</h3></div><button type="button" onClick={() => setAuditEditing(false)} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white">Fermer</button></div>
-        <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          <label className="text-xs font-semibold text-slate-300">Diagnostic / décision<textarea rows={7} value={auditDraft.diagnostic} onChange={(event) => updateAuditField('diagnostic',event.target.value)} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none" /></label>
-          <label className="text-xs font-semibold text-slate-300">Objectif prioritaire<textarea rows={7} value={auditDraft.projet_a_preserver} onChange={(event) => updateAuditField('projet_a_preserver',event.target.value)} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none" /></label>
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-300">Réserve de sécurité (€)<input value={auditDraft.reserve_securite} onChange={(event) => updateAuditField('reserve_securite',event.target.value)} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm text-white outline-none" /></label><label className="text-xs font-semibold text-slate-300">Épargne à arbitrer (€)<input value={auditDraft.epargne_a_arbitrer} onChange={(event) => updateAuditField('epargne_a_arbitrer',event.target.value)} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm text-white outline-none" /></label></div>
-        <div className="mt-5 rounded-xl border border-[#315173] bg-[#071425] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Allocation cible</p><button type="button" onClick={() => updateAuditField('allocation',[...auditDraft.allocation,{poche:'',montant:'',decision:''}])} className="rounded-lg border border-blue-400/30 px-3 py-2 text-xs font-semibold text-blue-100">+ Poche</button></div><div className="mt-3 space-y-3">{auditDraft.allocation.map((item,index) => <div key={'edit-allocation-' + index} className="grid gap-2 lg:grid-cols-[1fr_150px_1.4fr_auto]"><input value={item.poche} onChange={(event) => updateAuditField('allocation',auditDraft.allocation.map((row,i) => i===index ? {...row,poche:event.target.value}:row))} placeholder="Poche" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><input value={item.montant} onChange={(event) => updateAuditField('allocation',auditDraft.allocation.map((row,i) => i===index ? {...row,montant:event.target.value}:row))} placeholder="Montant" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><input value={item.decision} onChange={(event) => updateAuditField('allocation',auditDraft.allocation.map((row,i) => i===index ? {...row,decision:event.target.value}:row))} placeholder="Décision" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><button type="button" onClick={() => updateAuditField('allocation',auditDraft.allocation.filter((_,i) => i!==index))} className="rounded-lg border border-rose-500/30 px-3 text-xs text-rose-200">×</button></div>)}</div></div>
-        <div className="mt-5 rounded-xl border border-[#315173] bg-[#071425] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Recommandations par sujet</p><button type="button" onClick={() => updateAuditField('supports',[...auditDraft.supports,{support:'',analyse:'',decision:''}])} className="rounded-lg border border-emerald-400/30 px-3 py-2 text-xs font-semibold text-emerald-100">+ Sujet</button></div><div className="mt-3 space-y-3">{auditDraft.supports.map((item,index) => <div key={'edit-support-' + index} className="rounded-lg border border-[#25405F] p-3"><div className="flex gap-2"><input value={item.support} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,support:event.target.value}:row))} placeholder="Sujet / support / actif" className="min-w-0 flex-1 rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><button type="button" onClick={() => updateAuditField('supports',auditDraft.supports.filter((_,i) => i!==index))} className="rounded-lg border border-rose-500/30 px-3 text-xs text-rose-200">×</button></div><textarea rows={3} value={item.analyse} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,analyse:event.target.value}:row))} placeholder="Analyse" className="mt-2 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><input value={item.decision} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,decision:event.target.value}:row))} placeholder="Décision" className="mt-2 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /></div>)}</div></div>
-      </div>}
-
-      <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/35 to-[#0B1A2F] p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">Validation conseiller</p><h3 className="mt-1 text-lg font-semibold text-white">Audit de travail → validation Eric → déclaration d’adéquation</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Le brouillon reste modifiable. La déclaration d’adéquation n’utilise cette recommandation qu’après validation de l’audit.</p>{auditValidationMissing.length > 0 && <p className="mt-2 text-xs font-semibold text-amber-200">À compléter avant validation : {auditValidationMissing.join(', ')}.</p>}</div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button type="button" onClick={() => setAuditEditing((value) => !value)} className="rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-4 py-3 text-sm font-semibold text-fuchsia-100">{auditEditing ? 'Masquer les corrections' : 'Modifier l’audit'}</button>
-            <button disabled={savingAudit} type="button" onClick={() => void saveAuditRecommendation(false)} className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{savingAudit ? 'Enregistrement…' : 'Enregistrer le brouillon'}</button>
-            <button disabled={savingAudit || auditValidationMissing.length > 0} type="button" onClick={() => void saveAuditRecommendation(true)} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">{savingAudit ? 'Validation…' : 'Valider l’audit'}</button>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Même logique que le DER et la lettre de mission : génération du PDF, puis dépôt manuel sur Youtrust si nécessaire.</p>
+          {auditRecommendation?.updated_at && <p className="mt-3 text-xs text-slate-500">Audit mis à jour le {new Date(auditRecommendation.updated_at).toLocaleString('fr-FR')}</p>}
+          {auditPdfError && <p className="mt-3 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2 text-xs font-semibold text-rose-200">{auditPdfError}</p>}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button disabled={generatingAuditPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 disabled:opacity-50">{generatingAuditPdf ? 'Génération…' : auditPdfUrl ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
+            {auditPdfUrl && <button type="button" onClick={() => window.open(auditPdfUrl, '_blank', 'noopener,noreferrer')} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15">Voir le PDF</button>}
           </div>
         </div>
       </div>
