@@ -151,11 +151,15 @@ function buildRecueil(snapshot: Json) {
   const properties: Json[] = [];
   const credits: Json[] = [];
   let incomeAnnual = 0;
+  let savingsMonthly = 0;
   let financialDeclared = 0;
+  let ifiConcerned = false;
   for (const { map } of allSectionMaps) {
     incomeAnnual += num(map.capacity?.estimation_revenus_travail_annuels) + num(map.capacity?.estimation_revenus_fonciers_annuels);
+    savingsMonthly += num(map.capacity?.capacite_epargne_mensuelle);
     if (map.patrimony?.has_real_estate === true) properties.push(...(map.patrimony?.immobilier ?? []));
     if (map.credits?.has_credits === true) credits.push(...(map.credits?.items ?? []));
+    ifiConcerned ||= map.tax?.ifi_concerne === true;
     const placements = map.patrimony?.placements ?? [];
     financialDeclared += placements.reduce((sum: number, x: Json) => sum + num(x.montant ?? x.valeur ?? x.encours), 0);
   }
@@ -165,7 +169,8 @@ function buildRecueil(snapshot: Json) {
   const monthlyIncome = incomeAnnual / 12;
   const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null;
   const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null;
-  const net = propertyTotal + financialDeclared - crdTotal;
+  const gross = propertyTotal + financialDeclared;
+  const net = gross - crdTotal;
 
   const children: any[] = [];
   children.push(p('CABINET ERIC BELLAICHE', { bold: true, color: BLUE, size: 22, alignment: AlignmentType.CENTER }));
@@ -340,23 +345,29 @@ function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
     const session = sessions.find((s: Json) => s.investisseur_id === inv.id);
     children.push(heading(`${investorName(inv)} — ${type === 'QPI' ? 'profil investisseur' : 'préférences ESG'}`));
     if (!session) {
-      if (type === 'ESG' && inv.esg_opt_in === false) children.push(p('Aucune préférence ESG obligatoire exprimée. Le client a choisi de ne pas remplir le questionnaire ESG détaillé.', { bold: true, color: GREEN }));
-      else children.push(p('Questionnaire non disponible pour cet investisseur.', { color: 'B45309' }));
+      if (type === 'ESG' && inv.esg_opt_in === false) {
+        children.push(p('Aucune préférence ESG obligatoire exprimée. Le client a choisi de ne pas remplir le questionnaire ESG détaillé.', { bold: true, color: GREEN }));
+      } else children.push(p('Questionnaire non disponible pour cet investisseur.', { color: 'B45309' }));
       continue;
     }
     const template = snapshot.templateById[session.template_id];
     children.push(p(`${text(template?.libelle)} — version ${text(template?.version)}`, { color: BLUE, bold: true }));
     if (type === 'QPI') {
       const result = snapshot.qpiResults.find((r: Json) => r.session_id === session.id);
-      if (result) children.push(table(['Indicateur', 'Résultat'], [
-        ['Score de tolérance', `${text(result.score_tolerance)} / ${text(result.score_max)}`], ['Profil indicatif', text(result.profil_indicatif)], ['Profil opérationnel final', text(result.profil_operationnel_final)], ['Niveau retenu', text(result.niveau_tolerance_retenu)], ['Perte maximale déclarée', `${eur(result.perte_max_declairee_montant)} / ${pct(result.perte_max_declairee_pct)}`], ['Capacité de perte retenue', `${eur(result.capacite_perte_retenue_montant)} / ${pct(result.capacite_perte_retenue_pct)}`], ['Écart déclaré / objectivé', text(result.ecart_declared_objective)], ['Justification', text(result.justification_ecart)],
-      ]));
+      if (result) {
+        children.push(table(['Indicateur', 'Résultat'], [
+          ['Score de tolérance', `${text(result.score_tolerance)} / ${text(result.score_max)}`], ['Profil indicatif', text(result.profil_indicatif)], ['Profil opérationnel final', text(result.profil_operationnel_final)], ['Niveau retenu', text(result.niveau_tolerance_retenu)], ['Perte maximale déclarée', `${eur(result.perte_max_declairee_montant)} / ${pct(result.perte_max_declairee_pct)}`], ['Capacité de perte retenue', `${eur(result.capacite_perte_retenue_montant)} / ${pct(result.capacite_perte_retenue_pct)}`], ['Écart déclaré / objectivé', text(result.ecart_declared_objective)], ['Justification', text(result.justification_ecart)],
+        ]));
+      }
     } else {
       const pref = snapshot.esgPreferences.find((r: Json) => r.session_id === session.id);
-      if (pref) children.push(table(['Thème', 'Préférence'], [
-        ['Périmètre', text(pref.perimetre)], ['Taxonomie — choix', text(pref.taxonomie_choix)], ['Taxonomie — minimum', pct(pref.taxonomie_min_pct)], ['Objectifs taxonomie', text(pref.taxonomie_objectifs)], ['SFDR — choix', text(pref.sfdr_choix)], ['SFDR — minimum', pct(pref.sfdr_min_pct)], ['Thématiques durables', text(pref.sfdr_thematiques)], ['PAI — choix', text(pref.pai_choix)], ['Priorités PAI', text(pref.pai_priorites)], ['Exclusions sectorielles', text(pref.exclusions_sectorielles)], ['Limitations sectorielles', text(pref.limitations_sectorielles)], ['Besoins spécifiques', text(pref.besoins_specifiques)], ['Synthèse réglementaire', text(pref.synthese_reglementaire)],
-      ]));
+      if (pref) {
+        children.push(table(['Thème', 'Préférence'], [
+          ['Périmètre', text(pref.perimetre)], ['Taxonomie — choix', text(pref.taxonomie_choix)], ['Taxonomie — minimum', pct(pref.taxonomie_min_pct)], ['Objectifs taxonomie', text(pref.taxonomie_objectifs)], ['SFDR — choix', text(pref.sfdr_choix)], ['SFDR — minimum', pct(pref.sfdr_min_pct)], ['Thématiques durables', text(pref.sfdr_thematiques)], ['PAI — choix', text(pref.pai_choix)], ['Priorités PAI', text(pref.pai_priorites)], ['Exclusions sectorielles', text(pref.exclusions_sectorielles)], ['Limitations sectorielles', text(pref.limitations_sectorielles)], ['Besoins spécifiques', text(pref.besoins_specifiques)], ['Synthèse réglementaire', text(pref.synthese_reglementaire)],
+        ]));
+      }
     }
+
     const questions = snapshot.questions.filter((q: Json) => q.template_id === session.template_id).sort((a: Json, b: Json) => a.ordre - b.ordre);
     const answers = snapshot.answers.filter((a: Json) => a.session_id === session.id);
     const answerByQuestion = new Map(answers.map((a: Json) => [a.question_id, a]));
@@ -366,9 +377,11 @@ function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
       return [String(q.ordre), text(q.libelle), answerValue(a, snapshot.optionMap), a.points_awarded === null || a.points_awarded === undefined ? '—' : text(a.points_awarded)];
     }), [8, 52, 30, 10]));
   }
+
   children.push(heading('Validation et signatures'));
   children.push(p(type === 'QPI' ? 'En signant, les clients confirment avoir pris connaissance des réponses reproduites, du résultat du profil et des éventuelles limites de capacité de perte.' : 'En signant, les clients confirment que les préférences de durabilité reproduites correspondent à leurs réponses à la date du questionnaire.'));
   children.push(signatureTable(investors));
+
   return new Document({ styles: { default: { document: { run: { font: 'Aptos', size: 19, color: DARK } } } }, sections: [{ properties: { page: { margin: { top: 900, right: 700, bottom: 900, left: 700 } } }, children }] });
 }
 
@@ -386,15 +399,25 @@ async function loadSnapshot(client: any, dossierId: string) {
   const templateIds = [...new Set(sessions.map((s: Json) => s.template_id).filter(Boolean))];
   let templates: Json[] = [], questions: Json[] = [], answers: Json[] = [], options: Json[] = [], qpiResults: Json[] = [], esgPreferences: Json[] = [];
   if (templateIds.length) {
-    const templateRes = await client.from('questionnaire_templates').select('*').in('id', templateIds); if (templateRes.error) throw templateRes.error; templates = templateRes.data ?? [];
-    const questionRes = await client.from('questionnaire_questions').select('*').in('template_id', templateIds); if (questionRes.error) throw questionRes.error; questions = questionRes.data ?? [];
+    const templateRes = await client.from('questionnaire_templates').select('*').in('id', templateIds);
+    if (templateRes.error) throw templateRes.error;
+    templates = templateRes.data ?? [];
+    const questionRes = await client.from('questionnaire_questions').select('*').in('template_id', templateIds);
+    if (questionRes.error) throw questionRes.error;
+    questions = questionRes.data ?? [];
     const questionIds = questions.map((q: Json) => q.id);
-    if (questionIds.length) { const optionRes = await client.from('questionnaire_options').select('*').in('question_id', questionIds); if (optionRes.error) throw optionRes.error; options = optionRes.data ?? []; }
+    if (questionIds.length) {
+      const optionRes = await client.from('questionnaire_options').select('*').in('question_id', questionIds);
+      if (optionRes.error) throw optionRes.error;
+      options = optionRes.data ?? [];
+    }
   }
   const sessionIds = sessions.map((s: Json) => s.id);
   if (sessionIds.length) {
     const [answerRes, qpiRes, esgRes] = await Promise.all([
-      client.from('questionnaire_answers').select('*').in('session_id', sessionIds), client.from('qpi_results').select('*').in('session_id', sessionIds), client.from('esg_preferences').select('*').in('session_id', sessionIds),
+      client.from('questionnaire_answers').select('*').in('session_id', sessionIds),
+      client.from('qpi_results').select('*').in('session_id', sessionIds),
+      client.from('esg_preferences').select('*').in('session_id', sessionIds),
     ]);
     for (const r of [answerRes, qpiRes, esgRes]) if (r.error) throw r.error;
     answers = answerRes.data ?? []; qpiResults = qpiRes.data ?? []; esgPreferences = esgRes.data ?? [];
@@ -408,9 +431,18 @@ async function loadSnapshot(client: any, dossierId: string) {
 }
 
 function validateReady(snapshot: Json, type: DocumentType) {
-  if (type === 'recueil' && snapshot.investors.some((i: Json) => !['completed', 'validated'].includes(i.recueil_status))) throw new Error('Le recueil doit être terminé pour tous les investisseurs avant génération du document à signer.');
-  if (type === 'qpi' && snapshot.investors.some((i: Json) => !['completed', 'validated'].includes(i.qpi_status))) throw new Error('Le profil investisseur doit être terminé pour tous les investisseurs avant génération.');
-  if (type === 'esg' && snapshot.investors.some((i: Json) => !['completed', 'validated', 'not_applicable'].includes(i.esg_status))) throw new Error('Le choix ESG doit être finalisé pour tous les investisseurs avant génération.');
+  if (type === 'recueil') {
+    const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated'].includes(i.recueil_status));
+    if (invalid.length) throw new Error('Le recueil doit être terminé pour tous les investisseurs avant génération du document à signer.');
+  }
+  if (type === 'qpi') {
+    const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated'].includes(i.qpi_status));
+    if (invalid.length) throw new Error('Le profil investisseur doit être terminé pour tous les investisseurs avant génération.');
+  }
+  if (type === 'esg') {
+    const invalid = snapshot.investors.filter((i: Json) => !['completed', 'validated', 'not_applicable'].includes(i.esg_status));
+    if (invalid.length) throw new Error('Le choix ESG doit être finalisé pour tous les investisseurs avant génération.');
+  }
 }
 
 Deno.serve(async (req) => {
@@ -419,36 +451,57 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers });
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Méthode non autorisée' }), { status: 405, headers });
   if (origin && !allowedOrigins.has(origin)) return new Response(JSON.stringify({ error: 'Origine non autorisée' }), { status: 403, headers });
+
   try {
     const auth = req.headers.get('Authorization') ?? '';
     if (!auth.startsWith('Bearer ')) return new Response(JSON.stringify({ error: 'Authentification requise' }), { status: 401, headers });
-    const supabaseUrl = Deno.env.get('SUPABASE_URL'); const anonKey = Deno.env.get('SUPABASE_ANON_KEY'); const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseUrl || !anonKey || !serviceKey) throw new Error('Configuration Supabase incomplète');
+
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
     const { data: appUser, error: userError } = await userClient.from('app_users').select('role,actif').maybeSingle();
     if (userError) throw userError;
     if (!appUser?.actif || !['cif', 'admin'].includes(appUser.role)) return new Response(JSON.stringify({ error: 'Accès réservé au cabinet' }), { status: 403, headers });
+
     const payload = await req.json();
     const dossierId = typeof payload?.dossier_id === 'string' ? payload.dossier_id : '';
     if (!/^[0-9a-f-]{36}$/i.test(dossierId)) return new Response(JSON.stringify({ error: 'Dossier invalide' }), { status: 400, headers });
     const requested = Array.isArray(payload?.document_types) ? payload.document_types : ['recueil', 'qpi', 'esg'];
     const types = requested.filter((x: string): x is DocumentType => ['recueil', 'qpi', 'esg'].includes(x));
     if (!types.length) return new Response(JSON.stringify({ error: 'Aucun type de document demandé' }), { status: 400, headers });
+
     const snapshot = await loadSnapshot(userClient, dossierId);
     for (const type of types) validateReady(snapshot, type);
+
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const results = [];
     for (const type of types) {
       const snapshotHash = await sha256Hex(JSON.stringify({ type, version: DOC_VERSION, dossier: snapshot.dossier, investors: snapshot.investors, sections: snapshot.sections, sessions: snapshot.sessions, qpi: snapshot.qpiResults, esg: snapshot.esgPreferences, answers: snapshot.answers }));
       const { data: existing } = await admin.from('documents_reglementaires').select('id,storage_bucket,storage_path_docx,statut,metadata,date_generation').eq('dossier_id', dossierId).eq('type_document', type).eq('version_modele', DOC_VERSION).eq('metadata->>snapshot_hash', snapshotHash).eq('statut', 'generated').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (existing?.storage_path_docx) { const { data: signed } = await admin.storage.from(existing.storage_bucket ?? BUCKET).createSignedUrl(existing.storage_path_docx, 3600); results.push({ type, document_id: existing.id, reused: true, signed_url: signed?.signedUrl ?? null, path: existing.storage_path_docx }); continue; }
+      if (existing?.storage_path_docx) {
+        const { data: signed } = await admin.storage.from(existing.storage_bucket ?? BUCKET).createSignedUrl(existing.storage_path_docx, 3600);
+        results.push({ type, document_id: existing.id, reused: true, signed_url: signed?.signedUrl ?? null, path: existing.storage_path_docx });
+        continue;
+      }
+
       const doc = type === 'recueil' ? buildRecueil(snapshot) : buildQuestionnaire(snapshot, type === 'qpi' ? 'QPI' : 'ESG');
-      const buffer = await Packer.toBuffer(doc); const bytes = new Uint8Array(buffer); const fileHash = await sha256Hex(bytes);
-      const datePart = new Date().toISOString().slice(0, 10); const reference = slug(snapshot.dossier.reference || snapshot.dossier.libelle || dossierId.slice(0, 8)); const fileName = `${type}-${reference}-${datePart}-${fileHash.slice(0, 10)}.docx`; const storagePath = `${dossierId}/${type}/${fileName}`;
-      const { error: uploadError } = await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', upsert: false }); if (uploadError) throw uploadError;
-      const { data: row, error: insertError } = await admin.from('documents_reglementaires').insert({ dossier_id: dossierId, type_document: type, version_modele: DOC_VERSION, statut: 'generated', storage_bucket: BUCKET, storage_path_docx: storagePath, date_generation: new Date().toISOString(), hash_sha256: fileHash, metadata: { snapshot_hash: snapshotHash, generated_from: 'portal_supabase', signature_provider: 'youtrust', signature_status: 'ready_to_send', document_date: type === 'recueil' ? snapshot.recueil_date : type === 'qpi' ? snapshot.qpi_date : snapshot.esg_date, investor_ids: snapshot.investors.map((i: Json) => i.id) } }).select('id').single(); if (insertError) throw insertError;
-      const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600); results.push({ type, document_id: row.id, reused: false, signed_url: signed?.signedUrl ?? null, path: storagePath, hash_sha256: fileHash });
+      const buffer = await Packer.toBuffer(doc);
+      const bytes = new Uint8Array(buffer);
+      const fileHash = await sha256Hex(bytes);
+      const datePart = new Date().toISOString().slice(0, 10);
+      const reference = slug(snapshot.dossier.reference || snapshot.dossier.libelle || dossierId.slice(0, 8));
+      const fileName = `${type}-${reference}-${datePart}-${fileHash.slice(0, 10)}.docx`;
+      const storagePath = `${dossierId}/${type}/${fileName}`;
+      const { error: uploadError } = await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: row, error: insertError } = await admin.from('documents_reglementaires').insert({ dossier_id: dossierId, type_document: type, version_modele: DOC_VERSION, statut: 'generated', storage_bucket: BUCKET, storage_path_docx: storagePath, date_generation: new Date().toISOString(), hash_sha256: fileHash, metadata: { snapshot_hash: snapshotHash, generated_from: 'portal_supabase', signature_provider: 'youtrust', signature_status: 'ready_to_send', document_date: type === 'recueil' ? snapshot.recueil_date : type === 'qpi' ? snapshot.qpi_date : snapshot.esg_date, investor_ids: snapshot.investors.map((i: Json) => i.id) } }).select('id').single();
+      if (insertError) throw insertError;
+      const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
+      results.push({ type, document_id: row.id, reused: false, signed_url: signed?.signedUrl ?? null, path: storagePath, hash_sha256: fileHash });
     }
+
     return new Response(JSON.stringify({ ok: true, version: DOC_VERSION, documents: results }), { status: 200, headers });
   } catch (error) {
     console.error('generate-cif-documents', error);
