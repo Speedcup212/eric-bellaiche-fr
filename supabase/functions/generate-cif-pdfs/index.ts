@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.27-MISSION-POINT9-SIGNATURE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.28-MISSION-SIGNATURE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -1146,7 +1146,16 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
       continue;
     }
 
-    if (type === 'mission' && value === 'ANNEXE - FORMULAIRE DE RÉTRACTATION') {
+    const normalizedMissionAnnex = value
+      .replace(/[–—]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    if (
+      type === 'mission' &&
+      normalizedMissionAnnex.startsWith('ANNEXE - FORMULAIRE DE RÉTRACTATION')
+    ) {
       if (!missionSignatureDrawn) {
         drawSignaturePanel(ctx, snapshot, type);
         missionSignatureDrawn = true;
@@ -1221,6 +1230,10 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
     }
 
     regulatoryText(ctx, value, { size: 9.7, lineHeight: 13.1, after: 6 });
+  }
+
+  if (type === 'mission' && !missionSignatureDrawn) {
+    drawSignaturePanel(ctx, snapshot, type);
   }
 }
 async function buildDer(snapshot: Json) {
