@@ -670,6 +670,154 @@ export default function CifDossierSummaryPage() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{householdConfirmations.map((item) => <div key={item.section_code} className={`rounded-2xl border p-4 ${item.status==='change_requested'?'border-amber-300 bg-amber-50':'border-emerald-200 bg-emerald-50'}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold text-slate-950">{sectionLabel[item.section_code] ?? item.section_code}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status==='change_requested'?'bg-amber-200 text-amber-900':'bg-emerald-200 text-emerald-900'}`}>{item.status==='change_requested'?'À arbitrer':'Confirmé'}</span></div>{item.note&&<p className="mt-3 text-sm leading-5 text-slate-700">{item.note}</p>}<p className="mt-3 text-[11px] text-slate-400">Mis à jour le {new Date(item.updated_at).toLocaleString('fr-FR')}</p></div>)}</div>
     </section>}
 
+    {activeTab === 'audit' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Audit patrimonial</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Moteur d’analyse et de recommandation</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Processus existant conservé : recueil → profil → objectifs / contraintes → allocation → liquidité → fiscalité → risques → crash test → recommandations → validation Eric → déclaration d’adéquation.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full border px-3 py-1.5 text-xs font-bold uppercase ${auditDraft.statut === 'validated' ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-200' : 'border-amber-400/40 bg-amber-400/15 text-amber-200'}`}>{auditDraft.statut === 'validated' ? 'Audit validé' : 'Brouillon'}</span>
+          <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-100">{auditProgress.done}/{auditProgress.total} étapes</span>
+        </div>
+      </div>
+
+      {auditMessage && <div className={`mt-5 rounded-xl border px-4 py-3 text-sm font-medium ${auditMessage.startsWith('Audit validé') || auditMessage.startsWith('Brouillon') ? 'border-emerald-500/30 bg-emerald-950/25 text-emerald-100' : 'border-amber-500/35 bg-amber-950/25 text-amber-100'}`}>{auditMessage}</div>}
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
+        <div className="flex items-center justify-between gap-4 border-b border-[#25405F] px-5 py-4">
+          <div><h3 className="font-semibold text-white">Chaîne d’audit</h3><p className="mt-1 text-xs text-slate-400">Même logique que les audits techniques déjà produits au cabinet.</p></div>
+          <span className="text-sm font-bold text-cyan-200">{auditProgress.percentage} %</span>
+        </div>
+        <div className="h-1.5 bg-[#10243E]"><div className="h-full bg-cyan-400 transition-all" style={{ width:`${auditProgress.percentage}%` }} /></div>
+        <div className="grid gap-px bg-[#25405F] sm:grid-cols-2 xl:grid-cols-4">
+          {auditWorkflowSteps.map((step, index) => <div key={step.label} className="bg-[#0B1A2F] p-4">
+            <div className="flex items-center gap-3">
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${step.done ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-700/60 text-slate-300'}`}>{step.done ? '✓' : index + 1}</span>
+              <span className={`text-sm font-semibold ${step.done ? 'text-white' : 'text-slate-400'}`}>{step.label}</span>
+            </div>
+          </div>)}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">Base factuelle</p><h3 className="mt-1 text-lg font-semibold text-white">Données déjà récupérées du dossier</h3></div>
+          <p className="text-xs text-slate-400">Aucune recommandation n’est validée automatiquement.</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ['Revenus annuels', snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'À compléter'],
+            ['Capacité d’épargne', snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'À compléter'],
+            ['Liquidités', snapshot.liquidAssets.found ? euro(snapshot.liquidAssets.value) : 'À compléter'],
+            ['Actifs financiers', snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'À compléter'],
+            ['Immobilier brut', household.realEstate.totalValue > 0 ? euro(household.realEstate.totalValue) : 'À compléter'],
+            ['Capital restant dû', snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : 'À compléter'],
+            ['TMI', snapshot.tmi.found ? percent(snapshot.tmi.value) : 'À compléter'],
+            ['Contrôles QPI', String(investorSummaries.reduce((sum, item) => sum + item.unresolvedQpiControls.length, 0))],
+          ].map(([label,value]) => <div key={label} className="rounded-2xl border border-[#25405F] bg-[#0F223A] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p><p className={`mt-2 text-base font-bold ${value === 'À compléter' ? 'text-amber-300' : 'text-white'}`}>{value}</p></div>)}
+        </div>
+        {snapshot.goals.length > 0 && <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200">Objectifs déclarés</p><div className="mt-2 flex flex-wrap gap-2">{snapshot.goals.map((goal) => <span key={goal} className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100">{goal}</span>)}</div></div>}
+      </div>
+
+      <div className="mt-7 grid gap-5 xl:grid-cols-2">
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Diagnostic</p><h3 className="mt-1 font-semibold text-white">Diagnostic patrimonial et objectif prioritaire</h3></div><span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase text-cyan-200">Analyse Eric</span></div>
+          <label className="mt-4 block text-xs font-semibold text-slate-300">Diagnostic global</label>
+          <textarea value={auditDraft.diagnostic} onChange={(event) => updateAuditField('diagnostic', event.target.value)} rows={7} placeholder="Forces, déséquilibres, concentration, liquidité, revenus, dettes, points de vigilance…" className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+          <label className="mt-4 block text-xs font-semibold text-slate-300">Projet / contrainte à préserver</label>
+          <textarea value={auditDraft.projet_a_preserver} onChange={(event) => updateAuditField('projet_a_preserver', event.target.value)} rows={4} placeholder="Projet prioritaire, horizon, dépenses certaines, baisse de revenus, études, travaux…" className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+        </div>
+
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">2 · Liquidité</p><h3 className="mt-1 font-semibold text-white">Réserve et capital à redéployer</h3><p className="mt-1 text-xs text-slate-400">La réserve de sécurité est validée avant de construire l’allocation de long terme.</p></div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-slate-300">Réserve de sécurité (€)<input inputMode="decimal" value={auditDraft.reserve_securite} onChange={(event) => updateAuditField('reserve_securite', event.target.value)} placeholder="Ex. 50000" className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-blue-400" /></label>
+            <label className="text-xs font-semibold text-slate-300">Épargne à arbitrer (€)<input inputMode="decimal" value={auditDraft.epargne_a_arbitrer} onChange={(event) => updateAuditField('epargne_a_arbitrer', event.target.value)} placeholder="Ex. 120000" className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-blue-400" /></label>
+          </div>
+          <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 p-4 text-xs leading-5 text-cyan-100">
+            <strong>Garde-fou :</strong> la recommandation ne doit pas réduire la réserve nécessaire aux projets court terme. Le QPI et les contrôles de cohérence restent des bornes, pas une décision automatique.
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-300">3 · Allocation</p><h3 className="mt-1 font-semibold text-white">Allocation cible et décision par poche</h3></div><div className="flex items-center gap-3"><span className="text-xs text-slate-400">Total saisi : <strong className="text-white">{euro(auditDraft.allocation.reduce((sum, item) => sum + (auditNumber(item.montant) ?? 0), 0))}</strong></span><button type="button" onClick={() => updateAuditField('allocation', [...auditDraft.allocation, { poche:'', montant:'', decision:'' }])} className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-100 hover:bg-indigo-500/20">+ Ajouter une poche</button></div></div>
+        {auditDraft.allocation.length ? <div className="mt-4 space-y-3">{auditDraft.allocation.map((item, index) => <div key={`allocation-${index}`} className="grid gap-3 rounded-xl border border-[#25405F] bg-[#071425] p-3 lg:grid-cols-[1fr_160px_1.4fr_auto]">
+          <input value={item.poche} onChange={(event) => updateAuditField('allocation', auditDraft.allocation.map((row, rowIndex) => rowIndex === index ? { ...row, poche:event.target.value } : row))} placeholder="Poche / enveloppe" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400" />
+          <input inputMode="decimal" value={item.montant} onChange={(event) => updateAuditField('allocation', auditDraft.allocation.map((row, rowIndex) => rowIndex === index ? { ...row, montant:event.target.value } : row))} placeholder="Montant €" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400" />
+          <input value={item.decision} onChange={(event) => updateAuditField('allocation', auditDraft.allocation.map((row, rowIndex) => rowIndex === index ? { ...row, decision:event.target.value } : row))} placeholder="Rôle / décision / horizon" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400" />
+          <button type="button" onClick={() => updateAuditField('allocation', auditDraft.allocation.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10">Retirer</button>
+        </div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-[#315173] p-4 text-sm text-slate-400">Aucune allocation cible saisie. L’allocation doit être validée après liquidité, objectifs et profil.</p>}
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">4 · Analyse des actifs</p><h3 className="mt-1 font-semibold text-white">Contrats, crédits, immobilier et enveloppes</h3><p className="mt-1 text-xs text-slate-400">Le processus ne remplace pas automatiquement un actif existant : il l’analyse avant décision.</p></div><button type="button" onClick={() => updateAuditField('supports', [...auditDraft.supports, { support:'', analyse:'', decision:'' }])} className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">+ Ajouter une analyse</button></div>
+        {auditDraft.supports.length ? <div className="mt-4 grid gap-3 lg:grid-cols-2">{auditDraft.supports.map((item, index) => <div key={`support-${index}`} className="rounded-xl border border-[#25405F] bg-[#071425] p-4">
+          <div className="flex gap-2"><input value={item.support} onChange={(event) => updateAuditField('supports', auditDraft.supports.map((row, rowIndex) => rowIndex === index ? { ...row, support:event.target.value } : row))} placeholder="Actif / support / crédit" className="min-w-0 flex-1 rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400" /><button type="button" onClick={() => updateAuditField('supports', auditDraft.supports.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg border border-rose-500/30 px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10">×</button></div>
+          <textarea value={item.analyse} onChange={(event) => updateAuditField('supports', auditDraft.supports.map((row, rowIndex) => rowIndex === index ? { ...row, analyse:event.target.value } : row))} rows={4} placeholder="Constat : frais, rendement, dette, ancienneté, réglementation, contraintes…" className="mt-3 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400" />
+          <input value={item.decision} onChange={(event) => updateAuditField('supports', auditDraft.supports.map((row, rowIndex) => rowIndex === index ? { ...row, decision:event.target.value } : row))} placeholder="Décision retenue / à confirmer" className="mt-3 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-400" />
+        </div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-[#315173] p-4 text-sm text-slate-400">Ajoute ici les analyses des actifs existants et des enveloppes envisagées.</p>}
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+          <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">5 · Fiscalité</p><h3 className="mt-1 font-semibold text-white">Fiscalité, PER et leviers</h3></div><button type="button" onClick={() => updateAuditField('fiscal_notes', [...auditDraft.fiscal_notes, { sujet:'', analyse:'' }])} className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100">+ Point fiscal</button></div>
+          <div className="mt-4 space-y-3">{auditDraft.fiscal_notes.map((item, index) => <div key={`fiscal-${index}`} className="rounded-xl border border-[#25405F] bg-[#071425] p-3">
+            <div className="flex gap-2"><input value={item.sujet} onChange={(event) => updateAuditField('fiscal_notes', auditDraft.fiscal_notes.map((row, rowIndex) => rowIndex === index ? { ...row, sujet:event.target.value } : row))} placeholder="Sujet fiscal" className="min-w-0 flex-1 rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white outline-none" /><button type="button" onClick={() => updateAuditField('fiscal_notes', auditDraft.fiscal_notes.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg border border-rose-500/30 px-3 text-rose-200">×</button></div>
+            <textarea value={item.analyse} onChange={(event) => updateAuditField('fiscal_notes', auditDraft.fiscal_notes.map((row, rowIndex) => rowIndex === index ? { ...row, analyse:event.target.value } : row))} rows={3} placeholder="Analyse, ordre de grandeur, arbitrage liquidité / avantage fiscal…" className="mt-2 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm leading-5 text-white outline-none" />
+          </div>)}</div>
+          {!auditDraft.fiscal_notes.length && <p className="mt-4 text-sm text-slate-400">Aucun point fiscal saisi.</p>}
+        </div>
+
+        <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-300">6 · Protection / long terme</p><h3 className="mt-1 font-semibold text-white">Protection, retraite, études, transmission</h3></div>
+          <textarea value={auditDraft.protection_notes} onChange={(event) => updateAuditField('protection_notes', event.target.value)} rows={8} placeholder="Points de protection, retraite, dépendance, études des enfants, transmission ou absence de besoin prioritaire…" className="mt-4 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-teal-400" />
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-rose-300">7 · Résilience</p><h3 className="mt-1 font-semibold text-white">Risques, contrôles et crash test</h3><p className="mt-1 text-xs text-slate-400">Scénario → impact → réponse patrimoniale. C’est le crash test utilisé dans l’audit Premium.</p></div><button type="button" onClick={() => updateAuditField('controls', [...auditDraft.controls, { scenario:'', impact:'', reponse:'' }])} className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">+ Ajouter un scénario</button></div>
+        {auditDraft.controls.length ? <div className="mt-4 space-y-3">{auditDraft.controls.map((item, index) => <div key={`control-${index}`} className="grid gap-3 rounded-xl border border-[#25405F] bg-[#071425] p-3 lg:grid-cols-[1fr_1fr_1.25fr_auto]">
+          <input value={item.scenario} onChange={(event) => updateAuditField('controls', auditDraft.controls.map((row, rowIndex) => rowIndex === index ? { ...row, scenario:event.target.value } : row))} placeholder="Scénario / contrôle" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none" />
+          <input value={item.impact} onChange={(event) => updateAuditField('controls', auditDraft.controls.map((row, rowIndex) => rowIndex === index ? { ...row, impact:event.target.value } : row))} placeholder="Impact" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none" />
+          <input value={item.reponse} onChange={(event) => updateAuditField('controls', auditDraft.controls.map((row, rowIndex) => rowIndex === index ? { ...row, reponse:event.target.value } : row))} placeholder="Réponse patrimoniale / contrôle à lever" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none" />
+          <button type="button" onClick={() => updateAuditField('controls', auditDraft.controls.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg border border-rose-500/30 px-3 text-xs font-semibold text-rose-200">Retirer</button>
+        </div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-[#315173] p-4 text-sm text-slate-400">Aucun crash test saisi.</p>}
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-300">8 · Mise en œuvre</p><h3 className="mt-1 font-semibold text-white">Plan d’action et séquencement</h3><p className="mt-1 text-xs text-slate-400">L’ordre d’exécution fait partie de la recommandation : sécurité et projets d’abord, investissements ensuite.</p></div><button type="button" onClick={() => updateAuditField('sequencing', [...auditDraft.sequencing, { ordre:String(auditDraft.sequencing.length + 1), action:'', echeance:'' }])} className="rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-100">+ Ajouter une action</button></div>
+        {auditDraft.sequencing.length ? <div className="mt-4 space-y-3">{auditDraft.sequencing.map((item, index) => <div key={`sequence-${index}`} className="grid gap-3 rounded-xl border border-[#25405F] bg-[#071425] p-3 lg:grid-cols-[80px_1fr_180px_auto]">
+          <input value={item.ordre} onChange={(event) => updateAuditField('sequencing', auditDraft.sequencing.map((row, rowIndex) => rowIndex === index ? { ...row, ordre:event.target.value } : row))} placeholder="#" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-center text-sm font-bold text-white outline-none" />
+          <input value={item.action} onChange={(event) => updateAuditField('sequencing', auditDraft.sequencing.map((row, rowIndex) => rowIndex === index ? { ...row, action:event.target.value } : row))} placeholder="Action" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none" />
+          <input value={item.echeance} onChange={(event) => updateAuditField('sequencing', auditDraft.sequencing.map((row, rowIndex) => rowIndex === index ? { ...row, echeance:event.target.value } : row))} placeholder="Échéance" className="rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none" />
+          <button type="button" onClick={() => updateAuditField('sequencing', auditDraft.sequencing.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg border border-rose-500/30 px-3 text-xs font-semibold text-rose-200">Retirer</button>
+        </div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-[#315173] p-4 text-sm text-slate-400">Aucun plan d’action saisi.</p>}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/35 to-[#0B1A2F] p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">Validation conseiller</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">Audit technique → présentation client → adéquation</h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Le livrable technique reprend le standard déjà utilisé au cabinet : diagnostic, allocation / liquidité, analyse des actifs, fiscalité, adéquation, crash test, plan d’action et contrôles. La présentation client Premium V4 Résilience reste la restitution courte. La déclaration d’adéquation ne prend sa source ici qu’après validation de l’audit.</p>
+            {auditValidationMissing.length > 0 && <p className="mt-2 text-xs font-semibold text-amber-200">À compléter avant validation : {auditValidationMissing.join(', ')}.</p>}
+            {auditDraft.validated_at && <p className="mt-2 text-xs text-emerald-200">Dernière validation : {new Date(auditDraft.validated_at).toLocaleString('fr-FR')}.</p>}
+            {!auditDraft.validated_at && auditRecommendation?.updated_at && <p className="mt-2 text-xs text-slate-400">Dernier enregistrement : {new Date(auditRecommendation.updated_at).toLocaleString('fr-FR')}.</p>}
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button disabled={savingAudit} type="button" onClick={() => void saveAuditRecommendation(false)} className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50">{savingAudit ? 'Enregistrement…' : 'Enregistrer le brouillon'}</button>
+            <button disabled={savingAudit || auditValidationMissing.length > 0} type="button" onClick={() => void saveAuditRecommendation(true)} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{savingAudit ? 'Validation…' : 'Valider l’audit'}</button>
+          </div>
+        </div>
+      </div>
+    </section>}
+
     {activeTab === 'documents' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
       <div className="flex items-start gap-3">
         <div className="rounded-2xl bg-emerald-50 p-3"><FileText className="h-5 w-5 text-emerald-700" /></div>
