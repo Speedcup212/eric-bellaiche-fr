@@ -136,6 +136,12 @@ assert.doesNotMatch(journeyBase, /Mensualité actuelle/, 'La mensualité doit ve
 assert.doesNotMatch(journeyBase, /Fin approximative du crédit/, 'La fin du crédit doit venir du tableau d’amortissement');
 assert.match(journeyBase, /className=\"credit-section space-y-6\"/);
 assert.match(journeyBase, /className=\"credit-card /);
+assert.match(journeyBase, /SHARED_HOUSEHOLD_SECTIONS:[^\n]*\['family', 'patrimony', 'credits'\]/, 'Famille, immobilier et crédits doivent rester des sections foyer partagées');
+assert.match(journeyBase, /householdReviewTotal = householdReview\.length/, 'Le compteur des confirmations doit utiliser exactement les sections réellement affichées');
+assert.match(journeyBase, /householdReviewComplete = householdReviewTotal > 0 && householdConfirmedCount === householdReviewTotal/, 'Le statut global du foyer doit utiliser le même ensemble que le compteur');
+assert.doesNotMatch(journeyBase, /Math\.max\(2,[^\n]*householdReview/, 'Le dénominateur des confirmations ne doit jamais être codé en dur');
+assert.match(journeyBase, /Informations du foyer confirmées/, 'Les confirmations validées doivent être repliées dans un résumé compact');
+assert.match(journeyBase, /Une fois confirmées, elles sont repliées et ne gênent plus le parcours/, 'Le parcours doit masquer les actions déjà traitées');
 assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/);
 assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/);
 assert.match(creditMigration, /validate_credit_recueil_payload/);
