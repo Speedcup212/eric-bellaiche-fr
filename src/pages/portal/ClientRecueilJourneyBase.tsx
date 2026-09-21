@@ -342,6 +342,9 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
   );
   const current = visibleSections[step] ?? visibleSections[0];
   const form = forms[current.code];
+  const householdConfirmedCount = householdReview.filter((item) => item.confirmation_status === 'confirmed' && !item.confirmation_stale).length;
+  const householdReviewTotal = householdReview.length;
+  const householdReviewComplete = householdReviewTotal > 0 && householdConfirmedCount === householdReviewTotal;
   const identityNeedsBirthName = String(forms.identity.civilite ?? '').trim().toLowerCase() === 'mme';
   const familySituation = String(forms.family.situation ?? '').toLowerCase();
   const familyNeedsConvention = familySituation.includes('mari') || familySituation.includes('pacs');
@@ -714,15 +717,51 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
           <span className="shrink-0 rounded-full bg-[#3B82F6] px-3.5 py-1.5 text-xs font-bold text-white">{progress.role_dossier === 'investisseur_2' ? '2' : '1'}</span>
         </div>
 
-        {progress.role_dossier === 'investisseur_2' && (
+        {progress.role_dossier === 'investisseur_2' && householdReviewComplete && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">Informations du foyer confirmées</p>
+                  <p className="text-xs text-slate-500">Aucune ressaisie nécessaire pour les données communes.</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm">{householdConfirmedCount}/{householdReviewTotal} confirmées</span>
+            </div>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold text-emerald-700">Voir les informations ou signaler une correction</summary>
+              <div className="mt-3 space-y-2">
+                {householdReview.map((item) => <details key={item.section_code} className="rounded-xl border border-emerald-100 bg-white px-4 py-3">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">{householdSectionLabels[item.section_code]}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">{householdReviewSummary(item)}</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">Confirmé</span>
+                    </div>
+                  </summary>
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <p className="text-[11px] text-slate-400">Déclaré par {item.source_name || 'l’Identifiant 1'}.</p>
+                    <textarea value={reviewNotes[item.section_code] ?? ''} onChange={(e) => setReviewNotes((state) => ({ ...state, [item.section_code]: e.target.value }))} rows={2} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" placeholder="Décrivez uniquement ce qui doit être corrigé." />
+                    <button type="button" disabled={reviewBusy === item.section_code} onClick={() => void setHouseholdConfirmation(item.section_code, 'change_requested')} className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-900 disabled:opacity-50">Signaler une correction</button>
+                  </div>
+                </details>)}
+              </div>
+            </details>
+          </section>
+        )}
+
+        {progress.role_dossier === 'investisseur_2' && !householdReviewComplete && (
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-slate-800">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Informations communes du foyer</p>
                 <h3 className="mt-1 text-lg font-semibold text-slate-950">Vérifiez sans ressaisir</h3>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Les informations ci-dessous ont été renseignées par l’Identifiant 1. Confirmez-les ou signalez une correction. Votre remarque n’écrase jamais la déclaration initiale.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Les informations communes ont été renseignées par l’Identifiant 1. Une fois confirmées, elles sont repliées et ne gênent plus le parcours.</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">{householdReview.filter((item) => item.confirmation_status === 'confirmed' && !item.confirmation_stale).length}/{Math.max(2, householdReview.filter((item) => ['family','patrimony'].includes(item.section_code)).length)} confirmées</span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">{householdConfirmedCount}/{householdReviewTotal} confirmées</span>
             </div>
 
             <div className="mt-4 space-y-3">
@@ -730,6 +769,15 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
               {householdReview.map((item) => {
                 const confirmed = item.confirmation_status === 'confirmed' && !item.confirmation_stale;
                 const changeRequested = item.confirmation_status === 'change_requested' && !item.confirmation_stale;
+                if (confirmed) {
+                  return <div key={item.section_code} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-950">{householdSectionLabels[item.section_code]}</p>
+                      <p className="truncate text-xs text-slate-500">{householdReviewSummary(item)}</p>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">Confirmé</span>
+                  </div>;
+                }
                 return <div key={item.section_code} className="rounded-xl border border-blue-100 bg-white p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -737,7 +785,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
                       <p className="mt-1 text-xs leading-5 text-slate-600">{householdReviewSummary(item)}</p>
                       <p className="mt-1 text-[11px] text-slate-400">Déclaré par {item.source_name || 'l’Identifiant 1'}.</p>
                     </div>
-                    <span className={`self-start rounded-full px-2.5 py-1 text-[11px] font-bold ${confirmed ? 'bg-emerald-100 text-emerald-700' : changeRequested ? 'bg-amber-100 text-amber-800' : item.confirmation_stale ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-600'}`}>{confirmed ? 'Confirmé' : changeRequested ? 'Correction signalée' : item.confirmation_stale ? 'À reconfirmer' : 'À vérifier'}</span>
+                    <span className={`self-start rounded-full px-2.5 py-1 text-[11px] font-bold ${changeRequested ? 'bg-amber-100 text-amber-800' : item.confirmation_stale ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-600'}`}>{changeRequested ? 'Correction signalée' : item.confirmation_stale ? 'À reconfirmer' : 'À vérifier'}</span>
                   </div>
                   <textarea value={reviewNotes[item.section_code] ?? ''} onChange={(e) => setReviewNotes((state) => ({ ...state, [item.section_code]: e.target.value }))} rows={2} className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" placeholder="Une correction à signaler ? Décrivez-la ici." />
                   <div className="mt-3 flex flex-wrap gap-2">
