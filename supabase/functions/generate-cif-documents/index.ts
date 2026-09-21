@@ -303,10 +303,10 @@ function buildRecueil(snapshot: Json) {
     ['TIN américain', (map) => text(map.regulatory?.code_tin)],
     ['Sanctions internationales / gel des avoirs', (map) => text(map.regulatory?.sanctions_declarees)],
     ['PPE — client ou proche', (map) => text(map.regulatory?.ppe_declaree)],
-    ['Personne exposée', (map) => text(map.regulatory?.ppe_personne_exposee)],
-    ['Fonction PPE', (map) => text(map.regulatory?.ppe_motif)],
-    ['Pays d’exercice PPE', (map) => text(map.regulatory?.ppe_pays_exercice)],
-    ['Période PPE', (map) => text(map.regulatory?.ppe_anciennete)],
+    ['Personne exposée', (map) => map.regulatory?.ppe_declaree === false ? 'Non' : text(map.regulatory?.ppe_personne_exposee)],
+    ['Fonction PPE', (map) => map.regulatory?.ppe_declaree === false ? 'Non' : text(map.regulatory?.ppe_motif)],
+    ['Pays d’exercice PPE', (map) => map.regulatory?.ppe_declaree === false ? 'Non' : text(map.regulatory?.ppe_pays_exercice)],
+    ['Période PPE', (map) => map.regulatory?.ppe_declaree === false ? 'Non' : text(map.regulatory?.ppe_anciennete)],
     ['Souhaite prendre en compte des critères ESG', (map) => text(map.regulatory?.esg_opt_in)],
   ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
 
