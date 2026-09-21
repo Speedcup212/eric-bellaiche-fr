@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.22-TITRES-PAGINATION';
+const PDF_VERSION = '2026-MAITRE-PDF-2.23-MISSION';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -620,7 +620,8 @@ function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type
     if (/^\d{1,2}\.\s/.test(t) || /^ANNEXE\b/.test(normalized) || /^ENTRE LES SOUSSIGN/.test(normalized)) return 1;
     if (/^\d{1,2}\.\d+\.\s/.test(t) || /^\d{1,2}\.\d+\s/.test(t)) return 2;
     if (/^\d{1,2}\.\d+\.\d+/.test(t)) return 3;
-    if (['PRÉAMBULE', 'CONTEXTE DE LA PRESTATION', 'CARACTÉRISTIQUES DE LA PRESTATION'].includes(normalized)) return 2;
+    if (normalized === 'PRÉAMBULE') return 2;
+    if (['CONTEXTE DE LA PRESTATION', 'CARACTÉRISTIQUES DE LA PRESTATION'].includes(normalized)) return 3;
   } else {
     if (
       normalized === 'INTRODUCTION' ||
@@ -690,6 +691,16 @@ function regulatoryHeadingDisplay(value: string, type: 'der' | 'mission') {
       "1. RÉMUNÉRATION D'AGENT IMMOBILIER :": "3.1. Rémunération d'agent immobilier",
     };
     if (map[n]) return map[n];
+  }
+  if (type === 'mission') {
+    const map: Record<string, string> = {
+      'ENTRE LES SOUSSIGNES :': 'Entre les soussignés',
+      'CONTEXTE DE LA PRESTATION': 'Contexte de la prestation',
+      'CARACTÉRISTIQUES DE LA PRESTATION': 'Caractéristiques de la prestation',
+      'ANNEXE - FORMULAIRE DE RÉTRACTATION': 'Annexe - Formulaire de rétractation',
+      'MODÈLE DE FORMULAIRE DE RÉTRACTATION': 'Modèle de formulaire de rétractation',
+    };
+    return map[n] ?? t;
   }
   return t;
 }
@@ -975,6 +986,8 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   let skipOriginalSignatureLines = false;
   let inDerActivitiesList = false;
   let inDerCommunicationsList = false;
+  let inMissionProductList = false;
+  let inMissionDurationPhases = false;
 
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index];
@@ -999,6 +1012,19 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
     }
     if (type === 'der' && value === 'Mise à jour des informations') {
       inDerCommunicationsList = false;
+    }
+
+    if (type === 'mission' && value === 'Les différents types de produits susceptibles d’être proposés :') {
+      inMissionProductList = true;
+    }
+    if (type === 'mission' && inMissionProductList && value.startsWith('Les stratégies d’investissement')) {
+      inMissionProductList = false;
+    }
+    if (type === 'mission' && value.startsWith('16.1.')) {
+      inMissionDurationPhases = true;
+    }
+    if (type === 'mission' && value.startsWith('Dans un premier temps')) {
+      inMissionDurationPhases = false;
     }
 
     if (type === 'der' && value === 'Mr') {
@@ -1087,6 +1113,30 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
       continue;
     }
 
+    if (type === 'mission' && value === 'ANNEXE - FORMULAIRE DE RÉTRACTATION') {
+      if (ctx.y < A4.height - 120) addPage(ctx);
+    }
+
+    if (type === 'mission' && inMissionProductList && !/^Les différents types/.test(value)) {
+      drawBulletParagraph(ctx, value);
+      continue;
+    }
+
+    if (type === 'mission' && inMissionDurationPhases && /^[123]\./.test(value)) {
+      drawBulletParagraph(ctx, value, { bold: true });
+      continue;
+    }
+
+    if (type === 'mission' && /^(Versement Initial|Paiement Intermédiaire|Solde)\s*\(/.test(value)) {
+      drawBulletParagraph(ctx, value, {
+        x: REG_MARGIN + 28,
+        width: A4.width - 2 * REG_MARGIN - 28,
+        size: 9.45,
+        bulletColor: MUTED,
+      });
+      continue;
+    }
+
     const headingLevel = regulatoryHeadingLevel(block, value, type);
     if (headingLevel) {
       const normalizedHeading = value.trim().toUpperCase();
@@ -1100,12 +1150,12 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
       const minBlock =
         nextBlock?.k === 'table'
-          ? (headingLevel === 1 ? 210 : headingLevel === 2 ? 175 : 120)
+          ? (headingLevel === 1 ? 220 : headingLevel === 2 ? 180 : 125)
           : headingLevel === 1
-            ? 190
+            ? (type === 'mission' ? 210 : 190)
             : headingLevel === 2
-              ? 125
-              : 82;
+              ? 135
+              : 88;
 
       ensure(ctx, minBlock);
       drawRegulatoryHeading(ctx, value, headingLevel, type);
