@@ -729,6 +729,7 @@ export default function CifDossierSummaryPage() {
     };
   }, [sections, investors, sourceDocuments]);
   const investorSummaries = useMemo(() => investors.map((investor) => { const investorSections = sections.filter((r) => r.investisseur_id === investor.investisseur_id); const payloadByCode = Object.fromEntries(investorSections.map((r) => [r.section_code, r.payload ?? {}])); const spouse = investors.find((r) => r.investisseur_id !== investor.investisseur_id)?.investisseurs ?? null; const context = contexts.find((r) => r.investisseur_id === investor.investisseur_id) ?? {}; const consistencySnapshot: ConsistencySnapshot = { identity: payloadByCode.identity ?? {}, family: payloadByCode.family ?? {}, professional: payloadByCode.professional ?? {}, capacity: payloadByCode.capacity ?? {}, patrimony: payloadByCode.patrimony ?? {}, financial: payloadByCode.financial ?? {}, credits: payloadByCode.credits ?? {}, regulatory: payloadByCode.regulatory ?? {}, documents: context, spouse }; const issues = evaluateConsistency(consistencySnapshot); const investorProvenance = provenance.filter((r) => !r.investisseur_id || r.investisseur_id === investor.investisseur_id); const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier }); const sessionIds = qpiSessions.filter((row) => row.investisseur_id === investor.investisseur_id).map((row) => row.id); const unresolvedQpiControls = qpiControls.filter((control) => sessionIds.includes(control.session_id) && control.alerte && !control.traite); const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id); const needsRecueilReview = completeness ? !completeness.complete : true; const effectiveReadiness = (unresolvedQpiControls.length > 0 || needsRecueilReview) && summary.readiness === 'ready' ? 'review' as const : summary.readiness; return { investor, investorSections, issues, summary, unresolvedQpiControls, effectiveReadiness, completeness }; }), [investors, sections, contexts, provenance, checklist, qpiSessions, qpiControls, recueilCompleteness]);
+  const isCoupleDossier = investors.length > 1;
   const householdRecueilState = useMemo(() => {
     const rows = investors.map((investor) => {
       const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id);
@@ -749,15 +750,18 @@ export default function CifDossierSummaryPage() {
   const investorDocumentStates = useMemo(() => investors.map((investor) => {
     const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id);
     const recueil = ['completed', 'validated'].includes(investor.recueil_status) && completeness?.complete === true;
+    const recueilHasData = sections.some((section) => section.investisseur_id === investor.investisseur_id);
+    const recueilPdfAvailable = recueilHasData || ['completed', 'validated'].includes(investor.recueil_status);
     const qpi = ['completed', 'validated'].includes(investor.qpi_status);
     const esgNotApplicable = investor.esg_opt_in === false;
     const esg = ['completed', 'validated'].includes(investor.esg_status);
     const readyTypes: GeneratedDocument['type'][] = [
+      ...(!isCoupleDossier && recueilPdfAvailable ? ['recueil' as const] : []),
       ...(qpi ? ['qpi' as const] : []),
       ...(esg ? ['esg' as const] : []),
     ];
-    return { investor, recueil, recueilPercentage: completeness?.percentage ?? 0, qpi, esg, esgNotApplicable, readyTypes };
-  }), [investors, recueilCompleteness]);
+    return { investor, recueil, recueilPdfAvailable, recueilPercentage: completeness?.percentage ?? 0, qpi, esg, esgNotApplicable, readyTypes };
+  }), [investors, recueilCompleteness, sections, isCoupleDossier]);
   const orderedInvestorDocumentStates = useMemo(() => [...investorDocumentStates].sort((a, b) => (a.investor.role_dossier === 'investisseur_1' ? 0 : 1) - (b.investor.role_dossier === 'investisseur_1' ? 0 : 1)), [investorDocumentStates]);
   const selectedDocumentState = useMemo(() => orderedInvestorDocumentStates.find((state) => state.investor.investisseur_id === selectedDocumentInvestorId) ?? orderedInvestorDocumentStates[0] ?? null, [orderedInvestorDocumentStates, selectedDocumentInvestorId]);
   const selectedSourceDocuments = useMemo(() => {
@@ -960,7 +964,7 @@ export default function CifDossierSummaryPage() {
   }, [investorDocumentStates, sections, householdRecueilState.percentage, householdRecueilState.complete]);
   useEffect(() => {
     const hasIndividualDocuments = investorDocumentStates.some((state) => state.readyTypes.length);
-    if (!dossierId || !dossier || (!householdRecueilState.hasData && !hasIndividualDocuments)) return;
+    if (!dossierId || !dossier || (!(isCoupleDossier && householdRecueilState.hasData) && !hasIndividualDocuments)) return;
     let active = true;
     const generate = async () => {
       setGeneratingDocuments(true);
@@ -968,7 +972,7 @@ export default function CifDossierSummaryPage() {
       const produced: GeneratedDocument[] = [];
       const jobs: Array<Promise<void>> = [];
 
-      if (householdRecueilState.hasData) {
+      if (isCoupleDossier && householdRecueilState.hasData) {
         jobs.push((async () => {
           const key = 'household:recueil';
           try {
@@ -1040,7 +1044,7 @@ export default function CifDossierSummaryPage() {
     };
     void generate().finally(() => { if (active) setGeneratingDocuments(false); });
     return () => { active = false; };
-  }, [dossierId, dossier?.id, documentGenerationKey]);
+  }, [dossierId, dossier?.id, documentGenerationKey, isCoupleDossier, householdRecueilState.hasData, investorDocumentStates]);
 
   const generateRegulatoryPdf = async (type: 'der' | 'mission') => {
     if (!dossierId) return;
