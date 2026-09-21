@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.25-MISSION-DB';
+const PDF_VERSION = '2026-MAITRE-PDF-2.26-TELEPHONES';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -574,6 +574,30 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
 
 
 
+function formatClientPhone(value: unknown) {
+  const raw = clean(value, '').trim();
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+
+  // Format français national : 06 74 81 38 67
+  if (digits.length === 10 && digits.startsWith('0')) {
+    return digits.match(/.{1,2}/g)?.join(' ') ?? raw;
+  }
+
+  // Format international français : +33 6 74 81 38 67
+  if ((raw.startsWith('+33') || digits.startsWith('33')) && digits.length === 11) {
+    const national = digits.slice(2);
+    return '+33 ' + national[0] + ' ' + (national.slice(1).match(/.{1,2}/g)?.join(' ') ?? national.slice(1));
+  }
+
+  if (digits.startsWith('0033') && digits.length === 13) {
+    const national = digits.slice(4);
+    return '+33 ' + national[0] + ' ' + (national.slice(1).match(/.{1,2}/g)?.join(' ') ?? national.slice(1));
+  }
+
+  return raw;
+}
+
 function originalClientLines(snapshot: Json) {
   const primaryInvestor = snapshot.investors[0];
   const primaryMap = primaryInvestor ? extractByCode(snapshot.sections, primaryInvestor.id) : {};
@@ -592,7 +616,7 @@ function originalClientLines(snapshot: Json) {
     }
     return {
       heading: [civilite, name].filter(Boolean).join(' ').trim(),
-      details: [addressLine, inv.email, identity.mobile ?? inv.mobile].filter(Boolean).map((value) => clean(value)),
+      details: [addressLine, inv.email, formatClientPhone(identity.mobile ?? inv.mobile)].filter(Boolean).map((value) => clean(value)),
     };
   });
 }
