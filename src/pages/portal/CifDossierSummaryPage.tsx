@@ -471,6 +471,102 @@ export default function CifDossierSummaryPage() {
   }, [sourceDocuments, selectedDocumentState]);
   const displayedSourceDocuments = useMemo(() => documentReviewOnly ? selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review') : selectedSourceDocuments, [documentReviewOnly, selectedSourceDocuments]);
 
+  const auditValidationMissing = useMemo(() => {
+    const missing: string[] = [];
+    if (!auditDraft.diagnostic.trim()) missing.push('diagnostic');
+    if (!auditDraft.projet_a_preserver.trim()) missing.push('objectif / projet à préserver');
+    if (auditNumber(auditDraft.reserve_securite) === null) missing.push('réserve de sécurité');
+    if (auditNumber(auditDraft.epargne_a_arbitrer) === null) missing.push('épargne à arbitrer');
+    if (!auditDraft.allocation.some((item) => item.poche.trim() && item.decision.trim())) missing.push('allocation cible');
+    if (!auditDraft.supports.some((item) => item.support.trim() && item.analyse.trim())) missing.push('analyse des supports / actifs');
+    if (!auditDraft.fiscal_notes.some((item) => item.sujet.trim() && item.analyse.trim())) missing.push('analyse fiscale');
+    if (!auditDraft.controls.some((item) => item.scenario.trim() && item.reponse.trim())) missing.push('risques / crash test');
+    if (!auditDraft.sequencing.some((item) => item.action.trim())) missing.push('plan d’action');
+    return missing;
+  }, [auditDraft]);
+
+  const auditWorkflowSteps = useMemo(() => [
+    { label:'Diagnostic', done:Boolean(auditDraft.diagnostic.trim()) },
+    { label:'Objectifs / contraintes', done:Boolean(auditDraft.projet_a_preserver.trim()) },
+    { label:'Allocation & liquidité', done:auditNumber(auditDraft.reserve_securite) !== null && auditNumber(auditDraft.epargne_a_arbitrer) !== null && auditDraft.allocation.some((item) => item.poche.trim()) },
+    { label:'Supports / actifs', done:auditDraft.supports.some((item) => item.support.trim() && item.analyse.trim()) },
+    { label:'Fiscalité / protection', done:auditDraft.fiscal_notes.some((item) => item.analyse.trim()) || Boolean(auditDraft.protection_notes.trim()) },
+    { label:'Risques / crash test', done:auditDraft.controls.some((item) => item.scenario.trim() && item.reponse.trim()) },
+    { label:'Plan d’action', done:auditDraft.sequencing.some((item) => item.action.trim()) },
+    { label:'Validation Eric', done:auditDraft.statut === 'validated' && Boolean(auditDraft.validated_at) },
+  ], [auditDraft]);
+
+  const auditProgress = useMemo(() => {
+    const done = auditWorkflowSteps.filter((step) => step.done).length;
+    return { done, total:auditWorkflowSteps.length, percentage:Math.round((done / auditWorkflowSteps.length) * 100) };
+  }, [auditWorkflowSteps]);
+
+  function updateAuditField<K extends keyof AuditDraft>(key: K, value: AuditDraft[K]) {
+    setAuditMessage('');
+    setAuditDraft((current) => ({ ...current, [key]: value, statut:'draft', validated_at:null }));
+  }
+
+  const saveAuditRecommendation = async (validate = false) => {
+    if (!dossierId) return;
+    if (validate && auditValidationMissing.length) {
+      setAuditMessage(`Validation impossible : ${auditValidationMissing.join(', ')}.`);
+      return;
+    }
+    setSavingAudit(true);
+    setAuditMessage('');
+    try {
+      const validatedAt = validate ? new Date().toISOString() : null;
+      const payload = {
+        dossier_id: dossierId,
+        statut: validate ? 'validated' : 'draft',
+        diagnostic: auditDraft.diagnostic.trim() || null,
+        projet_a_preserver: auditDraft.projet_a_preserver.trim() || null,
+        reserve_securite: auditNumber(auditDraft.reserve_securite),
+        epargne_a_arbitrer: auditNumber(auditDraft.epargne_a_arbitrer),
+        allocation: auditDraft.allocation
+          .filter((item) => item.poche.trim() || item.montant.trim() || item.decision.trim())
+          .map((item) => ({
+            poche:item.poche.trim(),
+            montant:auditNumber(item.montant) ?? item.montant.trim(),
+            decision:item.decision.trim(),
+          })),
+        supports: {
+          items:auditDraft.supports
+            .filter((item) => item.support.trim() || item.analyse.trim() || item.decision.trim())
+            .map((item) => ({ support:item.support.trim(), analyse:item.analyse.trim(), decision:item.decision.trim() })),
+        },
+        sequencing: auditDraft.sequencing
+          .filter((item) => item.action.trim() || item.echeance.trim())
+          .map((item, index) => ({ ordre:item.ordre.trim() || String(index + 1), action:item.action.trim(), echeance:item.echeance.trim() })),
+        fiscal_notes: auditDraft.fiscal_notes
+          .filter((item) => item.sujet.trim() || item.analyse.trim())
+          .map((item) => ({ sujet:item.sujet.trim(), analyse:item.analyse.trim() })),
+        protection_notes: auditDraft.protection_notes.trim() || null,
+        controls: auditDraft.controls
+          .filter((item) => item.scenario.trim() || item.impact.trim() || item.reponse.trim())
+          .map((item) => ({ scenario:item.scenario.trim(), impact:item.impact.trim(), reponse:item.reponse.trim() })),
+        validated_at: validatedAt,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabase
+        .from('audit_recommendations')
+        .upsert(payload, { onConflict:'dossier_id' })
+        .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at')
+        .single();
+      if (error) throw error;
+      const saved = data as AuditRecommendationRow;
+      setAuditRecommendation(saved);
+      setAuditDraft(auditDraftFromRow(saved));
+      setAuditMessage(validate
+        ? 'Audit validé. Il alimente maintenant automatiquement la source de la déclaration d’adéquation.'
+        : 'Brouillon de l’audit enregistré.');
+    } catch (error) {
+      setAuditMessage(messageFromError(error));
+    } finally {
+      setSavingAudit(false);
+    }
+  };
+
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
     const recueilData = sections.map((section) => `${section.investisseur_id}:${section.section_code}:${JSON.stringify(section.payload ?? {})}`).sort().join('|');
