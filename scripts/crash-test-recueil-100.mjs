@@ -114,8 +114,8 @@ for (const fixture of invalidFixtures) {
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration, householdDocumentContextMigration, questionnaireUniquenessMigration] = await Promise.all([
-  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'), read('supabase/migrations/20260921144500_sync_household_document_context.sql'), read('supabase/migrations/20260921145500_prevent_duplicate_questionnaire_sessions.sql'),
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, cabinetPage, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration, householdDocumentContextMigration, questionnaireUniquenessMigration] = await Promise.all([
+  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('src/pages/portal/CifAdminPage.tsx'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'), read('supabase/migrations/20260921144500_sync_household_document_context.sql'), read('supabase/migrations/20260921145500_prevent_duplicate_questionnaire_sessions.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/);
@@ -141,6 +141,9 @@ assert.match(journeyBase, /householdReviewTotal = householdReview\.length/, 'Le 
 assert.match(journeyBase, /householdReviewComplete = householdReviewTotal > 0 && householdConfirmedCount === householdReviewTotal/, 'Le statut global du foyer doit utiliser le même ensemble que le compteur');
 assert.doesNotMatch(journeyBase, /Math\.max\(2,[^\n]*householdReview/, 'Le dénominateur des confirmations ne doit jamais être codé en dur');
 assert.match(journeyBase, /Informations du foyer confirmées/, 'Les confirmations validées doivent être repliées dans un résumé compact');
+assert.match(cabinetPage, /Avancement du recueil par personne/, 'Le cockpit cabinet doit distinguer clairement le recueil du reste du parcours');
+assert.match(cabinetPage, /100 % · À valider/, 'Un recueil complet mais non validé doit être affiché à 100 % avec une action de validation, jamais à 50 %');
+assert.match(cabinetPage, /style=\{\{width:`\$\{recueil\}%`\}\}/, 'La barre individuelle du cockpit doit utiliser directement le pourcentage du recueil');
 assert.match(journeyBase, /Une fois confirmées, elles sont repliées et ne gênent plus le parcours/, 'Le parcours doit masquer les actions déjà traitées');
 assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/);
 assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/);
