@@ -320,6 +320,10 @@ export default function CifDossierSummaryPage() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('synthese');
   const [selectedDocumentInvestorId, setSelectedDocumentInvestorId] = useState<string | null>(null);
   const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
+  const [auditRecommendation, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
+  const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
+  const [savingAudit, setSavingAudit] = useState(false);
+  const [auditMessage, setAuditMessage] = useState('');
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
@@ -335,6 +339,13 @@ export default function CifDossierSummaryPage() {
       supabase.from('documents_sources').select('id,investisseur_id,categorie,nom_fichier,storage_bucket,storage_path,statut_analyse,portee_document,concerne_investisseur_ids,metadata,created_at').eq('dossier_id', dossierId).order('created_at', { ascending: false }),
       supabase.rpc('get_all_recueil_completeness')
     ]); for (const result of results) if (result.error) throw result.error;
+    const auditRes = await supabase
+      .from('audit_recommendations')
+      .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at')
+      .eq('dossier_id', dossierId)
+      .maybeSingle();
+    if (auditRes.error) throw auditRes.error;
+
     const qSessions = (results[7].data ?? []) as unknown as QpiSessionRow[];
     const sessionIds = qSessions.map((row) => row.id);
     let controls: QpiControlRow[] = []; let resultRows: QpiResultSummaryRow[] = [];
@@ -347,7 +358,7 @@ export default function CifDossierSummaryPage() {
       controls = (controlsRes.data ?? []) as unknown as QpiControlRow[];
       resultRows = (qpiRes.data ?? []) as unknown as QpiResultSummaryRow[];
     }
-    if (!active) return; setDossier(results[0].data as DossierRow); setInvestors((results[1].data ?? []) as unknown as InvestorRow[]); setSections((results[2].data ?? []) as unknown as SectionRow[]); setContexts((results[3].data ?? []) as unknown as ContextRow[]); setProvenance((results[4].data ?? []) as unknown as ProvenanceRow[]); setChecklist((results[5].data ?? []) as unknown as ChecklistRow[]); setHouseholdConfirmations((results[6].data ?? []) as unknown as HouseholdConfirmationRow[]); setQpiSessions(qSessions); setQpiControls(controls); setQpiResults(resultRows); setSourceDocuments((results[8].data ?? []) as unknown as SourceDocumentRow[]); setRecueilCompleteness(((results[9].data ?? []) as unknown as RecueilCompletenessRow[]).filter((row) => row.dossier_id === dossierId)); };
+    if (!active) return; setDossier(results[0].data as DossierRow); setInvestors((results[1].data ?? []) as unknown as InvestorRow[]); setSections((results[2].data ?? []) as unknown as SectionRow[]); setContexts((results[3].data ?? []) as unknown as ContextRow[]); setProvenance((results[4].data ?? []) as unknown as ProvenanceRow[]); setChecklist((results[5].data ?? []) as unknown as ChecklistRow[]); setHouseholdConfirmations((results[6].data ?? []) as unknown as HouseholdConfirmationRow[]); setQpiSessions(qSessions); setQpiControls(controls); setQpiResults(resultRows); setSourceDocuments((results[8].data ?? []) as unknown as SourceDocumentRow[]); setRecueilCompleteness(((results[9].data ?? []) as unknown as RecueilCompletenessRow[]).filter((row) => row.dossier_id === dossierId)); const loadedAudit = (auditRes.data ?? null) as AuditRecommendationRow | null; setAuditRecommendation(loadedAudit); setAuditDraft(auditDraftFromRow(loadedAudit)); };
     void load().catch((error) => { if (active) setErrorMessage(messageFromError(error)); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [dossierId]);
 
   const resolveQpiControl = async (control: QpiControlRow, resolutionCode: string) => {
