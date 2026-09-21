@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.39-RECUEIL-FOYER-PAGINATION';
+const PDF_VERSION = '2026-MAITRE-PDF-2.40-RECUEIL-FOYER-COMPARATIF';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -276,95 +276,103 @@ async function buildRecueilCouple(snapshot: Json) {
   let financialExact = 0;
   let financialEstimated = 0;
 
+  const memberNames = maps.map(({ inv }: Json, index: number) => `Identifiant ${index + 1} - ${investorName(inv)}`);
+  const compareHeaders = ['Donnée', ...memberNames];
+  const compareRows = (rows: Array<[string, (map: Json, inv: Json) => string]>) =>
+    rows.map(([label, getter]) => [label, ...maps.map(({ inv, map }: Json) => getter(map, inv))]);
+
   recueilHeading(ctx, `${n++}. Identité et coordonnées`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
-    const id = map.identity ?? {};
-    drawTable(ctx, ['Donnée', 'Valeur'], [
-      ['Civilité', clean(id.civilite ?? inv.civilite)],
-      ['Prénom', clean(id.prenom ?? inv.prenom)],
-      ['Nom', clean(id.nom ?? inv.nom)],
-      ['Nom de naissance', clean(id.nom_naissance ?? inv.nom_naissance)],
-      ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)],
-      ['Lieu / pays de naissance', `${clean(id.lieu_naissance ?? inv.lieu_naissance)} / ${clean(id.pays_naissance ?? inv.pays_naissance)}`],
-      ['Nationalité', clean(id.nationalite ?? inv.nationalite)],
-      ['Mobile', clean(id.mobile ?? inv.mobile)],
-      ['E-mail', clean(inv.email)],
-      ['Numéro fiscal', clean(id.numero_fiscal ?? inv.numero_fiscal)],
-      ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée'],
-    ], [34,66]);
-  });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Civilité', (map, inv) => clean(map.identity?.civilite ?? inv.civilite)],
+    ['Prénom', (map, inv) => clean(map.identity?.prenom ?? inv.prenom)],
+    ['Nom', (map, inv) => clean(map.identity?.nom ?? inv.nom)],
+    ['Nom de naissance', (map, inv) => clean(map.identity?.nom_naissance ?? inv.nom_naissance)],
+    ['Date de naissance', (map, inv) => frDate(map.identity?.date_naissance ?? inv.date_naissance)],
+    ['Lieu / pays de naissance', (map, inv) => `${clean(map.identity?.lieu_naissance ?? inv.lieu_naissance)} / ${clean(map.identity?.pays_naissance ?? inv.pays_naissance)}`],
+    ['Nationalité', (map, inv) => clean(map.identity?.nationalite ?? inv.nationalite)],
+    ['Mobile', (map, inv) => clean(map.identity?.mobile ?? inv.mobile)],
+    ['E-mail', (_map, inv) => clean(inv.email)],
+    ['Numéro fiscal', (map, inv) => clean(map.identity?.numero_fiscal ?? inv.numero_fiscal)],
+    ['Adresse', (map) => {
+      const id = map.identity ?? {};
+      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée';
+    }],
+  ]), [40,30,30]);
 
   recueilHeading(ctx, `${n++}. Situation familiale`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
-    const fam = map.family ?? {};
-    drawTable(ctx, ['Donnée','Valeur'], [
-      ['Situation familiale', clean(fam.situation)],
-      ['Date de l’événement', frDate(fam.date_evenement)],
-      ['Régime / convention', clean(fam.regime_convention)],
-      ['Avantage / clause particulière', clean(fam.avantage_matrimonial)],
-      ['Évolution prévue', clean(fam.evolution_prevue)],
-      ['Notaire', clean(fam.notaire_nom_ville)],
-      ['Expert-comptable', clean(fam.expert_comptable_nom_ville)],
-      ['Nombre d’enfants', clean(fam.nombre_enfants,'0')],
-      ['Commentaires', clean(fam.commentaires)],
-    ], [34,66]);
-  });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Situation familiale', (map) => clean(map.family?.situation)],
+    ['Date de l’événement', (map) => frDate(map.family?.date_evenement)],
+    ['Régime / convention', (map) => clean(map.family?.regime_convention)],
+    ['Avantage / clause particulière', (map) => clean(map.family?.avantage_matrimonial)],
+    ['Évolution prévue', (map) => clean(map.family?.evolution_prevue)],
+    ['Notaire', (map) => clean(map.family?.notaire_nom_ville)],
+    ['Expert-comptable', (map) => clean(map.family?.expert_comptable_nom_ville)],
+    ['Nombre d’enfants', (map) => clean(map.family?.nombre_enfants, '0')],
+    ['Commentaires', (map) => clean(map.family?.commentaires)],
+  ]), [40,30,30]);
 
   recueilHeading(ctx, `${n++}. Situation professionnelle`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
-    const pro = map.professional ?? {};
-    drawTable(ctx, ['Donnée','Valeur'], [
-      ['Profession', clean(pro.profession_actuelle)],
-      ['Société / employeur', clean(pro.societe)],
-      ['Secteur', clean(pro.secteur_activite)],
-      ['Statut', clean(pro.statut)],
-      ['Date d’entrée', frDate(pro.date_entree)],
-      ['Ancienneté déclarée', clean(pro.anciennete_annees)],
-      ['Changement prévu', clean(pro.changement_professionnel_prevu)],
-      ['Détails', clean(pro.changement_professionnel_details)],
-    ], [34,66]);
-  });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Profession', (map) => clean(map.professional?.profession_actuelle)],
+    ['Société / employeur', (map) => clean(map.professional?.societe)],
+    ['Secteur', (map) => clean(map.professional?.secteur_activite)],
+    ['Statut', (map) => clean(map.professional?.statut)],
+    ['Date d’entrée', (map) => frDate(map.professional?.date_entree)],
+    ['Ancienneté déclarée', (map) => clean(map.professional?.anciennete_annees)],
+    ['Changement prévu', (map) => clean(map.professional?.changement_professionnel_prevu)],
+    ['Détails', (map) => clean(map.professional?.changement_professionnel_details)],
+  ]), [40,30,30]);
 
   recueilHeading(ctx, `${n++}. Objectifs et horizons`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
+  const objectiveRows = maps.flatMap(({ inv, map }: Json, index: number) => {
     const objs = map.objectives?.items ?? [];
-    drawTable(ctx, ['Priorité','Objectif','Horizon'], objs.length ? objs.map((o: Json, idx: number) => [
+    const member = `Identifiant ${index + 1} - ${investorName(inv)}`;
+    return objs.length ? objs.map((o: Json, idx: number) => [
+      member,
       String(idx + 1),
       o.code_objectif === 'autre' ? clean(o.libelle_autre) : objectiveLabel(clean(o.code_objectif,'')),
       clean(o.horizon_annees),
-    ]) : [['-','Aucun objectif renseigné','-']], [12,62,26]);
+    ]) : [[member, '-', 'Aucun objectif renseigné', '-']];
   });
+  drawTable(ctx, ['Identifiant','Priorité','Objectif','Horizon'], objectiveRows, [27,11,44,18]);
 
   recueilHeading(ctx, `${n++}. Revenus et équilibre financier`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
+  maps.forEach(({ map }: Json) => {
     const cap = map.capacity ?? {};
     incomeAnnual += num(cap.estimation_revenus_travail_annuels) + num(cap.estimation_revenus_fonciers_annuels);
-    drawTable(ctx, ['Donnée','Valeur'], [
-      ['Revenus professionnels nets estimés - année en cours', eur(cap.estimation_revenus_travail_annuels)],
-      ['Revenus immobiliers estimés - année en cours', eur(cap.estimation_revenus_fonciers_annuels)],
-      ['Capacité d’épargne mensuelle', eur(cap.capacite_epargne_mensuelle)],
-      ['Réserve de sécurité souhaitée', eur(cap.epargne_precaution_cible)],
-      ['Apport immobilier mobilisable', eur(cap.apport_immobilier_possible)],
-    ], [58,42]);
   });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Revenus professionnels nets estimés - année en cours', (map) => eur(map.capacity?.estimation_revenus_travail_annuels)],
+    ['Revenus immobiliers estimés - année en cours', (map) => eur(map.capacity?.estimation_revenus_fonciers_annuels)],
+    ['Capacité d’épargne mensuelle', (map) => eur(map.capacity?.capacite_epargne_mensuelle)],
+    ['Réserve de sécurité souhaitée', (map) => eur(map.capacity?.epargne_precaution_cible)],
+    ['Apport immobilier mobilisable', (map) => eur(map.capacity?.apport_immobilier_possible)],
+  ]), [46,27,27]);
 
   recueilHeading(ctx, `${n++}. Situation fiscale détaillée`);
   const tax = maps.find(({ map }: Json) => map.tax && Object.keys(map.tax).length)?.map?.tax ?? {};
   const id1Name = clean(tax.nom_identifiant_1 ?? investorName(maps[0]?.inv ?? {}));
   const id2Name = clean(tax.nom_identifiant_2 ?? investorName(maps[1]?.inv ?? {}));
-  const taxRows = (rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => rows.filter(([,value]) => hasValue(value)).map(([label,value,kind]) => [label, kind === 'eur' ? eur(value) : kind === 'pct' ? pct(value) : kind === 'date' ? frDate(value) : clean(value)]);
-  const taxTable = (titleText: string, rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => { const filtered = taxRows(rows); if (filtered.length) { recueilHeading(ctx,titleText,2); drawTable(ctx,['Donnée fiscale','Valeur'],filtered,[62,38]); } };
+  const formatTax = (value: unknown, kind: 'eur'|'pct'|'date'|'text') =>
+    kind === 'eur' ? eur(value) : kind === 'pct' ? pct(value) : kind === 'date' ? frDate(value) : clean(value);
+  const foyerTaxTable = (titleText: string, rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => {
+    const filtered = rows.filter(([,value]) => hasValue(value)).map(([label,value,kind]) => [label, formatTax(value, kind)]);
+    if (filtered.length) { recueilHeading(ctx,titleText,2); drawTable(ctx,['Donnée fiscale','Valeur'],filtered,[62,38]); }
+  };
+  const personalTaxTable = (titleText: string, rows: Array<[string, unknown, unknown, 'eur'|'pct'|'date'|'text']>) => {
+    const filtered = rows.filter(([,v1,v2]) => hasValue(v1) || hasValue(v2)).map(([label,v1,v2,kind]) => [
+      label,
+      hasValue(v1) ? formatTax(v1, kind) : '-',
+      hasValue(v2) ? formatTax(v2, kind) : '-',
+    ]);
+    if (filtered.length) { recueilHeading(ctx,titleText,2); drawTable(ctx,['Donnée fiscale',id1Name,id2Name],filtered,[44,28,28]); }
+  };
 
-  taxTable('Identifiants fiscaux et avis', [
-    ['Identifiant 1', id1Name, 'text'],
-    [`Numéro fiscal - ${id1Name}`, tax.numero_fiscal_identifiant_1, 'text'],
-    ['Identifiant 2', id2Name, 'text'],
-    [`Numéro fiscal - ${id2Name}`, tax.numero_fiscal_identifiant_2, 'text'],
+  personalTaxTable('Identifiants fiscaux', [
+    ['Numéro fiscal', tax.numero_fiscal_identifiant_1, tax.numero_fiscal_identifiant_2, 'text'],
+  ]);
+  foyerTaxTable('Avis d’imposition - foyer', [
     ['Référence de l’avis', tax.reference_avis, 'text'],
     ['Référence du foyer fiscal', tax.reference_foyer, 'text'],
     ['Adresse fiscale', tax.adresse_fiscale, 'text'],
@@ -374,17 +382,14 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Centre des finances publiques', tax.centre_impots, 'text'],
     ['Nombre de parts', tax.nombre_parts, 'text'],
   ]);
-  taxTable('Revenus déclarés', [
-    [`Salaires - ${id1Name}`, tax.salaires_identifiant_1, 'eur'],
-    [`Heures supplémentaires non exonérées - ${id1Name}`, tax.heures_supp_non_exonerees_identifiant_1, 'eur'],
-    [`Total salaires - ${id1Name}`, tax.total_salaires_identifiant_1, 'eur'],
-    [`Déduction 10 % / frais réels - ${id1Name}`, tax.deduction_10_identifiant_1, 'eur'],
-    [`Salaires nets - ${id1Name}`, tax.salaires_nets_identifiant_1, 'eur'],
-    [`Salaires - ${id2Name}`, tax.salaires_identifiant_2, 'eur'],
-    [`Heures supplémentaires non exonérées - ${id2Name}`, tax.heures_supp_non_exonerees_identifiant_2, 'eur'],
-    [`Total salaires - ${id2Name}`, tax.total_salaires_identifiant_2, 'eur'],
-    [`Déduction 10 % / frais réels - ${id2Name}`, tax.deduction_10_identifiant_2, 'eur'],
-    [`Salaires nets - ${id2Name}`, tax.salaires_nets_identifiant_2, 'eur'],
+  personalTaxTable('Revenus déclarés par identifiant', [
+    ['Salaires', tax.salaires_identifiant_1, tax.salaires_identifiant_2, 'eur'],
+    ['Heures supplémentaires non exonérées', tax.heures_supp_non_exonerees_identifiant_1, tax.heures_supp_non_exonerees_identifiant_2, 'eur'],
+    ['Total salaires', tax.total_salaires_identifiant_1, tax.total_salaires_identifiant_2, 'eur'],
+    ['Déduction 10 % / frais réels', tax.deduction_10_identifiant_1, tax.deduction_10_identifiant_2, 'eur'],
+    ['Salaires nets', tax.salaires_nets_identifiant_1, tax.salaires_nets_identifiant_2, 'eur'],
+  ]);
+  foyerTaxTable('Revenus et bases du foyer', [
     ['Revenu brut global', tax.revenu_brut_global, 'eur'],
     ['CSG déductible du revenu global', tax.csg_deductible_revenu_global, 'eur'],
     ['Revenu imposable', tax.revenu_imposable, 'eur'],
@@ -392,7 +397,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Revenus fonciers nets', tax.revenus_fonciers_nets, 'eur'],
     ['Déficit foncier reportable', tax.deficit_foncier_reportable, 'eur'],
   ]);
-  taxTable('Calcul de l’impôt sur le revenu', [
+  foyerTaxTable('Calcul de l’impôt sur le revenu', [
     ['Impôt sur les revenus soumis au barème', tax.impot_revenus_bareme, 'eur'],
     ['Décote', tax.decote, 'eur'],
     ['Impôt proportionnel', tax.impot_proportionnel, 'eur'],
@@ -405,7 +410,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Crédit d’impôt calculé', tax.credit_impot_calcule, 'eur'],
     ['Impôt sur le revenu net', tax.impot_revenu_net, 'eur'],
   ]);
-  taxTable('Prélèvements sociaux', [
+  foyerTaxTable('Prélèvements sociaux', [
     ['Revenus de capitaux mobiliers', tax.revenus_capitaux_mobiliers_ps, 'eur'],
     ['Plus-values et gains divers', tax.plus_values_gains_divers_ps, 'eur'],
     ['Base imposable aux prélèvements sociaux', tax.base_prelevements_sociaux, 'eur'],
@@ -415,7 +420,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Montant prélèvement de solidarité', tax.montant_prelevement_solidarite, 'eur'],
     ['Total des prélèvements sociaux nets', tax.prelevements_sociaux_nets, 'eur'],
   ]);
-  taxTable('Solde de l’impôt et remboursement', [
+  foyerTaxTable('Solde de l’impôt et remboursement', [
     ['Impôt sur le revenu 2025 dû', tax.ir_2025_du, 'eur'],
     ['Retenue à la source prélevée en 2025', tax.retenue_source_2025, 'eur'],
     ['Avance sur réductions et crédits d’impôt', tax.avance_reductions_credits_impot, 'eur'],
@@ -427,33 +432,29 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Somme remboursée', tax.somme_remboursee, 'eur'],
     ['Date du remboursement', tax.date_remboursement, 'date'],
   ]);
-  taxTable('Informations complémentaires', [
+  personalTaxTable('Heures supplémentaires exonérées', [
+    ['Montant déclaré', tax.heures_supp_exonerees_identifiant_1_brut, tax.heures_supp_exonerees_identifiant_2_brut, 'eur'],
+    ['Montant net', tax.heures_supp_exonerees_identifiant_1_net, tax.heures_supp_exonerees_identifiant_2_net, 'eur'],
+  ]);
+  foyerTaxTable('Informations complémentaires', [
     ['Revenu fiscal de référence', tax.revenu_fiscal_reference, 'eur'],
     ['RCM déjà soumis aux prélèvements sociaux avec CSG déductible', tax.rcm_deja_soumis_ps_csg_deductible, 'eur'],
-    [`Heures supplémentaires exonérées déclarées - ${id1Name}`, tax.heures_supp_exonerees_identifiant_1_brut, 'eur'],
-    [`Heures supplémentaires exonérées nettes - ${id1Name}`, tax.heures_supp_exonerees_identifiant_1_net, 'eur'],
-    [`Heures supplémentaires exonérées déclarées - ${id2Name}`, tax.heures_supp_exonerees_identifiant_2_brut, 'eur'],
-    [`Heures supplémentaires exonérées nettes - ${id2Name}`, tax.heures_supp_exonerees_identifiant_2_net, 'eur'],
     ['Taux moyen d’imposition', tax.taux_imposition, 'pct'],
     ['Taux marginal d’imposition (TMI)', tax.tmi, 'pct'],
   ]);
-  taxTable(`Plafond épargne retraite - ${id1Name}`, [
-    ['Plafond total de 2024', tax.plafond_total_2024_identifiant_1, 'eur'],
-    ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_identifiant_1, 'eur'],
-    ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_identifiant_1, 'eur'],
-    ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_identifiant_1, 'eur'],
-    ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_identifiant_1, 'eur'],
-    ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_identifiant_1, 'eur'],
+  personalTaxTable('Plafonds épargne retraite', [
+    ['Plafond total de 2024', tax.plafond_total_2024_identifiant_1, tax.plafond_total_2024_identifiant_2, 'eur'],
+    ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_identifiant_1, tax.plafond_non_utilise_2023_identifiant_2, 'eur'],
+    ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_identifiant_1, tax.plafond_non_utilise_2024_identifiant_2, 'eur'],
+    ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_identifiant_1, tax.plafond_non_utilise_2025_identifiant_2, 'eur'],
+    ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_identifiant_1, tax.plafond_calcule_revenus_2025_identifiant_2, 'eur'],
+    ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_identifiant_1, tax.plafond_per_2026_identifiant_2, 'eur'],
   ]);
-  taxTable(`Plafond épargne retraite - ${id2Name}`, [
-    ['Plafond total de 2024', tax.plafond_total_2024_identifiant_2, 'eur'],
-    ['Plafond non utilisé - revenus 2023', tax.plafond_non_utilise_2023_identifiant_2, 'eur'],
-    ['Plafond non utilisé - revenus 2024', tax.plafond_non_utilise_2024_identifiant_2, 'eur'],
-    ['Plafond non utilisé - revenus 2025', tax.plafond_non_utilise_2025_identifiant_2, 'eur'],
-    ['Plafond calculé sur les revenus 2025', tax.plafond_calcule_revenus_2025_identifiant_2, 'eur'],
-    ['Plafond pour cotisations versées en 2026', tax.plafond_per_2026_identifiant_2, 'eur'],
+  if (tax.ifi_concerne === true) foyerTaxTable('IFI', [
+    ['Base imposable IFI', tax.ifi_base_imposable, 'eur'],
+    ['TMI IFI', tax.ifi_tmi, 'pct'],
+    ['IFI net à payer', tax.ifi_net_a_payer, 'eur'],
   ]);
-  if (tax.ifi_concerne === true) taxTable('IFI', [['Base imposable IFI', tax.ifi_base_imposable, 'eur'],['TMI IFI', tax.ifi_tmi, 'pct'],['IFI net à payer', tax.ifi_net_a_payer, 'eur']]);
 
   maps.forEach(({ map }: Json) => {
     if (map.patrimony?.has_real_estate === true) properties.push(...(map.patrimony?.immobilier ?? []));
@@ -544,22 +545,18 @@ async function buildRecueilCouple(snapshot: Json) {
   drawText(ctx,'Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.',{bold:true,color:GREEN,size:8.4,after:12});
 
   recueilHeading(ctx, `${n++}. Informations réglementaires`);
-  maps.forEach(({ inv, map }: Json, index: number) => {
-    drawRecueilParticipantLabel(ctx, index + 1, inv);
-    const reg = map.regulatory ?? {};
-    drawTable(ctx,['Question / information','Réponse'],[
-      ['Pays de résidence fiscale', clean(reg.pays_residence_fiscale)],
-      ['Citoyen ou résident fiscal américain', clean(reg.citoyen_ou_resident_us)],
-      ['TIN américain', clean(reg.code_tin)],
-      ['Sanctions internationales / gel des avoirs', clean(reg.sanctions_declarees)],
-      ['PPE - client ou proche', clean(reg.ppe_declaree)],
-      ['Personne exposée', clean(reg.ppe_personne_exposee)],
-      ['Fonction PPE', clean(reg.ppe_motif)],
-      ['Pays d’exercice PPE', clean(reg.ppe_pays_exercice)],
-      ['Période PPE', clean(reg.ppe_anciennete)],
-      ['Souhaite prendre en compte des critères ESG', clean(reg.esg_opt_in)],
-    ], [62,38]);
-  });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Pays de résidence fiscale', (map) => clean(map.regulatory?.pays_residence_fiscale)],
+    ['Citoyen ou résident fiscal américain', (map) => clean(map.regulatory?.citoyen_ou_resident_us)],
+    ['TIN américain', (map) => clean(map.regulatory?.code_tin)],
+    ['Sanctions internationales / gel des avoirs', (map) => clean(map.regulatory?.sanctions_declarees)],
+    ['PPE - client ou proche', (map) => clean(map.regulatory?.ppe_declaree)],
+    ['Personne exposée', (map) => clean(map.regulatory?.ppe_personne_exposee)],
+    ['Fonction PPE', (map) => clean(map.regulatory?.ppe_motif)],
+    ['Pays d’exercice PPE', (map) => clean(map.regulatory?.ppe_pays_exercice)],
+    ['Période PPE', (map) => clean(map.regulatory?.ppe_anciennete)],
+    ['Souhaite prendre en compte des critères ESG', (map) => clean(map.regulatory?.esg_opt_in)],
+  ]), [46,27,27]);
 
   ensure(ctx,145);
   recueilHeading(ctx, `${n++}. Validation des informations`);
