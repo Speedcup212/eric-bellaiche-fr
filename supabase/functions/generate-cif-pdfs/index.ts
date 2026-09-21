@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.36-RECUEIL-FOYER';
+const PDF_VERSION = '2026-MAITRE-PDF-2.37-RECUEIL-FOYER-IDENTIFIANTS';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -247,9 +247,20 @@ async function buildRecueil(snapshot: Json) {
   const recueilComplete = completionRows.length > 0 && completionRows.every((row: Json) => row.complete === true);
   const recueilState = recueilComplete ? 'Recueil complet' : `DOCUMENT DE TRAVAIL - RECUEIL INCOMPLET (${completionPct} %)`;
   title(ctx, "RECUEIL D'INFORMATIONS PATRIMONIALES", `${recueilState} - Date du recueil : ${frDate(snapshot.recueil_date)} - Date d'entrée en relation : ${frDate(dossier.date_entree_relation)}`);
-  let n = 1; const properties: Json[] = []; const credits: Json[] = []; let incomeAnnual = 0; let financialExact = 0; let financialEstimated = 0;
+  if (maps.length > 1) {
+    drawText(ctx, `Foyer : ${maps.map(({ inv }: Json) => investorName(inv)).join(' & ')}`, { bold: true, size: 10.5, color: NAVY, after: 12 });
+  }
+  let n = 1; const properties: Json[] = []; const credits: Json[] = []; let incomeAnnual = 0; let financialExact = 0; let financialEstimated = 0; let investorIndex = 0;
   for (const { inv, map } of maps) {
-    const id = map.identity ?? {}; heading(ctx, `${n++}. Identité et coordonnées - ${investorName(inv)}`); drawTable(ctx, ['Donnée', 'Valeur'], [['Civilité', clean(id.civilite ?? inv.civilite)], ['Prénom', clean(id.prenom ?? inv.prenom)], ['Nom', clean(id.nom ?? inv.nom)], ['Nom de naissance', clean(id.nom_naissance ?? inv.nom_naissance)], ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)], ['Lieu / pays de naissance', `${clean(id.lieu_naissance ?? inv.lieu_naissance)} / ${clean(id.pays_naissance ?? inv.pays_naissance)}`], ['Nationalité', clean(id.nationalite ?? inv.nationalite)], ['Mobile', clean(id.mobile ?? inv.mobile)], ['E-mail', clean(inv.email)], ['Numéro fiscal', clean(id.numero_fiscal ?? inv.numero_fiscal)], ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée']], [34, 66]);
+    investorIndex += 1;
+    if (maps.length > 1) {
+      if (investorIndex > 1) addPage(ctx);
+      ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 32, width: A4.width - 2 * MARGIN, height: 32, color: rgb(0.93, 0.96, 1), borderColor: BORDER, borderWidth: 0.8 });
+      ctx.page.drawText(`IDENTIFIANT ${investorIndex}`, { x: MARGIN + 10, y: ctx.y - 13, size: 8.5, font: ctx.bold, color: BLUE });
+      ctx.page.drawText(investorName(inv), { x: MARGIN + 10, y: ctx.y - 25, size: 12.5, font: ctx.bold, color: NAVY });
+      ctx.y -= 44;
+    }
+    const id = map.identity ?? {}; heading(ctx, `${n++}. Identité et coordonnées`); drawTable(ctx, ['Donnée', 'Valeur'], [['Civilité', clean(id.civilite ?? inv.civilite)], ['Prénom', clean(id.prenom ?? inv.prenom)], ['Nom', clean(id.nom ?? inv.nom)], ['Nom de naissance', clean(id.nom_naissance ?? inv.nom_naissance)], ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)], ['Lieu / pays de naissance', `${clean(id.lieu_naissance ?? inv.lieu_naissance)} / ${clean(id.pays_naissance ?? inv.pays_naissance)}`], ['Nationalité', clean(id.nationalite ?? inv.nationalite)], ['Mobile', clean(id.mobile ?? inv.mobile)], ['E-mail', clean(inv.email)], ['Numéro fiscal', clean(id.numero_fiscal ?? inv.numero_fiscal)], ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée']], [34, 66]);
     const fam = map.family ?? {}; heading(ctx, `${n++}. Situation familiale`); drawTable(ctx, ['Donnée', 'Valeur'], [['Situation familiale', clean(fam.situation)], ['Date de l’événement', frDate(fam.date_evenement)], ['Régime / convention', clean(fam.regime_convention)], ['Avantage / clause particulière', clean(fam.avantage_matrimonial)], ['Évolution prévue', clean(fam.evolution_prevue)], ['Notaire', clean(fam.notaire_nom_ville)], ['Expert-comptable', clean(fam.expert_comptable_nom_ville)], ['Nombre d’enfants', clean(fam.nombre_enfants, '0')], ['Commentaires', clean(fam.commentaires)]], [34, 66]);
     const pro = map.professional ?? {}; heading(ctx, `${n++}. Situation professionnelle`); drawTable(ctx, ['Donnée', 'Valeur'], [['Profession', clean(pro.profession_actuelle)], ['Société / employeur', clean(pro.societe)], ['Secteur', clean(pro.secteur_activite)], ['Statut', clean(pro.statut)], ['Date d’entrée', frDate(pro.date_entree)], ['Ancienneté déclarée', clean(pro.anciennete_annees)], ['Changement prévu', clean(pro.changement_professionnel_prevu)], ['Détails', clean(pro.changement_professionnel_details)]], [34, 66]);
     const objs = map.objectives?.items ?? []; heading(ctx, `${n++}. Objectifs et horizons`); drawTable(ctx, ['Priorité', 'Objectif', 'Horizon'], objs.length ? objs.map((o: Json, idx: number) => [String(idx + 1), o.code_objectif === 'autre' ? clean(o.libelle_autre) : objectiveLabel(clean(o.code_objectif, '')), clean(o.horizon_annees)]) : [['-', 'Aucun objectif renseigné', '-']], [12, 62, 26]);
