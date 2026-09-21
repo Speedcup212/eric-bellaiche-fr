@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.43-ENDETTEMENT-ACTUEL-FUTUR';
+const PDF_VERSION = '2026-MAITRE-PDF-2.44-PAGINATION-BLOCS';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -218,7 +218,8 @@ function drawTable(ctx: PdfContext, headers: string[], rows: string[][], widths?
   const headerHeight = measureRow(headers, true).rowHeight;
   const firstRowHeight = rows.length ? measureRow(rows[0], false).rowHeight : 0;
   const secondRowHeight = rows.length > 1 ? measureRow(rows[1], false).rowHeight : 0;
-  const minimumStartHeight = headerHeight + firstRowHeight + (rows.length > 1 ? Math.min(secondRowHeight, 24) : 0) + 10;
+  const previewRowsHeight = rows.slice(0, 4).reduce((sum, row) => sum + Math.min(measureRow(row, false).rowHeight, 26), 0);
+  const minimumStartHeight = headerHeight + previewRowsHeight + 10;
   ensure(ctx, minimumStartHeight);
   renderRow(headers, true);
 
@@ -242,8 +243,9 @@ function esgLevel(score: number) { if (score >= 75) return 'Très forte'; if (sc
 
 
 function recueilHeading(ctx: PdfContext, value: string, level = 1) {
-  // Keep the heading with the following participant/table instead of leaving it alone at page bottom.
-  ensure(ctx, level === 1 ? 118 : 92);
+  // Réserve suffisamment d'espace pour éviter un titre de section isolé
+  // ou un tableau qui ne laisserait que quelques lignes avant le saut de page.
+  ensure(ctx, level === 1 ? 170 : 108);
   heading(ctx, value, level);
 }
 
@@ -453,7 +455,8 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Souhaite prendre en compte des critères ESG', (map) => clean(map.regulatory?.esg_opt_in)],
   ]), [46,27,27]);
 
-  ensure(ctx,145);
+  // Le bloc de validation + signatures doit rester visuellement cohérent sur une même page.
+  ensure(ctx, 245);
   recueilHeading(ctx, `${n++}. Validation des informations`);
   drawText(ctx,'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.',{size:8.6});
   drawText(ctx,'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.',{bold:true,color:GREEN,size:8.6,after:12});
