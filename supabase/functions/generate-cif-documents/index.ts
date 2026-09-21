@@ -174,54 +174,115 @@ function buildRecueil(snapshot: Json) {
   children.push(p(`Date du recueil : ${frDate(snapshot.recueil_date)}  •  Date d’entrée en relation : ${frDate(dossier.date_entree_relation)}`, { bold: true, color: GREEN, alignment: AlignmentType.CENTER }));
 
   let sectionNumber = 1;
-  for (const { inv, map } of allSectionMaps) {
-    children.push(heading(`${sectionNumber}. Identité et coordonnées — ${investorName(inv)}`)); sectionNumber++;
-    const id = map.identity ?? {};
-    children.push(table(['Donnée', 'Valeur'], [
-      ['Civilité', text(id.civilite ?? inv.civilite)], ['Prénom', text(id.prenom ?? inv.prenom)], ['Nom', text(id.nom ?? inv.nom)], ['Nom de naissance', text(id.nom_naissance ?? inv.nom_naissance)], ['Date de naissance', frDate(id.date_naissance ?? inv.date_naissance)], ['Lieu / pays de naissance', `${text(id.lieu_naissance ?? inv.lieu_naissance)} / ${text(id.pays_naissance ?? inv.pays_naissance)}`], ['Nationalité', text(id.nationalite ?? inv.nationalite)], ['Mobile', text(id.mobile ?? inv.mobile)], ['E-mail', text(inv.email)], ['Numéro fiscal', text(id.numero_fiscal ?? inv.numero_fiscal)], ['Adresse', [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée'],
-    ]));
+  const memberHeaders = ['Donnée', ...allSectionMaps.map(({ inv }: Json, idx: number) => `Identifiant ${idx + 1} — ${investorName(inv)}`)];
+  const compareRows = (definitions: Array<[string, (map: Json, inv: Json) => string]>) =>
+    definitions.map(([label, getter]) => [label, ...allSectionMaps.map(({ inv, map }: Json) => getter(map, inv))]);
 
-    children.push(heading(`${sectionNumber}. Situation familiale`)); sectionNumber++;
-    const fam = map.family ?? {};
-    children.push(table(['Donnée', 'Valeur'], [
-      ['Situation familiale', text(fam.situation)], ['Date de l’événement', frDate(fam.date_evenement)], ['Régime / convention', text(fam.regime_convention)], ['Avantage / clause particulière', text(fam.avantage_matrimonial)], ['Évolution prévue', text(fam.evolution_prevue)], ['Notaire', text(fam.notaire_nom_ville)], ['Expert-comptable', text(fam.expert_comptable_nom_ville)], ['Nombre d’enfants', text(fam.nombre_enfants, '0')], ['Commentaires', text(fam.commentaires)],
-    ]));
+  children.push(heading(`${sectionNumber}. Identité et coordonnées`)); sectionNumber++;
+  children.push(table(memberHeaders, compareRows([
+    ['Civilité', (map, inv) => text(map.identity?.civilite ?? inv.civilite)],
+    ['Prénom', (map, inv) => text(map.identity?.prenom ?? inv.prenom)],
+    ['Nom', (map, inv) => text(map.identity?.nom ?? inv.nom)],
+    ['Nom de naissance', (map, inv) => text(map.identity?.nom_naissance ?? inv.nom_naissance)],
+    ['Date de naissance', (map, inv) => frDate(map.identity?.date_naissance ?? inv.date_naissance)],
+    ['Lieu / pays de naissance', (map, inv) => `${text(map.identity?.lieu_naissance ?? inv.lieu_naissance)} / ${text(map.identity?.pays_naissance ?? inv.pays_naissance)}`],
+    ['Nationalité', (map, inv) => text(map.identity?.nationalite ?? inv.nationalite)],
+    ['Mobile', (map, inv) => text(map.identity?.mobile ?? inv.mobile)],
+    ['E-mail', (_map, inv) => text(inv.email)],
+    ['Numéro fiscal', (map, inv) => text(map.identity?.numero_fiscal ?? inv.numero_fiscal)],
+    ['Adresse', (map) => {
+      const id = map.identity ?? {};
+      return [id.address?.numero_voie, id.address?.complement, id.address?.code_postal, id.address?.ville, id.address?.pays].filter(Boolean).join(' ') || 'Non renseignée';
+    }],
+  ]), allSectionMaps.length > 1 ? [36, ...allSectionMaps.map(() => 32)] : [44, 56]));
 
-    children.push(heading(`${sectionNumber}. Situation professionnelle`)); sectionNumber++;
-    const pro = map.professional ?? {};
-    children.push(table(['Donnée', 'Valeur'], [
-      ['Profession', text(pro.profession_actuelle)], ['Société / employeur', text(pro.societe)], ['Secteur', text(pro.secteur_activite)], ['Statut', text(pro.statut)], ['Date d’entrée', frDate(pro.date_entree)], ['Ancienneté déclarée', text(pro.anciennete_annees)], ['Changement prévu', text(pro.changement_professionnel_prevu)], ['Détails du changement', text(pro.changement_professionnel_details)],
-    ]));
+  children.push(heading(`${sectionNumber}. Situation familiale`)); sectionNumber++;
+  children.push(table(memberHeaders, compareRows([
+    ['Situation familiale', (map) => text(map.family?.situation)],
+    ['Date de l’événement', (map) => frDate(map.family?.date_evenement)],
+    ['Régime / convention', (map) => text(map.family?.regime_convention)],
+    ['Avantage / clause particulière', (map) => text(map.family?.avantage_matrimonial)],
+    ['Évolution prévue', (map) => text(map.family?.evolution_prevue)],
+    ['Notaire', (map) => text(map.family?.notaire_nom_ville)],
+    ['Expert-comptable', (map) => text(map.family?.expert_comptable_nom_ville)],
+    ['Nombre d’enfants', (map) => text(map.family?.nombre_enfants, '0')],
+    ['Commentaires', (map) => text(map.family?.commentaires)],
+  ]), allSectionMaps.length > 1 ? [36, ...allSectionMaps.map(() => 32)] : [44, 56]));
 
-    children.push(heading(`${sectionNumber}. Objectifs et horizons`)); sectionNumber++;
+  children.push(heading(`${sectionNumber}. Situation professionnelle`)); sectionNumber++;
+  children.push(table(memberHeaders, compareRows([
+    ['Profession', (map) => text(map.professional?.profession_actuelle)],
+    ['Société / employeur', (map) => text(map.professional?.societe)],
+    ['Secteur', (map) => text(map.professional?.secteur_activite)],
+    ['Statut', (map) => text(map.professional?.statut)],
+    ['Date d’entrée', (map) => frDate(map.professional?.date_entree)],
+    ['Ancienneté déclarée', (map) => text(map.professional?.anciennete_annees)],
+    ['Changement prévu', (map) => text(map.professional?.changement_professionnel_prevu)],
+    ['Détails du changement', (map) => text(map.professional?.changement_professionnel_details)],
+  ]), allSectionMaps.length > 1 ? [36, ...allSectionMaps.map(() => 32)] : [44, 56]));
+
+  children.push(heading(`${sectionNumber}. Objectifs et horizons`)); sectionNumber++;
+  const objectiveRows = allSectionMaps.flatMap(({ inv, map }: Json, memberIndex: number) => {
     const objs = (map.objectives?.items ?? []) as Json[];
-    children.push(table(['Priorité', 'Objectif', 'Horizon'], objs.length ? objs.map((o, idx) => [String(idx + 1), o.code_objectif === 'autre' ? text(o.libelle_autre) : objectiveLabel(text(o.code_objectif, '')), text(o.horizon_annees)]) : [['—', 'Aucun objectif renseigné', '—']]));
+    const member = `Identifiant ${memberIndex + 1} — ${investorName(inv)}`;
+    return objs.length
+      ? objs.map((o, idx) => [member, String(idx + 1), o.code_objectif === 'autre' ? text(o.libelle_autre) : objectiveLabel(text(o.code_objectif, '')), text(o.horizon_annees)])
+      : [[member, '—', 'Aucun objectif renseigné', '—']];
+  });
+  children.push(table(['Identifiant', 'Priorité', 'Objectif', 'Horizon'], objectiveRows, [27, 11, 44, 18]));
 
-    children.push(heading(`${sectionNumber}. Revenus et capacité financière`)); sectionNumber++;
-    const cap = map.capacity ?? {};
-    children.push(table(['Donnée', 'Valeur'], [
-      ['Revenus professionnels nets estimés — année en cours', eur(cap.estimation_revenus_travail_annuels)], ['Revenus immobiliers estimés — année en cours', eur(cap.estimation_revenus_fonciers_annuels)], ['Capacité d’épargne mensuelle', eur(cap.capacite_epargne_mensuelle)], ['Réserve de sécurité souhaitée', eur(cap.epargne_precaution_cible)], ['Apport immobilier mobilisable', eur(cap.apport_immobilier_possible)],
-    ]));
+  children.push(heading(`${sectionNumber}. Revenus et équilibre financier`)); sectionNumber++;
+  children.push(table(memberHeaders, compareRows([
+    ['Revenus professionnels nets estimés — année en cours', (map) => eur(map.capacity?.estimation_revenus_travail_annuels)],
+    ['Revenus immobiliers estimés — année en cours', (map) => eur(map.capacity?.estimation_revenus_fonciers_annuels)],
+    ['Capacité d’épargne mensuelle', (map) => eur(map.capacity?.capacite_epargne_mensuelle)],
+    ['Réserve de sécurité souhaitée', (map) => eur(map.capacity?.epargne_precaution_cible)],
+    ['Apport immobilier mobilisable', (map) => eur(map.capacity?.apport_immobilier_possible)],
+  ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
 
-    children.push(heading(`${sectionNumber}. Situation fiscale`)); sectionNumber++;
-    const tax = map.tax ?? {};
-    children.push(table(['Donnée fiscale', 'Valeur'], [
-      ['Année d’imposition', text(tax.annee_imposition)], ['Revenu imposable', eur(tax.revenu_imposable)], ['Revenu fiscal de référence', eur(tax.revenu_fiscal_reference)], ['Nombre de parts', text(tax.nombre_parts)], ['TMI', pct(tax.tmi)], ['Impôt sur le revenu net', eur(tax.impot_revenu_net)], ['Salaires / assimilés', eur(tax.salaires_assimiles)], ['Pensions / retraites / rentes', eur(tax.pensions_retraites_rentes)], ['Revenus LMNP', eur(tax.revenus_lmnp)], ['Revenus BNC professionnels', eur(tax.revenus_bnc_pro)], ['Revenus de capitaux mobiliers', eur(tax.revenus_capitaux_mobiliers)], ['Revenus fonciers nets', eur(tax.revenus_fonciers_nets)], ['Déficit foncier reportable', eur(tax.deficit_foncier_reportable)], ['Prélèvements sociaux nets', eur(tax.prelevements_sociaux_nets)], ['Taux moyen d’imposition', pct(tax.taux_imposition)], ['Plafond épargne retraite disponible', eur(tax.plafond_disponible_avis)], ['Versements retraite à déduire', eur(tax.versements_a_deduire)], ['Plafond non utilisé calculé', eur(tax.plafond_non_utilise_calcule)],
-    ]));
-    if (tax.ifi_concerne === true) children.push(table(['Donnée IFI', 'Valeur'], [['Base imposable IFI', eur(tax.ifi_base_imposable)], ['TMI IFI', pct(tax.ifi_tmi)], ['IFI net à payer', eur(tax.ifi_net_a_payer)]]));
+  children.push(heading(`${sectionNumber}. Situation fiscale détaillée`)); sectionNumber++;
+  children.push(table(memberHeaders, compareRows([
+    ['Année d’imposition', (map) => text(map.tax?.annee_imposition)],
+    ['Revenu imposable', (map) => eur(map.tax?.revenu_imposable)],
+    ['Revenu fiscal de référence', (map) => eur(map.tax?.revenu_fiscal_reference)],
+    ['Nombre de parts', (map) => text(map.tax?.nombre_parts)],
+    ['TMI', (map) => pct(map.tax?.tmi)],
+    ['Impôt sur le revenu net', (map) => eur(map.tax?.impot_revenu_net)],
+    ['Salaires / assimilés', (map) => eur(map.tax?.salaires_assimiles)],
+    ['Pensions / retraites / rentes', (map) => eur(map.tax?.pensions_retraites_rentes)],
+    ['Revenus LMNP', (map) => eur(map.tax?.revenus_lmnp)],
+    ['Revenus BNC professionnels', (map) => eur(map.tax?.revenus_bnc_pro)],
+    ['Revenus de capitaux mobiliers', (map) => eur(map.tax?.revenus_capitaux_mobiliers)],
+    ['Revenus fonciers nets', (map) => eur(map.tax?.revenus_fonciers_nets)],
+    ['Déficit foncier reportable', (map) => eur(map.tax?.deficit_foncier_reportable)],
+    ['Prélèvements sociaux nets', (map) => eur(map.tax?.prelevements_sociaux_nets)],
+    ['Taux moyen d’imposition', (map) => pct(map.tax?.taux_imposition)],
+    ['Plafond épargne retraite disponible', (map) => eur(map.tax?.plafond_disponible_avis)],
+    ['Versements retraite à déduire', (map) => eur(map.tax?.versements_a_deduire)],
+    ['Plafond non utilisé calculé', (map) => eur(map.tax?.plafond_non_utilise_calcule)],
+  ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
+
+  if (allSectionMaps.some(({ map }: Json) => map.tax?.ifi_concerne === true)) {
+    children.push(heading('IFI', 2));
+    children.push(table(memberHeaders, compareRows([
+      ['Concerné par l’IFI', (map) => text(map.tax?.ifi_concerne)],
+      ['Base imposable IFI', (map) => map.tax?.ifi_concerne === true ? eur(map.tax?.ifi_base_imposable) : 'Non concerné'],
+      ['TMI IFI', (map) => map.tax?.ifi_concerne === true ? pct(map.tax?.ifi_tmi) : '—'],
+      ['IFI net à payer', (map) => map.tax?.ifi_concerne === true ? eur(map.tax?.ifi_net_a_payer) : '0 €'],
+    ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
   }
 
   children.push(heading(`${sectionNumber}. Patrimoine immobilier consolidé`)); sectionNumber++;
   children.push(table(['Bien', 'Ville', 'Usage', 'Détention', 'Propriétaire', 'Valeur actuelle'], properties.length ? properties.map((x, idx) => [`Bien ${idx + 1}`, text(x.ville), text(x.usage), text(x.mode_detention), text(x.proprietaire), eur(x.valeur_actuelle)]) : [['—', '—', 'Aucun bien déclaré', '—', '—', '0 €']]));
 
   children.push(heading(`${sectionNumber}. Patrimoine financier et liquidités`)); sectionNumber++;
-  for (const { inv, map } of allSectionMaps) {
-    const financial = map.financial ?? {};
-    children.push(p(investorName(inv), { bold: true, color: BLUE, before: 120 }));
-    children.push(table(['Donnée', 'Valeur'], [
-      ['Liquidités importantes volontairement conservées sur comptes courants', text(financial.current_accounts_intentional)], ['Catégories de placements', text(financial.categories)], ['Fourchette de patrimoine financier', text(financial.total_band)], ['Autres placements / précisions', text(financial.other_details)], ['Complétude confirmée', text(financial.completeness_confirmed)],
-    ]));
-  }
+  children.push(table(memberHeaders, compareRows([
+    ['Liquidités importantes volontairement conservées sur comptes courants', (map) => text(map.financial?.current_accounts_intentional)],
+    ['Catégories de placements', (map) => text(map.financial?.categories)],
+    ['Fourchette de patrimoine financier', (map) => text(map.financial?.total_band)],
+    ['Autres placements / précisions', (map) => text(map.financial?.other_details)],
+    ['Complétude confirmée', (map) => text(map.financial?.completeness_confirmed)],
+  ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
 
   children.push(heading(`${sectionNumber}. Crédits et endettement`)); sectionNumber++;
   children.push(table(['Crédit', 'Type', 'Banque', 'Montant initial', 'CRD', 'Mensualité', 'Taux', 'Échéance'], credits.length ? credits.map((x, idx) => [`Crédit ${idx + 1}`, text(x.type_credit ?? x.type_pret), text(x.banque), eur(x.montant_initial), eur(x.crd ?? x.capital_restant_du), eur(x.mensualite), pct(x.taux), frDate(x.date_echeance)]) : [['—', 'Aucun crédit déclaré', '—', '0 €', '0 €', '0 €', '—', '—']]));
@@ -231,13 +292,18 @@ function buildRecueil(snapshot: Json) {
   children.push(p('Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.', { color: GREEN, bold: true, before: 100 }));
 
   children.push(heading(`${sectionNumber}. Informations réglementaires`)); sectionNumber++;
-  for (const { inv, map } of allSectionMaps) {
-    const reg = map.regulatory ?? {};
-    children.push(p(investorName(inv), { bold: true, color: BLUE, before: 100 }));
-    children.push(table(['Question / information', 'Réponse'], [
-      ['Pays de résidence fiscale', text(reg.pays_residence_fiscale)], ['Citoyen ou résident fiscal américain', text(reg.citoyen_ou_resident_us)], ['TIN américain', text(reg.code_tin)], ['Sanctions internationales / gel des avoirs', text(reg.sanctions_declarees)], ['PPE — client ou proche', text(reg.ppe_declaree)], ['Personne exposée', text(reg.ppe_personne_exposee)], ['Fonction PPE', text(reg.ppe_motif)], ['Pays d’exercice PPE', text(reg.ppe_pays_exercice)], ['Période PPE', text(reg.ppe_anciennete)], ['Souhaite prendre en compte des critères ESG', text(reg.esg_opt_in)],
-    ]));
-  }
+  children.push(table(memberHeaders, compareRows([
+    ['Pays de résidence fiscale', (map) => text(map.regulatory?.pays_residence_fiscale)],
+    ['Citoyen ou résident fiscal américain', (map) => text(map.regulatory?.citoyen_ou_resident_us)],
+    ['TIN américain', (map) => text(map.regulatory?.code_tin)],
+    ['Sanctions internationales / gel des avoirs', (map) => text(map.regulatory?.sanctions_declarees)],
+    ['PPE — client ou proche', (map) => text(map.regulatory?.ppe_declaree)],
+    ['Personne exposée', (map) => text(map.regulatory?.ppe_personne_exposee)],
+    ['Fonction PPE', (map) => text(map.regulatory?.ppe_motif)],
+    ['Pays d’exercice PPE', (map) => text(map.regulatory?.ppe_pays_exercice)],
+    ['Période PPE', (map) => text(map.regulatory?.ppe_anciennete)],
+    ['Souhaite prendre en compte des critères ESG', (map) => text(map.regulatory?.esg_opt_in)],
+  ]), allSectionMaps.length > 1 ? [44, ...allSectionMaps.map(() => 28)] : [52, 48]));
 
   children.push(heading(`${sectionNumber}. Validation des informations`));
   children.push(p('En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.'));
