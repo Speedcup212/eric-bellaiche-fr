@@ -60,6 +60,89 @@ type AuditDraft = {
   validated_at:string|null;
 };
 
+type ProfessionalProperty = {
+  id:string;
+  title:string;
+  city:string;
+  type:string;
+  usage:string;
+  owner:string;
+  ownershipShare:string;
+  holding:string;
+  value:number|null;
+  annualRent:number|null;
+  monthlyRent:number|null;
+  project:string;
+  acquisitionDate:string;
+  acquisitionPrice:number|null;
+  comment:string;
+  linkedCreditId:string|null;
+  outstanding:number|null;
+  netEquity:number|null;
+};
+type ProfessionalFinancialAsset = {
+  id:string;
+  owner:string;
+  type:string;
+  institution:string;
+  amount:number|null;
+  taxTreatment:string;
+  liquidity:string;
+  sourceFile:string;
+};
+type ProfessionalCredit = {
+  id:string;
+  attachedTo:string;
+  bank:string;
+  borrower:string;
+  type:string;
+  initialAmount:number|null;
+  outstanding:number|null;
+  rate:number|null;
+  rateType:string;
+  currentPayment:number|null;
+  futurePayment:number|null;
+  futurePaymentDate:string;
+  openingDate:string;
+  endDate:string;
+  remainingMonths:number|null;
+  insurance:string;
+  phase:string;
+  sourceFile:string;
+};
+
+function professionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function professionalDate(value: unknown): string {
+  if (!value) return '—';
+  const raw = String(value);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleDateString('fr-FR');
+}
+function professionalText(value: unknown, fallback = '—'): string {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+function normalizedSearch(value: unknown): string {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function financialTreatment(type: string): { taxTreatment:string; liquidity:string } {
+  const normalized = normalizedSearch(type);
+  if (/livret a|ldds|lep/.test(normalized)) return { taxTreatment:'Exonérée', liquidity:'Immédiate' };
+  if (/livret|epargne bancaire|compte courant/.test(normalized)) return { taxTreatment:'Selon support', liquidity:'Immédiate' };
+  if (/pea/.test(normalized)) return { taxTreatment:'PEA', liquidity:'Marché / règles PEA' };
+  if (/compte.?titres|cto|bourse/.test(normalized)) return { taxTreatment:'PFU / IR', liquidity:'Marché' };
+  if (/assurance.?vie/.test(normalized)) return { taxTreatment:'Assurance-vie', liquidity:'Rachat' };
+  if (/per|retraite/.test(normalized)) return { taxTreatment:'Retraite', liquidity:'Contrainte' };
+  if (/pee|epargne salariale/.test(normalized)) return { taxTreatment:'Épargne salariale', liquidity:'Contrainte' };
+  if (/scpi|opci|sci/.test(normalized)) return { taxTreatment:'Immobilier', liquidity:'Limitée' };
+  return { taxTreatment:'À qualifier', liquidity:'À qualifier' };
+}
+
 type WorkspaceTab = 'synthese' | 'clients' | 'patrimoine' | 'fiscalite' | 'audit' | 'documents' | 'conformite';
 const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: 'synthese', label: 'Synthèse' },
@@ -444,6 +527,164 @@ export default function CifDossierSummaryPage() {
     return names.length ? names.join(' & ') : (dossier?.libelle || 'Dossier client');
   }, [investors, dossier?.libelle]);
   const snapshot = useMemo(() => financialSnapshot(sections, household.realEstate.totalValue), [sections, household.realEstate.totalValue]);
+
+  const professionalPatrimony = useMemo(() => {
+    const investorNameById = new Map(investors.map((investor) => [
+      investor.investisseur_id,
+      [investor.investisseurs?.prenom, investor.investisseurs?.nom].filter(Boolean).join(' ').trim() || 'Client',
+    ]));
+    const sourceNameById = new Map(sourceDocuments.map((document) => [document.id, document.nom_fichier]));
+    const ownerLabel = (value: unknown, investorId: string) => {
+      const raw = professionalText(value, investorNameById.get(investorId) || 'À préciser');
+      const normalized = normalizedSearch(raw);
+      if (normalized.includes('identifiant 1 et 2') || normalized.includes('foyer') || normalized.includes('commun')) return 'Couple';
+      if (normalized.includes('identifiant 1')) {
+        const holder = investors.find((item) => item.role_dossier === 'investisseur_1');
+        return holder ? investorNameById.get(holder.investisseur_id) || 'Identifiant 1' : 'Identifiant 1';
+      }
+      if (normalized.includes('identifiant 2')) {
+        const holder = investors.find((item) => item.role_dossier === 'investisseur_2');
+        return holder ? investorNameById.get(holder.investisseur_id) || 'Identifiant 2' : 'Identifiant 2';
+      }
+      return raw;
+    };
+
+    const credits: ProfessionalCredit[] = [];
+    const creditSeen = new Set<string>();
+    for (const section of sections.filter((row) => row.section_code === 'credits')) {
+      const items = Array.isArray(section.payload?.items) ? section.payload?.items as Record<string,unknown>[] : [];
+      items.forEach((item, index) => {
+        const key = professionalText(item.reference_pret, '') || [
+          professionalText(item.credit_rattache_a,''),
+          professionalText(item.banque ?? item.organisme,''),
+          professionalText(item.montant_initial,''),
+          professionalText(item.capital_restant_du,''),
+        ].join('|');
+        if (creditSeen.has(key)) return;
+        creditSeen.add(key);
+        const sourceId = professionalText(item.source_document_id,'');
+        credits.push({
+          id:key || `${section.investisseur_id}-credit-${index}`,
+          attachedTo:professionalText(item.credit_rattache_a,'À rattacher'),
+          bank:professionalText(item.banque ?? item.organisme,'À préciser'),
+          borrower:ownerLabel(item.emprunteur, section.investisseur_id),
+          type:professionalText(item.type_credit,'Crédit'),
+          initialAmount:professionalNumber(item.montant_initial),
+          outstanding:professionalNumber(item.capital_restant_du ?? item.crd),
+          rate:professionalNumber(item.taux_credit ?? item.taux),
+          rateType:professionalText(item.taux_type,'—'),
+          currentPayment:professionalNumber(item.mensualite_actuelle ?? item.mensualite),
+          futurePayment:professionalNumber(item.mensualite_future),
+          futurePaymentDate:professionalText(item.mensualite_future_date,''),
+          openingDate:professionalText(item.date_ouverture ?? item.date_pret,''),
+          endDate:professionalText(item.date_fin,''),
+          remainingMonths:professionalNumber(item.duree_actualisee_restante_mois ?? item.duree_mois),
+          insurance:professionalText(item.assurance_mode ?? item.assurance_cout,'Non documentée'),
+          phase:professionalText(item.phase_credit,''),
+          sourceFile:sourceNameById.get(sourceId) || '',
+        });
+      });
+    }
+
+    const properties: ProfessionalProperty[] = [];
+    const propertySeen = new Set<string>();
+    for (const section of sections.filter((row) => row.section_code === 'patrimony')) {
+      const items = Array.isArray(section.payload?.immobilier) ? section.payload?.immobilier as Record<string,unknown>[] : [];
+      items.forEach((item, index) => {
+        const title = professionalText(item.intitule, [professionalText(item.type_bien,''), professionalText(item.ville,'')].filter(Boolean).join(' — ') || 'Bien immobilier');
+        const city = professionalText(item.ville,'');
+        const value = professionalNumber(item.valeur_actuelle);
+        const key = [normalizedSearch(title), normalizedSearch(city), value ?? ''].join('|');
+        if (propertySeen.has(key)) return;
+        propertySeen.add(key);
+        const matcher = normalizedSearch(`${title} ${city} ${item.usage ?? ''}`);
+        const linkedCredit = credits.find((credit) => {
+          const creditText = normalizedSearch(credit.attachedTo);
+          const cityMatch = city && creditText.includes(normalizedSearch(city));
+          const titleParts = normalizedSearch(title).split(/\s+/).filter((part) => part.length > 3);
+          const titleMatch = titleParts.some((part) => creditText.includes(part));
+          return Boolean(cityMatch || titleMatch || (matcher && creditText.includes(matcher)));
+        }) ?? null;
+        const outstanding = linkedCredit?.outstanding ?? null;
+        properties.push({
+          id:key || `${section.investisseur_id}-property-${index}`,
+          title,
+          city:city || '—',
+          type:professionalText(item.type_bien,'—'),
+          usage:professionalText(item.usage,'—'),
+          owner:ownerLabel(item.proprietaire, section.investisseur_id),
+          ownershipShare:professionalText(item.quote_part,''),
+          holding:professionalText(item.mode_detention,'—'),
+          value,
+          annualRent:professionalNumber(item.loyer_annuel),
+          monthlyRent:professionalNumber(item.loyer_mensuel),
+          project:professionalText(item.projet_bien,'—'),
+          acquisitionDate:professionalText(item.date_acquisition,''),
+          acquisitionPrice:professionalNumber(item.prix_acquisition),
+          comment:professionalText(item.commentaire,''),
+          linkedCreditId:linkedCredit?.id ?? null,
+          outstanding,
+          netEquity:value !== null && outstanding !== null ? value - outstanding : null,
+        });
+      });
+    }
+
+    const financialAssets: ProfessionalFinancialAsset[] = [];
+    const financialSeen = new Set<string>();
+    for (const section of sections.filter((row) => row.section_code === 'financial')) {
+      const items = Array.isArray(section.payload?.items) ? section.payload?.items as Record<string,unknown>[] : [];
+      items.forEach((item,index) => {
+        const type = professionalText(item.type_placement ?? item.type ?? item.categorie,'Placement');
+        const amount = professionalNumber(item.montant ?? item.valorisation ?? item.encours);
+        const owner = ownerLabel(item.proprietaire, section.investisseur_id);
+        const institution = professionalText(item.organisme ?? item.etablissement,'À préciser');
+        const sourceId = professionalText(item.source_document_id,'');
+        const key = [normalizedSearch(type),normalizedSearch(owner),normalizedSearch(institution),amount ?? '',sourceId].join('|');
+        if (financialSeen.has(key)) return;
+        financialSeen.add(key);
+        const treatment = financialTreatment(type);
+        financialAssets.push({
+          id:key || `${section.investisseur_id}-financial-${index}`,
+          owner,
+          type,
+          institution,
+          amount,
+          taxTreatment:treatment.taxTreatment,
+          liquidity:treatment.liquidity,
+          sourceFile:professionalText(item.source_file,'') || sourceNameById.get(sourceId) || '',
+        });
+      });
+    }
+
+    const realEstateGross = properties.reduce((sum,item) => sum + (item.value ?? 0),0);
+    const documentedDebt = credits.reduce((sum,item) => sum + (item.outstanding ?? 0),0);
+    const documentedFinancial = financialAssets.reduce((sum,item) => sum + (item.amount ?? 0),0);
+    const documentedLiquidity = financialAssets
+      .filter((item) => /immediate/i.test(normalizedSearch(item.liquidity)))
+      .reduce((sum,item) => sum + (item.amount ?? 0),0);
+    const grossDocumented = realEstateGross + documentedFinancial;
+    const netDocumented = grossDocumented - documentedDebt;
+    const annualRent = properties.reduce((sum,item) => sum + (item.annualRent ?? 0),0);
+    const currentMonthlyDebt = credits.reduce((sum,item) => sum + (item.currentPayment ?? 0),0);
+    const futureMonthlyDebt = credits.reduce((sum,item) => sum + (item.futurePayment ?? item.currentPayment ?? 0),0);
+
+    return {
+      properties,
+      financialAssets,
+      credits,
+      totals:{
+        realEstateGross,
+        documentedDebt,
+        documentedFinancial,
+        documentedLiquidity,
+        grossDocumented,
+        netDocumented,
+        annualRent,
+        currentMonthlyDebt,
+        futureMonthlyDebt,
+      },
+    };
+  }, [sections, investors, sourceDocuments]);
   const investorSummaries = useMemo(() => investors.map((investor) => { const investorSections = sections.filter((r) => r.investisseur_id === investor.investisseur_id); const payloadByCode = Object.fromEntries(investorSections.map((r) => [r.section_code, r.payload ?? {}])); const spouse = investors.find((r) => r.investisseur_id !== investor.investisseur_id)?.investisseurs ?? null; const context = contexts.find((r) => r.investisseur_id === investor.investisseur_id) ?? {}; const consistencySnapshot: ConsistencySnapshot = { identity: payloadByCode.identity ?? {}, family: payloadByCode.family ?? {}, professional: payloadByCode.professional ?? {}, capacity: payloadByCode.capacity ?? {}, patrimony: payloadByCode.patrimony ?? {}, financial: payloadByCode.financial ?? {}, credits: payloadByCode.credits ?? {}, regulatory: payloadByCode.regulatory ?? {}, documents: context, spouse }; const issues = evaluateConsistency(consistencySnapshot); const investorProvenance = provenance.filter((r) => !r.investisseur_id || r.investisseur_id === investor.investisseur_id); const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier }); const sessionIds = qpiSessions.filter((row) => row.investisseur_id === investor.investisseur_id).map((row) => row.id); const unresolvedQpiControls = qpiControls.filter((control) => sessionIds.includes(control.session_id) && control.alerte && !control.traite); const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id); const needsRecueilReview = completeness ? !completeness.complete : true; const effectiveReadiness = (unresolvedQpiControls.length > 0 || needsRecueilReview) && summary.readiness === 'ready' ? 'review' as const : summary.readiness; return { investor, investorSections, issues, summary, unresolvedQpiControls, effectiveReadiness, completeness }; }), [investors, sections, contexts, provenance, checklist, qpiSessions, qpiControls, recueilCompleteness]);
   const investorDocumentStates = useMemo(() => investors.map((investor) => {
     const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id);
@@ -1060,9 +1301,122 @@ export default function CifDossierSummaryPage() {
       {household.warnings.length > 0 && <div className="mt-3 rounded-2xl border border-amber-500/60 bg-amber-950/20 p-4 text-sm text-amber-100"><strong>À contrôler :</strong> {household.warnings.join(' ')}</div>}
     </section>}
 
-    {activeTab === 'patrimoine' && <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
-      <div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Patrimoine du foyer</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Immobilier, placements et crédits</h2><p className="mt-1 text-sm text-slate-500">Vue métier structurée. Les données techniques et identifiants internes restent masqués.</p></div></div>
-      <div className="mt-6 space-y-5">{investorSummaries.map(({ investor, investorSections }) => { const patrimonySections = investorSections.filter((row) => ['patrimony','financial','credits'].includes(row.section_code)).sort((a,b) => sectionOrder.indexOf(a.section_code) - sectionOrder.indexOf(b.section_code)); return <div key={investor.investisseur_id} className="rounded-2xl border border-slate-200 p-5"><p className="text-sm font-semibold text-slate-950">{investor.investisseurs?.prenom} {investor.investisseurs?.nom}</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{patrimonySections.map((row) => <PayloadCard key={row.section_code} code={row.section_code} payload={row.payload ?? {}} />)}</div>{!patrimonySections.length && <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Aucune donnée patrimoniale disponible.</p>}</div>; })}</div>
+    {activeTab === 'patrimoine' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl bg-blue-500/15 p-3"><Home className="h-5 w-5 text-blue-200" /></div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-300">Patrimoine du foyer</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Vue patrimoniale professionnelle</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Lecture consolidée du foyer : actifs, immobilier, placements et dettes. Les champs OCR, identifiants internes et données techniques restent masqués de la vue métier.</p>
+          </div>
+        </div>
+        <span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-100">Données documentées</span>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        {[
+          ['Patrimoine brut documenté', euro(professionalPatrimony.totals.grossDocumented)],
+          ['Dettes documentées', euro(professionalPatrimony.totals.documentedDebt)],
+          ['Patrimoine net indicatif', euro(professionalPatrimony.totals.netDocumented)],
+          ['Immobilier', euro(professionalPatrimony.totals.realEstateGross)],
+          ['Financier documenté', euro(professionalPatrimony.totals.documentedFinancial)],
+          ['Liquidités identifiées', euro(professionalPatrimony.totals.documentedLiquidity)],
+        ].map(([label,value]) => <div key={label} className="rounded-2xl border border-[#25405F] bg-[#0F223A] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{label}</p>
+          <p className="mt-2 text-lg font-bold text-white">{value}</p>
+        </div>)}
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['Revenus locatifs annuels', euro(professionalPatrimony.totals.annualRent)],
+          ['Mensualités actuelles', euro(professionalPatrimony.totals.currentMonthlyDebt) + ' / mois'],
+          ['Mensualités futures connues', euro(professionalPatrimony.totals.futureMonthlyDebt) + ' / mois'],
+          ['Nombre de crédits', String(professionalPatrimony.credits.length)],
+        ].map(([label,value]) => <div key={label} className="rounded-xl border border-[#25405F] bg-[#0B1A2F] px-4 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+          <p className="mt-1 text-sm font-bold text-slate-100">{value}</p>
+        </div>)}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#25405F] px-5 py-4">
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">Immobilier</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.properties.length} bien{professionalPatrimony.properties.length > 1 ? 's' : ''}</h3></div>
+          <p className="text-xs text-slate-400">Valeur de marché, loyers, dette associée et équité nette</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[1080px] w-full text-left text-sm">
+            <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-blue-200"><tr><th className="px-4 py-3">Bien</th><th className="px-4 py-3">Détention</th><th className="px-4 py-3">Usage</th><th className="px-4 py-3 text-right">Valeur</th><th className="px-4 py-3 text-right">Loyer/an</th><th className="px-4 py-3 text-right">Rdt brut</th><th className="px-4 py-3 text-right">CRD associé</th><th className="px-4 py-3 text-right">Équité nette</th><th className="px-4 py-3">Projet</th></tr></thead>
+            <tbody className="divide-y divide-[#203954]">
+              {professionalPatrimony.properties.map((property) => {
+                const grossYield = property.value && property.annualRent ? (property.annualRent / property.value) * 100 : null;
+                return <tr key={property.id} className="bg-[#071425] align-top hover:bg-[#0C1E34]">
+                  <td className="px-4 py-3"><p className="font-semibold text-white">{property.title}</p><p className="mt-1 text-xs text-slate-500">{property.type} · {property.city}</p><details className="mt-2"><summary className="cursor-pointer text-xs font-semibold text-blue-300">Voir le détail</summary><div className="mt-2 grid gap-1.5 text-xs leading-5 text-slate-400"><p>Mode de détention : <span className="text-slate-200">{property.holding}</span></p><p>Quote-part : <span className="text-slate-200">{property.ownershipShare ? property.ownershipShare + ' %' : 'À préciser'}</span></p><p>Date d’acquisition : <span className="text-slate-200">{professionalDate(property.acquisitionDate)}</span></p><p>Prix d’acquisition : <span className="text-slate-200">{property.acquisitionPrice !== null ? euro(property.acquisitionPrice) : 'À préciser'}</span></p>{property.monthlyRent !== null && <p>Loyer mensuel : <span className="text-slate-200">{euro(property.monthlyRent)}</span></p>}{property.comment && <p>Observation : <span className="text-slate-200">{property.comment}</span></p>}</div></details></td>
+                  <td className="px-4 py-3 font-medium text-slate-200">{property.owner}</td>
+                  <td className="px-4 py-3 text-slate-300">{property.usage}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-white">{property.value !== null ? euro(property.value) : 'À préciser'}</td>
+                  <td className="px-4 py-3 text-right text-slate-200">{property.annualRent !== null ? euro(property.annualRent) : '—'}</td>
+                  <td className="px-4 py-3 text-right text-slate-200">{grossYield !== null ? percent(grossYield) : '—'}</td>
+                  <td className="px-4 py-3 text-right text-slate-200">{property.outstanding !== null ? euro(property.outstanding) : <span className="text-amber-300">À confirmer</span>}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-200">{property.netEquity !== null ? euro(property.netEquity) : '—'}</td>
+                  <td className="px-4 py-3"><span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-200">{property.project}</span></td>
+                </tr>;
+              })}
+              {!professionalPatrimony.properties.length && <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">Aucun bien immobilier structuré dans le dossier.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#25405F] px-5 py-4">
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">Patrimoine financier</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.financialAssets.length} ligne{professionalPatrimony.financialAssets.length > 1 ? 's' : ''} documentée{professionalPatrimony.financialAssets.length > 1 ? 's' : ''}</h3></div>
+          <p className="text-xs text-slate-400">Les montants non documentés ne sont pas inventés.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px] w-full text-left text-sm">
+            <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-emerald-200"><tr><th className="px-4 py-3">Titulaire</th><th className="px-4 py-3">Enveloppe / support</th><th className="px-4 py-3">Établissement</th><th className="px-4 py-3 text-right">Montant</th><th className="px-4 py-3">Fiscalité</th><th className="px-4 py-3">Liquidité</th><th className="px-4 py-3">Traçabilité</th></tr></thead>
+            <tbody className="divide-y divide-[#203954]">
+              {professionalPatrimony.financialAssets.map((asset) => <tr key={asset.id} className="bg-[#071425] hover:bg-[#0C1E34]"><td className="px-4 py-3 font-medium text-slate-200">{asset.owner}</td><td className="px-4 py-3 font-semibold text-white">{asset.type}</td><td className="px-4 py-3 text-slate-300">{asset.institution}</td><td className="px-4 py-3 text-right font-semibold text-white">{asset.amount !== null ? euro(asset.amount) : 'À préciser'}</td><td className="px-4 py-3 text-slate-300">{asset.taxTreatment}</td><td className="px-4 py-3 text-slate-300">{asset.liquidity}</td><td className="px-4 py-3 text-xs text-slate-500">{asset.sourceFile || 'Déclaratif / synthèse'}</td></tr>)}
+              {!professionalPatrimony.financialAssets.length && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Aucune ligne financière documentée. Les catégories déclarées restent disponibles dans le recueil.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#25405F] px-5 py-4">
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">Crédits</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.credits.length} financement{professionalPatrimony.credits.length > 1 ? 's' : ''}</h3></div>
+          <p className="text-xs text-slate-400">Lecture bancaire : CRD, taux, mensualités et échéances</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[1180px] w-full text-left text-sm">
+            <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-amber-200"><tr><th className="px-4 py-3">Bien financé</th><th className="px-4 py-3">Banque</th><th className="px-4 py-3 text-right">CRD</th><th className="px-4 py-3 text-right">Taux</th><th className="px-4 py-3 text-right">Mensualité actuelle</th><th className="px-4 py-3 text-right">Mensualité future</th><th className="px-4 py-3">Fin</th><th className="px-4 py-3">Emprunteur</th></tr></thead>
+            <tbody className="divide-y divide-[#203954]">
+              {professionalPatrimony.credits.map((credit) => <tr key={credit.id} className="bg-[#071425] align-top hover:bg-[#0C1E34]">
+                <td className="px-4 py-3"><p className="font-semibold text-white">{credit.attachedTo}</p><p className="mt-1 text-xs text-slate-500">{credit.type}</p><details className="mt-2"><summary className="cursor-pointer text-xs font-semibold text-amber-300">Voir le détail</summary><div className="mt-2 grid gap-1.5 text-xs leading-5 text-slate-400"><p>Montant initial : <span className="text-slate-200">{credit.initialAmount !== null ? euro(credit.initialAmount) : 'À préciser'}</span></p><p>Ouverture : <span className="text-slate-200">{professionalDate(credit.openingDate)}</span></p><p>Durée restante : <span className="text-slate-200">{credit.remainingMonths !== null ? credit.remainingMonths + ' mois' : 'À préciser'}</span></p><p>Assurance : <span className="text-slate-200">{credit.insurance}</span></p>{credit.phase && <p>Phase : <span className="text-slate-200">{credit.phase}</span></p>}{credit.sourceFile && <p>Source : <span className="text-slate-200">{credit.sourceFile}</span></p>}</div></details></td>
+                <td className="px-4 py-3 font-medium text-slate-200">{credit.bank}</td>
+                <td className="px-4 py-3 text-right font-semibold text-white">{credit.outstanding !== null ? euro(credit.outstanding) : 'À préciser'}</td>
+                <td className="px-4 py-3 text-right text-slate-200">{credit.rate !== null ? percent(credit.rate) : 'À préciser'}<p className="mt-1 text-[10px] text-slate-500">{credit.rateType}</p></td>
+                <td className="px-4 py-3 text-right text-slate-200">{credit.currentPayment !== null ? euro(credit.currentPayment) : 'À préciser'}</td>
+                <td className="px-4 py-3 text-right text-slate-200">{credit.futurePayment !== null ? euro(credit.futurePayment) : '—'}{credit.futurePaymentDate && <p className="mt-1 text-[10px] text-slate-500">dès le {professionalDate(credit.futurePaymentDate)}</p>}</td>
+                <td className="px-4 py-3 text-slate-300">{professionalDate(credit.endDate)}</td>
+                <td className="px-4 py-3 text-slate-300">{credit.borrower}</td>
+              </tr>)}
+              {!professionalPatrimony.credits.length && <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-500">Aucun crédit structuré dans le dossier.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {(household.warnings.length > 0 || professionalPatrimony.properties.some((property) => property.outstanding === null && /locatif|residence|résidence/i.test(property.usage))) && <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-950/15 p-4">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">Points à confirmer</p>
+        <div className="mt-2 space-y-1 text-sm leading-6 text-amber-100">
+          {household.warnings.map((warning) => <p key={warning}>• {warning}</p>)}
+          {professionalPatrimony.properties.filter((property) => property.outstanding === null && /locatif|residence|résidence/i.test(property.usage)).map((property) => <p key={'credit-warning-' + property.id}>• {property.title} : aucun crédit n’est rattaché de façon certaine ; le CRD n’est donc pas supposé nul.</p>)}
+        </div>
+      </div>}
     </section>}
 
     {activeTab === 'fiscalite' && <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
