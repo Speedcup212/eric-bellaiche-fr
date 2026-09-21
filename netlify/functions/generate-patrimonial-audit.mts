@@ -284,6 +284,12 @@ export default async (req: Request) => {
         code: 'OPENAI_API_KEY_MISSING',
       });
     }
+    if (!apiKey.startsWith('sk-')) {
+      return json(503, {
+        error: 'La valeur OPENAI_API_KEY enregistrée dans Netlify n’est pas une clé API OpenAI valide. Elle doit commencer par « sk- ». Crée une clé secrète sur la plateforme API OpenAI puis remplace la valeur dans Netlify.',
+        code: 'OPENAI_API_KEY_INVALID_FORMAT',
+      });
+    }
 
     const model = Netlify.env.get('OPENAI_AUDIT_MODEL')?.trim() || 'gpt-5.6-sol';
 
@@ -334,6 +340,9 @@ export default async (req: Request) => {
       const detail = typeof (openAIJson as { error?: { message?: string } }).error?.message === 'string'
         ? (openAIJson as { error: { message: string } }).error.message
         : JSON.stringify(openAIJson).slice(0, 900);
+      if (openAIResponse.status === 401) {
+        throw new Error('Clé OpenAI refusée (401). Vérifie que OPENAI_API_KEY contient bien la clé secrète créée sur platform.openai.com (préfixe sk-) et non un jeton de session ou une autre valeur.');
+      }
       throw new Error(`OpenAI : ${detail}`);
     }
 
