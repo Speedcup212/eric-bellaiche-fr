@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.41-RECUEIL-NEANT';
+const PDF_VERSION = '2026-MAITRE-PDF-2.42-RECUEIL-REVENUS-AUTO';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -339,12 +339,21 @@ async function buildRecueilCouple(snapshot: Json) {
 
   recueilHeading(ctx, `${n++}. Revenus et équilibre financier`);
   maps.forEach(({ map }: Json) => {
+    const cap = map.capacity ?? {};
+    incomeAnnual += num(cap.estimation_revenus_travail_annuels) + num(cap.estimation_revenus_fonciers_annuels);
     if (map.patrimony?.has_real_estate === true) properties.push(...(map.patrimony?.immobilier ?? []));
     if (map.credits?.has_credits === true) credits.push(...(map.credits?.items ?? []));
     const placements = map.financial?.items ?? map.patrimony?.placements ?? [];
     financialExact += placements.filter((x: Json) => Boolean(x.source_document_id)).reduce((sum: number, x: Json) => sum + num(x.montant ?? x.valeur ?? x.encours), 0);
     financialEstimated += num(map.financial?.estimated_total_amount);
   });
+  drawTable(ctx, compareHeaders, compareRows([
+    ['Revenus professionnels nets estimés - année en cours', (map) => eur(map.capacity?.estimation_revenus_travail_annuels)],
+    ['Revenus immobiliers estimés - année en cours', (map) => eur(map.capacity?.estimation_revenus_fonciers_annuels)],
+    ['Capacité d’épargne mensuelle', (map) => eur(map.capacity?.capacite_epargne_mensuelle)],
+    ['Réserve de sécurité souhaitée', (map) => eur(map.capacity?.epargne_precaution_cible)],
+    ['Apport immobilier mobilisable', (map) => eur(map.capacity?.apport_immobilier_possible)],
+  ]), [46,27,27]);
 
   recueilHeading(ctx, `${n++}. Patrimoine immobilier consolidé`);
   drawTable(ctx, ['Bien','Ville','Usage','Détention','Propriétaire','Valeur'], properties.length ? properties.map((x: Json, idx: number) => [
