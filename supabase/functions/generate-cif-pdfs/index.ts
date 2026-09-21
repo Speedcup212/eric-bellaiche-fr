@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.26-TELEPHONES';
+const PDF_VERSION = '2026-MAITRE-PDF-2.27-MISSION-POINT9-SIGNATURE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -643,8 +643,16 @@ function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type
 
   if (type === 'mission') {
     if (/^\d{1,2}\.\s/.test(t) || /^ANNEXE\b/.test(normalized) || /^ENTRE LES SOUSSIGN/.test(normalized)) return 1;
-    if (/^\d{1,2}\.\d+\.\s/.test(t) || /^\d{1,2}\.\d+\s/.test(t)) return 2;
     if (/^\d{1,2}\.\d+\.\d+/.test(t)) return 3;
+    const subClause = t.match(/^\d{1,2}\.\d+\.?\s+(.+)$/);
+    if (subClause) {
+      const remainder = subClause[1].trim();
+      const colonIndex = remainder.indexOf(':');
+      const looksLikeStandaloneHeading =
+        remainder.length <= 95 ||
+        (colonIndex >= 0 && colonIndex <= 70 && remainder.length <= 120);
+      return looksLikeStandaloneHeading ? 2 : 0;
+    }
     if (normalized === 'PRÉAMBULE') return 2;
     if (['CONTEXTE DE LA PRESTATION', 'CARACTÉRISTIQUES DE LA PRESTATION'].includes(normalized)) return 3;
   } else {
@@ -1009,6 +1017,7 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   const clientCity = primaryClientCity(snapshot);
   let insertedMissionClients = false;
   let skipOriginalSignatureLines = false;
+  let missionSignatureDrawn = false;
   let inDerActivitiesList = false;
   let inDerCommunicationsList = false;
   let inMissionProductList = false;
@@ -1077,8 +1086,7 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
       value.startsWith('Signature :')
     )) continue;
 
-    if (type === 'mission' && value === 'Fait à : Fait à : Allevard') {
-      drawSignaturePanel(ctx, snapshot, type);
+    if (type === 'mission' && value.startsWith('Fait à :')) {
       skipOriginalSignatureLines = true;
       continue;
     }
@@ -1139,7 +1147,11 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
     }
 
     if (type === 'mission' && value === 'ANNEXE - FORMULAIRE DE RÉTRACTATION') {
-      if (ctx.y < A4.height - 120) addPage(ctx);
+      if (!missionSignatureDrawn) {
+        drawSignaturePanel(ctx, snapshot, type);
+        missionSignatureDrawn = true;
+      }
+      addPage(ctx);
     }
 
     if (type === 'mission' && inMissionProductList && !/^Les différents types/.test(value)) {
