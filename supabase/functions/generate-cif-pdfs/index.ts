@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.19-ADRESSE-FOYER';
+const PDF_VERSION = '2026-MAITRE-PDF-2.20-PUCES';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -824,21 +824,50 @@ function drawRegulatoryTable(ctx: PdfContext, rows: string[][]) {
   ctx.y -= 14;
 }
 
-function drawBulletParagraph(ctx: PdfContext, value: string) {
+function drawBulletParagraph(ctx: PdfContext, value: string, options: Json = {}) {
   const text = clean(value).replace(/^[-•]\s*/, '');
-  const x = REG_MARGIN + 14;
-  const width = A4.width - REG_MARGIN - x;
-  const size = 9.7;
-  const lineHeight = 13.1;
-  const lines = wrap(ctx.regular, text, size, width);
-  const height = lines.length * lineHeight + 5;
+  const x = options.x ?? (REG_MARGIN + 14);
+  const width = options.width ?? (A4.width - REG_MARGIN - x);
+  const size = options.size ?? 9.7;
+  const lineHeight = options.lineHeight ?? 13.1;
+  const font = options.bold ? ctx.bold : ctx.regular;
+  const lines = wrap(font, text, size, width);
+  const height = lines.length * lineHeight + (options.after ?? 5);
   ensure(ctx, height);
-  ctx.page.drawCircle({ x: REG_MARGIN + 4.5, y: ctx.y - 6.3, size: 1.7, color: BLUE });
+  ctx.page.drawCircle({ x: REG_MARGIN + 4.5, y: ctx.y - 6.3, size: 1.7, color: options.bulletColor ?? BLUE });
   for (const line of lines) {
-    ctx.page.drawText(line, { x, y: ctx.y - size, size, font: ctx.regular, color: BODY });
+    ctx.page.drawText(line, { x, y: ctx.y - size, size, font, color: options.color ?? BODY });
     ctx.y -= lineHeight;
   }
-  ctx.y -= 5;
+  ctx.y -= options.after ?? 5;
+}
+
+function derCommunicationBullet(value: string) {
+  const normalized = clean(value).trim();
+  return [
+    'Réunions physiques',
+    'Réunion à distance',
+    'Courrier',
+    'Signature électronique via Youtrust et échanges sur supports durables sécurisés, le cas échéant',
+    'Envois de courriels',
+    'Téléphone',
+  ].includes(normalized);
+}
+
+function derActivityBullet(value: string) {
+  const normalized = clean(value).trim().toUpperCase();
+  return [
+    'CONSEILLER EN INVESTISSEMENTS FINANCIERS',
+    'INTERMÉDIAIRE EN ASSURANCE :',
+    'INTERMÉDIAIRE EN ASSURANCE',
+    'INTERMÉDIAIRE EN OPÉRATIONS BANCAIRES ET SERVICES DE PAIEMENTS',
+    'TRANSACTION IMMOBILIERE (SANS MANIEMENT DE FONDS)',
+  ].includes(normalized);
+}
+
+function derSuppressSourceBullet(value: string) {
+  const normalized = clean(value).trim();
+  return normalized.startsWith('Carte professionnelle n°') || normalized.startsWith('Délégation n°');
 }
 
 function drawRegulatoryNote(ctx: PdfContext, value: string) {
@@ -944,6 +973,8 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   const clientCity = primaryClientCity(snapshot);
   let insertedMissionClients = false;
   let skipOriginalSignatureLines = false;
+  let inDerActivitiesList = false;
+  let inDerCommunicationsList = false;
 
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index];
@@ -956,6 +987,19 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
     let value = replaceSignatureProvider(block.t, type).trim();
     if (!value) continue;
+
+    if (type === 'der' && value.startsWith('Vous pouvez vérifier cette immatriculation sur le site internet')) {
+      inDerActivitiesList = true;
+    }
+    if (type === 'der' && value === 'Informations') {
+      inDerActivitiesList = false;
+    }
+    if (type === 'der' && value === 'Moyens de communication entre Eric Bellaiche et le client') {
+      inDerCommunicationsList = true;
+    }
+    if (type === 'der' && value === 'Mise à jour des informations') {
+      inDerCommunicationsList = false;
+    }
 
     if (type === 'der' && value === 'Mr') {
       drawClientCards(ctx, clientLines);
@@ -1020,6 +1064,29 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
       value = "3.1. Rémunération d'Agent Immobilier";
     }
 
+    if (type === 'der' && inDerActivitiesList && derActivityBullet(value)) {
+      const display = regulatoryHeadingDisplay(value, type);
+      drawBulletParagraph(ctx, display, { bold: true, size: 9.8 });
+      continue;
+    }
+
+    if (type === 'der' && inDerCommunicationsList && derCommunicationBullet(value)) {
+      drawBulletParagraph(ctx, value);
+      continue;
+    }
+
+    if (type === 'der' && value.startsWith('Assistance patrimoniale à la préparation déclarative fiscale')) {
+      const parts = value.split(/\n+/).map((part) => part.trim()).filter(Boolean);
+      drawRegulatoryHeading(ctx, parts[0], 3, type);
+      if (parts.length > 1) regulatoryText(ctx, parts.slice(1).join(' '), { size: 9.7, lineHeight: 13.1, after: 6 });
+      continue;
+    }
+
+    if (type === 'der' && value === 'Conseil financier & Assuranciel : Rémunération non indépendante') {
+      drawRegulatoryHeading(ctx, 'Conseil financier & assuranciel : rémunération non indépendante', 3, type);
+      continue;
+    }
+
     const headingLevel = regulatoryHeadingLevel(block, value, type);
     if (headingLevel) {
       const minBlock = nextBlock?.k === 'table' ? 140 : headingLevel <= 2 ? 92 : 62;
@@ -1030,6 +1097,11 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
     if (value === 'Dans votre cas, ce bilan est offert.') {
       drawRegulatoryNote(ctx, value);
+      continue;
+    }
+
+    if (type === 'der' && derSuppressSourceBullet(value)) {
+      regulatoryText(ctx, value, { x: REG_MARGIN + 14, width: A4.width - 2 * REG_MARGIN - 14, size: 9.5, lineHeight: 12.8, after: 4.5 });
       continue;
     }
 
