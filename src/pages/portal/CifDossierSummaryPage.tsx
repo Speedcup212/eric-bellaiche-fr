@@ -214,11 +214,6 @@ function auditDraftFromRow(row: AuditRecommendationRow | null): AuditDraft {
     validated_at: row?.validated_at ?? null,
   };
 }
-function auditNumber(value: string): number | null {
-  const parsed = numberValue(value);
-  return parsed === null ? null : parsed;
-}
-
 function flattenNumbers(value: unknown, prefix = '', out: Array<{ key: string; value: number }> = []) {
   if (Array.isArray(value)) { value.forEach((item, index) => flattenNumbers(item, `${prefix}[${index}]`, out)); return out; }
   if (value && typeof value === 'object') { Object.entries(value as Record<string, unknown>).forEach(([key, child]) => flattenNumbers(child, prefix ? `${prefix}.${key}` : key, out)); return out; }
