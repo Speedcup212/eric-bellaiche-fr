@@ -1221,6 +1221,12 @@ export default function CifDossierSummaryPage() {
           ].filter(Boolean);
         });
         const derReady = derMissing.length === 0;
+        const householdRecueilDocument = generatedDocuments.find((item) => item.type === 'recueil' && !item.investisseur_id);
+        const householdRecueilError = generationErrors['household:recueil'];
+        const householdNames = orderedInvestorDocumentStates
+          .map((item) => [item.investor.investisseurs?.prenom, item.investor.investisseurs?.nom].filter(Boolean).join(' ').trim())
+          .filter(Boolean)
+          .join(' & ');
         const derDocument = generatedDocuments.find((item) => item.type === 'der' && !item.investisseur_id);
         const missionDocument = generatedDocuments.find((item) => item.type === 'mission' && !item.investisseur_id);
         const derGenerationError = generationErrors['household:der'];
@@ -1243,22 +1249,40 @@ export default function CifDossierSummaryPage() {
               </div>
 
               <div className="mt-4 space-y-2">
-                {(['recueil','qpi','esg'] as GeneratedDocument['type'][]).map((type) => {
+                <div className={`rounded-xl border px-3.5 py-3 ${householdRecueilState.complete ? 'border-blue-500/40 bg-[#102A4C]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold leading-5 text-blue-100">Recueil d’informations du foyer</p>
+                      <p className="mt-0.5 text-[11px] leading-4 text-slate-300">{householdNames || 'Couple'} · un seul document signé par les deux clients</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase leading-none ${householdRecueilState.complete ? 'bg-blue-500 text-white' : 'border border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{householdRecueilState.complete ? 'Complet' : `En cours · ${householdRecueilState.percentage} %`}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-300">
+                    {householdRecueilState.rows.map((row) => {
+                      const label = [row.investor.investisseurs?.prenom, row.investor.investisseurs?.nom].filter(Boolean).join(' ').trim() || 'Client';
+                      return <span key={row.investor.investisseur_id} className="rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1">{label} · {row.percentage} %</span>;
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {householdRecueilDocument?.signed_url ? <a href={householdRecueilDocument.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-bold text-white transition hover:bg-blue-500"><Download className="h-3.5 w-3.5" /> Voir le PDF commun</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation du recueil commun</span> : null}
+                    <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-[#315173] bg-[#10243E] px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]">Voir les réponses</button>
+                  </div>
+                  {householdRecueilState.complete && <p className="mt-2 text-[10px] font-semibold text-emerald-200">Prêt à être signé par les deux clients sur un seul PDF.</p>}
+                  {householdRecueilError && !householdRecueilDocument?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-200">{householdRecueilError}</p>}
+                </div>
+
+                {(['qpi','esg'] as GeneratedDocument['type'][]).map((type) => {
                   const notApplicable = type === 'esg' && state.esgNotApplicable;
-                  const completed = type === 'recueil' ? state.recueil : type === 'qpi' ? state.qpi : state.esg;
-                  const recueilInProgress = type === 'recueil' && state.recueilPdfAvailable && !state.recueil;
+                  const completed = type === 'qpi' ? state.qpi : state.esg;
                   const document = generatedDocuments.find((item) => item.investisseur_id === investor.investisseur_id && item.type === type && item.signed_url);
-                  const theme = type === 'recueil'
-                    ? { row:'border-blue-500/40 bg-[#102A4C]', title:'text-blue-100', badge:'bg-blue-500 text-white', button:'bg-blue-600 hover:bg-blue-500' }
-                    : type === 'qpi'
-                      ? { row:'border-indigo-500/40 bg-[#24274F]', title:'text-indigo-100', badge:'bg-indigo-500 text-white', button:'bg-indigo-600 hover:bg-indigo-500' }
-                      : { row:'border-teal-500/40 bg-[#103A35]', title:'text-teal-100', badge:'bg-teal-500 text-white', button:'bg-teal-600 hover:bg-teal-500' };
-                  const rowClass = notApplicable ? 'border-teal-500/40 bg-[#103A35]' : completed ? theme.row : recueilInProgress ? 'border-amber-500/40 bg-[#3A2A0A]' : 'border-rose-500/40 bg-[#3B1622]';
-                  const badgeClass = notApplicable ? 'border border-teal-400/40 bg-teal-400/15 text-teal-100' : completed ? theme.badge : recueilInProgress ? 'border border-amber-400/40 bg-amber-400/15 text-amber-100' : 'border border-rose-400/40 bg-rose-400/15 text-rose-100';
-                  const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : recueilInProgress ? `En cours · ${state.recueilPercentage} %` : 'À compléter';
-                  const title = type === 'recueil' ? 'Recueil d’informations' : type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
-                  const subtitle = type === 'recueil' ? 'Données déclarées par le client' : type === 'qpi' ? 'Questionnaire de profil de risque' : 'Préférences ESG';
-                  const showRecueilActions = type === 'recueil' && state.recueilPdfAvailable;
+                  const theme = type === 'qpi'
+                    ? { row:'border-indigo-500/40 bg-[#24274F]', title:'text-indigo-100', badge:'bg-indigo-500 text-white', button:'bg-indigo-600 hover:bg-indigo-500' }
+                    : { row:'border-teal-500/40 bg-[#103A35]', title:'text-teal-100', badge:'bg-teal-500 text-white', button:'bg-teal-600 hover:bg-teal-500' };
+                  const rowClass = notApplicable ? 'border-teal-500/40 bg-[#103A35]' : completed ? theme.row : 'border-rose-500/40 bg-[#3B1622]';
+                  const badgeClass = notApplicable ? 'border border-teal-400/40 bg-teal-400/15 text-teal-100' : completed ? theme.badge : 'border border-rose-400/40 bg-rose-400/15 text-rose-100';
+                  const status = notApplicable ? 'Non exprimée' : completed ? 'Complet' : 'À compléter';
+                  const title = type === 'qpi' ? 'Profil investisseur' : 'Préférences de durabilité';
+                  const subtitle = type === 'qpi' ? 'Questionnaire de profil de risque individuel' : 'Préférences ESG individuelles';
                   const generationError = generationErrors[`${investor.investisseur_id}:${type}`];
                   return <div key={type} className={`rounded-xl border px-3.5 py-3 ${rowClass}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1269,9 +1293,8 @@ export default function CifDossierSummaryPage() {
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase leading-none ${badgeClass}`}>{status}</span>
                     </div>
                     {notApplicable && <p className="mt-2 text-[11px] text-teal-200">Aucune préférence de durabilité exprimée.</p>}
-                    {(completed || showRecueilActions) && <div className="mt-3 flex flex-wrap gap-2">
-                      {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white transition ${completed ? theme.button : 'bg-slate-800 hover:bg-slate-900'}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
-                      {type === 'recueil' && <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-[#315173] bg-[#10243E] px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]">Voir les réponses</button>}
+                    {completed && <div className="mt-3 flex flex-wrap gap-2">
+                      {document?.signed_url ? <a href={document.signed_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold text-white transition ${theme.button}`}><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation</span> : null}
                     </div>}
                     {generationError && !document?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-700">{generationError}</p>}
                   </div>;
