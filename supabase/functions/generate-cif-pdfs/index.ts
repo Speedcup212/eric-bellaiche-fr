@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.21-SECTEUR-PAGE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.22-TITRES-PAGINATION';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -1089,10 +1089,24 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
     const headingLevel = regulatoryHeadingLevel(block, value, type);
     if (headingLevel) {
-      if (type === 'der' && value.trim().toUpperCase() === 'SECTEUR ASSURANCE' && ctx.y < A4.height - 120) {
-        addPage(ctx);
-      }
-      const minBlock = nextBlock?.k === 'table' ? 140 : headingLevel <= 2 ? 92 : 62;
+      const normalizedHeading = value.trim().toUpperCase();
+      const isDerSectorHeading = type === 'der' && normalizedHeading.startsWith('SECTEUR ');
+      const shouldStartSectorOnFreshPage =
+        isDerSectorHeading &&
+        normalizedHeading === 'SECTEUR ASSURANCE' &&
+        ctx.y < A4.height - 120;
+
+      if (shouldStartSectorOnFreshPage) addPage(ctx);
+
+      const minBlock =
+        nextBlock?.k === 'table'
+          ? (headingLevel === 1 ? 210 : headingLevel === 2 ? 175 : 120)
+          : headingLevel === 1
+            ? 190
+            : headingLevel === 2
+              ? 125
+              : 82;
+
       ensure(ctx, minBlock);
       drawRegulatoryHeading(ctx, value, headingLevel, type);
       continue;
