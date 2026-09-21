@@ -1296,18 +1296,90 @@ export default function CifDossierSummaryPage() {
                 const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0);
                 const conflicts = Number(doc.metadata?.conflicts_detected ?? 0);
                 const analysisError = typeof doc.metadata?.analysis_error === 'string' ? doc.metadata.analysis_error : '';
-                return <div key={doc.id} className="grid gap-3 px-4 py-3.5 hover:bg-[#10243E]/80 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
-                  <div className="min-w-0">
-                    <p className="break-words text-xs font-bold text-white">{doc.nom_fichier}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleDateString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''}` : ''}</p>
-                    {analysisError && <p className="mt-1 text-[10px] font-medium text-amber-700">{analysisError}</p>}
+                const extraction = (doc.metadata?.extraction ?? {}) as Record<string,unknown>;
+                const summary = (extraction.summary ?? {}) as Record<string,unknown>;
+                const reason = typeof summary.reason === 'string'
+                  ? summary.reason
+                  : fieldsApplied === 0
+                    ? 'Aucune donnée suffisamment certaine n’a été intégrée automatiquement. Un contrôle conseiller est requis.'
+                    : 'Des données ont été intégrées, mais le document nécessite encore un contrôle conseiller.';
+                const extractedFields = Array.isArray(summary.extracted_fields) ? summary.extracted_fields.map(String) : [];
+                const pageCount = Number(extraction.page_count ?? summary.page_count ?? 0);
+                const exactTotal = typeof summary.exact_total_amount === 'number' ? summary.exact_total_amount : null;
+                const reviewOpen = reviewingSourceDocumentId === doc.id;
+                const targetOptions = doc.categorie === 'patrimoine_immobilier'
+                  ? professionalPatrimony.properties.map((item) => ({ value:'property|' + item.id, kind:'property', key:item.id, label:item.title + (item.city && item.city !== '—' ? ' · ' + item.city : '') }))
+                  : doc.categorie === 'patrimoine_financier'
+                    ? professionalPatrimony.financialAssets.map((item) => ({ value:'financial|' + item.id, kind:'financial', key:item.id, label:item.type + ' · ' + item.owner + (item.institution !== 'À préciser' ? ' · ' + item.institution : '') }))
+                    : doc.categorie === 'tableau_amortissement'
+                      ? professionalPatrimony.credits.map((item) => ({ value:'credit|' + item.id, kind:'credit', key:item.id, label:item.attachedTo + ' · ' + item.bank }))
+                      : [];
+                const selectedTarget = targetOptions.find((item) => item.value === (sourceReviewTargets[doc.id] ?? '')) ?? null;
+                const reviewBusy = sourceReviewBusyId === doc.id;
+                return <div key={doc.id} className="border-b border-[#203954] last:border-b-0">
+                  <div className="grid gap-3 px-4 py-3.5 hover:bg-[#10243E]/80 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
+                    <div className="min-w-0">
+                      <p className="break-words text-xs font-bold text-white">{doc.nom_fichier}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleDateString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''}` : ''}</p>
+                      {analysisError && <p className="mt-1 text-[10px] font-medium text-amber-300">{analysisError}</p>}
+                    </div>
+                    <div><span className="text-[11px] font-semibold text-slate-200">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
+                    <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
+                      {doc.statut_analyse === 'uploaded' && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser</button>}
+                      {doc.statut_analyse === 'to_review' && <button type="button" disabled={busy} onClick={() => setReviewingSourceDocumentId((current) => current === doc.id ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-amber-500 disabled:opacity-50"><FileCheck2 className="h-3.5 w-3.5" /> Contrôler</button>}
+                    </div>
                   </div>
-                  <div><span className="text-[11px] font-semibold text-slate-200">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
-                  <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
-                  <div className="flex flex-wrap gap-2 md:justify-end">
-                    {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
-                    {['uploaded','to_review'].includes(doc.statut_analyse) && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser</button>}
-                  </div>
+
+                  {reviewOpen && doc.statut_analyse === 'to_review' && <div className="border-t border-amber-500/25 bg-amber-950/10 px-4 py-5 md:px-5">
+                    <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+                      <div>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">Résultat de l’analyse</p>
+                            <h4 className="mt-1 text-sm font-bold text-white">{fieldsApplied > 0 ? 'Données intégrées à vérifier' : 'Aucune intégration automatique'}</h4>
+                          </div>
+                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[10px] font-bold text-amber-200">{pageCount > 0 ? pageCount + ' page' + (pageCount > 1 ? 's' : '') : 'Document analysé'}</span>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-300">{reason}</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-xl border border-[#315173] bg-[#071425] p-3"><p className="text-[10px] font-bold uppercase text-slate-500">Données intégrées</p><p className="mt-1 text-lg font-bold text-white">{fieldsApplied}</p></div>
+                          <div className="rounded-xl border border-[#315173] bg-[#071425] p-3"><p className="text-[10px] font-bold uppercase text-slate-500">Écarts détectés</p><p className="mt-1 text-lg font-bold text-white">{conflicts}</p></div>
+                          <div className="rounded-xl border border-[#315173] bg-[#071425] p-3"><p className="text-[10px] font-bold uppercase text-slate-500">Montant reconnu</p><p className="mt-1 text-lg font-bold text-white">{exactTotal !== null ? euro(exactTotal) : '—'}</p></div>
+                        </div>
+                        {extractedFields.length > 0 && <div className="mt-4 rounded-xl border border-[#315173] bg-[#071425] p-3"><p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Champs reconnus</p><div className="mt-2 flex flex-wrap gap-2">{extractedFields.map((field) => <span key={field} className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-200">{humanize(field)}</span>)}</div></div>}
+                        <details className="mt-4 rounded-xl border border-[#315173] bg-[#071425] px-3 py-2.5">
+                          <summary className="cursor-pointer text-xs font-semibold text-slate-300">Détail technique de l’analyse</summary>
+                          <div className="mt-2 text-xs leading-5 text-slate-500">
+                            <p>Parser : {professionalText(summary.parser,'non précisé')}</p>
+                            <p>Portée : {doc.portee_document ?? 'auto'}</p>
+                            <p>Données concernées : {doc.concerne_investisseur_ids?.length ?? 0} personne{(doc.concerne_investisseur_ids?.length ?? 0) > 1 ? 's' : ''}</p>
+                          </div>
+                        </details>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#315173] bg-[#071425] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">Décision conseiller</p>
+                        <p className="mt-1 text-sm font-semibold text-white">Contrôler puis clôturer la pièce</p>
+                        {targetOptions.length > 0 && <label className="mt-4 block text-xs font-semibold text-slate-300">Rattachement métier facultatif
+                          <select value={sourceReviewTargets[doc.id] ?? ''} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
+                            <option value="">Aucun rattachement</option>
+                            {targetOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                          </select>
+                        </label>}
+                        <label className="mt-4 block text-xs font-semibold text-slate-300">Note de contrôle
+                          <textarea value={sourceReviewNotes[doc.id] ?? ''} onChange={(event) => setSourceReviewNotes((current) => ({ ...current, [doc.id]:event.target.value }))} rows={3} placeholder="Ex. Plaquette LMNP conservée comme justificatif ; aucun chiffre réinjecté automatiquement." className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-blue-400" />
+                        </label>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
+                          <button type="button" disabled={reviewBusy || busy} onClick={() => void analyzeSourceDocument(doc)} className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-500/20 disabled:opacity-50">Relancer l’analyse</button>
+                          <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'rejected', null)} className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50">Rejeter la pièce</button>
+                        </div>
+                        <p className="mt-3 text-[11px] leading-5 text-slate-500">Valider sans intégration signifie que la pièce est conservée comme justificatif, sans modifier automatiquement les données patrimoniales.</p>
+                      </div>
+                    </div>
+                  </div>}
                 </div>;
               })}
             </div> : <div className="px-5 py-10 text-center">
