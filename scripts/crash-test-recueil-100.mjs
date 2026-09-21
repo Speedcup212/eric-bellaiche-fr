@@ -114,8 +114,8 @@ for (const fixture of invalidFixtures) {
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration] = await Promise.all([
-  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'),
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration, householdDocumentContextMigration, questionnaireUniquenessMigration] = await Promise.all([
+  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'), read('supabase/migrations/20260921144500_sync_household_document_context.sql'), read('supabase/migrations/20260921145500_prevent_duplicate_questionnaire_sessions.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/);
@@ -147,6 +147,10 @@ assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffff
 assert.match(creditMigration, /validate_credit_recueil_payload/);
 assert.match(creditMigration, /sync_document_credit_context/);
 assert.match(creditMigration, /require_credit_recueil_before_validation/);
+assert.match(householdDocumentContextMigration, /trg_sync_household_confirmation_document_context/, 'Les confirmations foyer doivent alimenter automatiquement l’étape Documents');
+assert.match(householdDocumentContextMigration, /trg_sync_document_tax_context/, 'Un avis fiscal déjà repris dans le recueil doit préremplir le contexte documentaire');
+assert.match(questionnaireUniquenessMigration, /unique index[\s\S]*questionnaire_sessions_one_per_template_idx/i, 'Une personne ne doit jamais recevoir deux sessions QPI\/ESG du même modèle');
+assert.match(questionnaireUniquenessMigration, /dossier_id,investisseur_id,template_id/, 'La protection anti-doublon doit porter sur dossier + personne + modèle');
 assert.match(helpers, /rows\.length === 1 \? rows\[0\] : null/);
 
 const counts = profiles.reduce((result, profile) => { result[profile.scope] += 1; result[profile.professional.statut] = (result[profile.professional.statut] ?? 0) + 1; return result; }, { individual: 0, couple: 0 });
