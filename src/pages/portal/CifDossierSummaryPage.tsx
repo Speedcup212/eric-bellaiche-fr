@@ -401,7 +401,10 @@ export default function CifDossierSummaryPage() {
   const [auditRecommendation, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
   const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
   const [auditMessage, setAuditMessage] = useState('');
-  const [auditChatPrompt, setAuditChatPrompt] = useState('');
+  const [auditChatComplement, setAuditChatComplement] = useState('');
+  const [auditMasterPrompt, setAuditMasterPrompt] = useState('');
+  const [auditPromptVersion, setAuditPromptVersion] = useState('');
+  const [auditPromptLoadError, setAuditPromptLoadError] = useState('');
   const [generatingAuditPdf, setGeneratingAuditPdf] = useState(false);
   const [auditPdfUrl, setAuditPdfUrl] = useState<string | null>(null);
   const [auditPdfError, setAuditPdfError] = useState('');
@@ -771,6 +774,41 @@ export default function CifDossierSummaryPage() {
   }, [sourceDocuments, selectedDocumentState]);
   const displayedSourceDocuments = useMemo(() => documentReviewOnly ? selectedSourceDocuments.filter((doc) => doc.statut_analyse === 'to_review') : selectedSourceDocuments, [documentReviewOnly, selectedSourceDocuments]);
 
+  useEffect(() => {
+    if (!dossierId) return;
+    let active = true;
+
+    const loadAuditMasterPrompt = async () => {
+      const { data, error } = await supabase
+        .from('audit_prompt_templates')
+        .select('title,version,prompt')
+        .eq('code', 'patrimonial_audit_master')
+        .eq('active', true)
+        .maybeSingle();
+
+      if (!active) return;
+      if (error || !data?.prompt) {
+        setAuditMasterPrompt('');
+        setAuditPromptVersion('');
+        setAuditPromptLoadError(error?.message || 'Prompt maître indisponible.');
+        return;
+      }
+
+      setAuditMasterPrompt(String(data.prompt));
+      setAuditPromptVersion(String(data.version || '1.0'));
+      setAuditPromptLoadError('');
+    };
+
+    void loadAuditMasterPrompt();
+    return () => { active = false; };
+  }, [dossierId]);
+
+  useEffect(() => {
+    if (!dossierId) return;
+    const storageKey = `audit-complement:${dossierId}`;
+    setAuditChatComplement(window.localStorage.getItem(storageKey) || '');
+  }, [dossierId]);
+
   const auditChatContext = useMemo(() => {
     const controls = investorSummaries.flatMap((item) => item.unresolvedQpiControls).map((control) => control.commentaire || humanize(control.control_code));
     const currentAllocation = auditDraft.allocation.map((item) => ({
@@ -811,48 +849,52 @@ export default function CifDossierSummaryPage() {
       `Fiscalité : ${JSON.stringify(auditDraft.fiscal_notes)}`,
       `Crash tests / contrôles : ${JSON.stringify(auditDraft.controls)}`,
       `Plan d’action : ${JSON.stringify(auditDraft.sequencing)}`,
-      '',
-      'TRAME À CONSERVER',
-      '1. Recommandation en une page',
-      '2. Diagnostic patrimonial',
-      '3. Allocation cible et séquencement',
-      '4. Recommandations par sujet',
-      '5. Fiscalité et choix des enveloppes',
-      '6. Adéquation, risques et justification',
-      '7. Crash test et plan d’action',
-      '8. Conclusion, contrôles et documentation',
-      '',
-      'Immobilier à passer au filtre du dossier : résidence principale, location nue, LMNP, LMP, location meublée / courte durée, Denormandie, Malraux, Monuments historiques, Relance logement (Jeanbrun), déficit foncier, nue-propriété / démembrement, SCI IR, SCI IS, résidences gérées, murs commerciaux / professionnels, SCPI / immobilier collectif.',
+
     ].filter(Boolean).join('\n');
   }, [auditDraft, clientDisplayName, dossier?.reference, household.realEstate.totalValue, investorSummaries, snapshot]);
 
+  const auditFullPrompt = useMemo(() => [
+    auditMasterPrompt.trim(),
+    '',
+    '====================================================',
+    'CONTEXTE DYNAMIQUE DU DOSSIER CRM',
+    '====================================================',
+    auditChatContext,
+    '',
+    '====================================================',
+    'COMPLÉMENT CONSEILLER POUR CE DOSSIER',
+    '====================================================',
+    auditChatComplement.trim() || 'Aucun complément spécifique.',
+  ].filter(Boolean).join('\n'), [auditMasterPrompt, auditChatContext, auditChatComplement]);
+
   const openAuditInChatGPT = async () => {
-    const fullPrompt = [
-      auditChatContext,
-      '',
-      auditChatPrompt.trim() || 'Étudie le dossier comme dans nos audits patrimoniaux habituels. Challenge les données, propose une recommandation complète et conserve strictement la trame cabinet.',
-    ].join('\n');
+    if (!auditMasterPrompt.trim()) {
+      setAuditMessage(auditPromptLoadError || 'Le prompt maître n’est pas chargé. Réessaie dans quelques secondes.');
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(fullPrompt);
-      setAuditMessage('Contexte copié. ChatGPT est ouvert dans un nouvel onglet : colle le texte pour poursuivre l’audit.');
+      await navigator.clipboard.writeText(auditFullPrompt);
+      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} + contexte dossier + complément copiés. Colle le contenu dans la discussion ChatGPT ouverte.`);
     } catch {
-      setAuditMessage('ChatGPT est ouvert. Copie le contexte affiché dans le presse-papiers si nécessaire.');
+      setAuditMessage('ChatGPT est ouvert. Le navigateur n’a pas autorisé la copie automatique du prompt complet.');
     }
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
 
   const generateAuditInChatGPT = async () => {
     if (!dossierId) return;
+    if (!auditMasterPrompt.trim()) {
+      setAuditMessage(auditPromptLoadError || 'Le prompt maître n’est pas chargé. Réessaie dans quelques secondes.');
+      return;
+    }
+
     const generationPrompt = [
-      auditChatContext,
+      auditFullPrompt,
       '',
-      'GÉNÉRER L’AUDIT — ACTION CRM',
-      'Produis maintenant l’audit patrimonial complet comme si je te l’avais demandé directement dans ChatGPT, en conservant la structure de nos deux audits PDF de référence.',
-      'Étudie le dossier, challenge les incohérences, formule des recommandations concrètes, chiffre l’allocation quand les données le permettent, distingue les données certaines des éléments à confirmer, et construis un crash test adapté à ce foyer.',
-      'Ne transforme jamais les données manquantes en 0 €. Utilise "À confirmer" ou une fourchette justifiée quand nécessaire.',
-      'Pour les recommandations par sujet, traite uniquement les sujets pertinents mais passe notamment l’immobilier au filtre suivant : résidence principale, location nue, LMNP, LMP, location meublée / courte durée, Denormandie, Malraux, Monuments historiques, Relance logement (Jeanbrun), déficit foncier, nue-propriété / démembrement, SCI IR, SCI IS, résidences gérées, murs commerciaux / professionnels, SCPI / immobilier collectif.',
-      '',
-      'À la fin, enregistre le résultat structuré dans Supabase, table public.audit_recommendations, pour le dossier ' + dossierId + '.',
+      '====================================================',
+      'ACTION CRM — ENREGISTREMENT DE L’AUDIT',
+      '====================================================',
+      'Après avoir produit l’audit selon le prompt maître ci-dessus, enregistre le résultat structuré dans Supabase, table public.audit_recommendations, pour le dossier ' + dossierId + '.',
       'Mets statut = "generated".',
       'Renseigne : diagnostic, projet_a_preserver, reserve_securite, epargne_a_arbitrer, allocation, supports, sequencing, fiscal_notes, protection_notes, controls.',
       'allocation = tableau d’objets {poche,montant,decision}.',
@@ -864,11 +906,12 @@ export default function CifDossierSummaryPage() {
       '',
       'Quand l’enregistrement Supabase est terminé, réponds simplement : "Audit généré et enregistré dans le CRM."',
     ].join('\n');
+
     try {
       await navigator.clipboard.writeText(generationPrompt);
-      setAuditMessage('Commande « Générer l’audit » copiée. ChatGPT va produire l’audit puis l’enregistrer dans le CRM.');
+      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} et commande de génération copiés. ChatGPT peut produire puis enregistrer l’audit.`);
     } catch {
-      setAuditMessage('ChatGPT va être ouvert avec la commande de génération. Si nécessaire, copie manuellement le contexte.');
+      setAuditMessage('ChatGPT va être ouvert. Le navigateur n’a pas autorisé la copie automatique de la commande complète.');
     }
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
@@ -1109,17 +1152,28 @@ export default function CifDossierSummaryPage() {
         <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Discussion</p>
           <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Questions, arbitrages, simulations et modifications de stratégie, comme dans une conversation normale avec ChatGPT.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Le prompt maître du cabinet est identique pour tous les dossiers. Le CRM ajoute automatiquement le contexte du client et, si tu le souhaites, une consigne spécifique.</p>
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className={`rounded-full px-2.5 py-1 font-bold ${auditMasterPrompt ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
+              {auditMasterPrompt ? `Prompt maître v${auditPromptVersion || '1.0'} chargé` : 'Chargement du prompt maître…'}
+            </span>
+            {auditPromptLoadError && <span className="text-rose-300">{auditPromptLoadError}</span>}
+          </div>
+          <label className="mt-4 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Complément facultatif pour ce dossier</label>
           <textarea
-            value={auditChatPrompt}
-            onChange={(event) => setAuditChatPrompt(event.target.value)}
-            rows={7}
-            placeholder="Ex. Reprends tout le dossier, challenge la réserve de sécurité, compare LMNP / Denormandie / Jeanbrun et refais l’allocation cible."
-            className="mt-4 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+            value={auditChatComplement}
+            onChange={(event) => {
+              const value = event.target.value;
+              setAuditChatComplement(value);
+              if (dossierId) window.localStorage.setItem(`audit-complement:${dossierId}`, value);
+            }}
+            rows={6}
+            placeholder="Ex. Challenge la réserve de sécurité, compare la conservation du locatif avec une vente, ou donne priorité à la liquidité. Laisse vide si aucune consigne spécifique."
+            className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
           />
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400">Ouvrir dans ChatGPT</button>
-            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(auditChatContext); setAuditMessage('Contexte du dossier copié.'); } catch { setAuditMessage('Impossible de copier automatiquement le contexte.'); } }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Copier le contexte</button>
+            <button disabled={!auditMasterPrompt} type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">Ouvrir dans ChatGPT</button>
+            <button disabled={!auditMasterPrompt} type="button" onClick={async () => { try { await navigator.clipboard.writeText(auditFullPrompt); setAuditMessage('Prompt maître + contexte dossier + complément copiés.'); } catch { setAuditMessage('Impossible de copier automatiquement le prompt complet.'); } }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">Copier le prompt complet</button>
           </div>
         </div>
 
