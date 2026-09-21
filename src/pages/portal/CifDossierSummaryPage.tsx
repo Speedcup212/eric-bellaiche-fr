@@ -14,7 +14,7 @@ type SectionRow = SectionInput & { investisseur_id: string; section_code: string
 type ContextRow = Record<string, unknown> & { investisseur_id: string };
 type ProvenanceRow = DataStatusInput & { investisseur_id?: string | null; entity_table?: string | null; field_name?: string | null };
 type ChecklistRow = ChecklistItemInput & { document_code?: string | null; libelle?: string | null; source_document_id?: string | null };
-type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg'; investisseur_id?: string | null; document_id: string; signed_url: string | null; path: string; reused: boolean; format?: 'pdf' };
+type GeneratedDocument = { type: 'recueil' | 'qpi' | 'esg' | 'der' | 'mission'; investisseur_id?: string | null; document_id: string; signed_url: string | null; path: string; reused: boolean; format?: 'pdf' };
 type HouseholdConfirmationRow = { section_code:string; status:'confirmed'|'change_requested'; note:string|null; source_updated_at:string; updated_at:string };
 type QpiSessionRow = { id:string; investisseur_id:string };
 type QpiControlRow = { id:string; session_id:string; control_code:string; alerte:boolean; traite:boolean; commentaire:string|null; details:Record<string,unknown>; resolution_code:string|null; resolution_note:string|null; resolved_at:string|null };
@@ -228,7 +228,7 @@ export default function CifDossierSummaryPage() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('synthese');
   const [selectedDocumentInvestorId, setSelectedDocumentInvestorId] = useState<string | null>(null);
   const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
-  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
+  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
     const results = await Promise.all([
@@ -424,6 +424,35 @@ export default function CifDossierSummaryPage() {
     return () => { active = false; };
   }, [dossierId, dossier?.id, documentGenerationKey]);
 
+  const generateRegulatoryPdf = async (type: 'der' | 'mission') => {
+    if (!dossierId) return;
+    const key = `household:${type}`;
+    setGeneratingRegulatoryType(type);
+    setGenerationErrors((current) => { const next = { ...current }; delete next[key]; return next; });
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-cif-pdfs', {
+        body: { dossier_id: dossierId, document_types: [type] },
+      });
+      if (error) throw error;
+      const remoteError = Array.isArray(data?.errors)
+        ? data.errors.find((item: { type?: string; error?: string }) => item?.type === type)?.error
+        : null;
+      if (remoteError) throw new Error(remoteError);
+      const document = Array.isArray(data?.documents)
+        ? (data.documents as GeneratedDocument[]).find((item) => item.type === type)
+        : null;
+      if (!document?.signed_url) throw new Error(data?.error || 'PDF temporairement indisponible');
+      setGeneratedDocuments((current) => {
+        const filtered = current.filter((item) => !(item.type === type && !item.investisseur_id));
+        return [...filtered, document];
+      });
+    } catch (error) {
+      setGenerationErrors((current) => ({ ...current, [key]: messageFromError(error) }));
+    } finally {
+      setGeneratingRegulatoryType(null);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-blue-50/30 p-10 text-sm text-slate-500">Chargement de la synthèse conseiller…</div>;
   if (errorMessage) return <div className="min-h-screen bg-blue-50/30 p-10"><Link to="/cabinet" className="text-sm font-semibold text-slate-600">← Retour cabinet</Link><p className="mt-6 rounded-2xl bg-red-50 p-5 text-sm text-red-700">{errorMessage}</p></div>;
   if (!dossier) return null;
@@ -499,12 +528,20 @@ export default function CifDossierSummaryPage() {
         const primaryObjectivesCount = Array.isArray(primaryObjectives?.items) ? primaryObjectives.items.length : 0;
         const primaryRecueilReady = primaryInvestor ? ['completed','validated'].includes(primaryInvestor.recueil_status) : false;
         const allPartiesIdentified = orderedInvestorDocumentStates.every((item) => Boolean(item.investor.investisseurs?.prenom && item.investor.investisseurs?.nom && item.investor.investisseurs?.email));
-        const derMissing = [
-          !investor.investisseurs?.prenom || !investor.investisseurs?.nom ? 'identité' : '',
-          !investor.investisseurs?.email ? 'email' : '',
-          !selectedIdentity.civilite ? 'civilité' : '',
-        ].filter(Boolean);
+        const derMissing = orderedInvestorDocumentStates.flatMap((item) => {
+          const partyIdentity = sections.find((row) => row.investisseur_id === item.investor.investisseur_id && row.section_code === 'identity')?.payload ?? {};
+          const label = item.investor.role_dossier === 'investisseur_1' ? 'Identifiant 1' : 'Identifiant 2';
+          return [
+            !item.investor.investisseurs?.prenom || !item.investor.investisseurs?.nom ? `${label} : identité` : '',
+            !item.investor.investisseurs?.email ? `${label} : email` : '',
+            !partyIdentity.civilite ? `${label} : civilité` : '',
+          ].filter(Boolean);
+        });
         const derReady = derMissing.length === 0;
+        const derDocument = generatedDocuments.find((item) => item.type === 'der' && !item.investisseur_id);
+        const missionDocument = generatedDocuments.find((item) => item.type === 'mission' && !item.investisseur_id);
+        const derGenerationError = generationErrors['household:der'];
+        const missionGenerationError = generationErrors['household:mission'];
         const missionMissing = [
           !allPartiesIdentified ? 'coordonnées des parties' : '',
           !primaryRecueilReady ? 'recueil principal validé' : '',
@@ -565,22 +602,32 @@ export default function CifDossierSummaryPage() {
                 <div className={`rounded-xl border px-4 py-3 ${derReady ? 'border-emerald-500/40 bg-[#10352F]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-bold text-white">DER</p>
-                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${derReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{derReady ? 'Prêt à générer' : 'Données manquantes'}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${derDocument ? 'border-blue-400/40 bg-blue-400/15 text-blue-100' : derReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{derDocument ? 'PDF généré' : derReady ? 'Prêt à générer' : 'Données manquantes'}</span>
                   </div>
-                  <p className={`mt-1.5 text-[10px] leading-4 ${derReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{derReady ? 'Identité et coordonnées suffisantes pour préparer le document.' : `Manque : ${derMissing.join(', ')}.`}</p>
+                  <p className={`mt-1.5 text-[10px] leading-4 ${derReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{derReady ? 'Modèle DER 2026 prérempli avec les données du dossier.' : `Manque : ${derMissing.join(', ')}.`}</p>
+                  {derReady && <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" disabled={generatingRegulatoryType !== null} onClick={() => void generateRegulatoryPdf('der')} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white transition hover:bg-emerald-500 disabled:opacity-50">{generatingRegulatoryType === 'der' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{derDocument ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
+                    {derDocument?.signed_url && <a href={derDocument.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-400/15 px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-blue-400/25"><Download className="h-3.5 w-3.5" /> Voir le PDF</a>}
+                  </div>}
+                  {derGenerationError && <p className="mt-2 text-[10px] font-semibold text-rose-200">{derGenerationError}</p>}
                 </div>
                 <div className={`rounded-xl border px-4 py-3 ${missionReady ? 'border-emerald-500/40 bg-[#10352F]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-bold text-white">Lettre de mission</p>
-                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${missionReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{missionReady ? 'Prête à générer' : 'Données manquantes'}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase ${missionDocument ? 'border-blue-400/40 bg-blue-400/15 text-blue-100' : missionReady ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-100' : 'border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{missionDocument ? 'PDF généré' : missionReady ? 'Prête à générer' : 'Données manquantes'}</span>
                   </div>
-                  <p className={`mt-1.5 text-[10px] leading-4 ${missionReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{missionReady ? 'Parties identifiées, recueil principal validé et objectifs disponibles.' : `Manque : ${missionMissing.join(', ')}.`}</p>
+                  <p className={`mt-1.5 text-[10px] leading-4 ${missionReady ? 'text-emerald-100/80' : 'text-amber-100/80'}`}>{missionReady ? 'Modèle maître de lettre de mission prérempli pour le dossier.' : `Manque : ${missionMissing.join(', ')}.`}</p>
+                  {missionReady && <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" disabled={generatingRegulatoryType !== null} onClick={() => void generateRegulatoryPdf('mission')} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white transition hover:bg-emerald-500 disabled:opacity-50">{generatingRegulatoryType === 'mission' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{missionDocument ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
+                    {missionDocument?.signed_url && <a href={missionDocument.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-400/15 px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-blue-400/25"><Download className="h-3.5 w-3.5" /> Voir le PDF</a>}
+                  </div>}
+                  {missionGenerationError && <p className="mt-2 text-[10px] font-semibold text-rose-200">{missionGenerationError}</p>}
                 </div>
                 <Link to={`/cabinet/adequation?dossier=${dossierId}`} className="block rounded-xl border border-blue-500/40 bg-[#12345B] px-4 py-3 transition hover:bg-[#173E69]">
                   <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Déclaration d’adéquation</p><span className="rounded-full border border-blue-400/40 bg-blue-400/15 px-2.5 py-1 text-[9px] font-bold uppercase text-blue-100">Ouvrir</span></div>
                 </Link>
               </div>
-              <p className="mt-3 text-[11px] leading-5 text-slate-300">Le DER et la lettre de mission ne sont plus bloqués par l’achèvement complet du recueil du conjoint. L’adéquation reste postérieure à la validation de la stratégie et des supports.</p>
+              <p className="mt-3 text-[11px] leading-5 text-slate-300">Le DER et la lettre de mission sont générés en PDF pour dépôt manuel sur Youtrust. Aucun envoi automatique vers Youtrust n’est effectué par le CRM. L’adéquation reste postérieure à la validation de la stratégie et des supports.</p>
             </div>
           </div>
 
