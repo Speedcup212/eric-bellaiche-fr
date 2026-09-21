@@ -1,6 +1,15 @@
 import { execSync } from 'node:child_process';
 
 const marker = '[netlify-verified]';
+const context = process.env.CONTEXT || 'production';
+
+// Branch deploys / Deploy Previews remain available for testing.
+// Only production is locked behind the verified marker.
+if (context !== 'production') {
+  console.log(`Netlify deploy gate: contexte ${context}, build de prévisualisation autorisé.`);
+  process.exit(1);
+}
+
 let message = '';
 
 try {
@@ -12,10 +21,10 @@ try {
 }
 
 if (message.includes(marker)) {
-  console.log('Netlify deploy gate: commit vérifié par CI, build autorisé.');
+  console.log('Netlify deploy gate: commit vérifié par CI, build production autorisé.');
   // Netlify "ignore" convention: non-zero means continue the build.
   process.exit(1);
 }
 
-console.log('Netlify deploy gate: commit non vérifié, build ignoré. La CI créera un commit de release après validation.');
+console.log('Netlify deploy gate: commit production non vérifié, build ignoré. La CI doit valider tests, TypeScript, lint et build avant publication.');
 process.exit(0);
