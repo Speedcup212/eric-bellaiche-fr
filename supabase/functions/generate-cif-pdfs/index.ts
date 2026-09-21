@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.42-RECUEIL-REVENUS-AUTO';
+const PDF_VERSION = '2026-MAITRE-PDF-2.43-ENDETTEMENT-ACTUEL-FUTUR';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -390,7 +390,9 @@ async function buildRecueilCouple(snapshot: Json) {
   const futureMonthlyDebt = credits.reduce((sum: number, x: Json) => sum + num(x.mensualite_future), 0);
   const monthlyIncome = incomeAnnual / 12;
   const debtRatio = monthlyIncome > 0 ? monthlyDebt / monthlyIncome * 100 : null;
+  const futureDebtRatio = monthlyIncome > 0 && futureMonthlyDebt > 0 ? futureMonthlyDebt / monthlyIncome * 100 : null;
   const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null;
+  const futureMargin35 = monthlyIncome > 0 && futureMonthlyDebt > 0 ? monthlyIncome * 0.35 - futureMonthlyDebt : null;
   const propertyTotal = properties.reduce((sum: number, x: Json) => sum + num(x.valeur_actuelle), 0);
 
   recueilHeading(ctx, `${n++}. Crédits et endettement détaillés`);
@@ -426,7 +428,9 @@ async function buildRecueilCouple(snapshot: Json) {
     ['Mensualités actuelles de crédits', eur(monthlyDebt)],
     ['Mensualités à la reprise / régime futur', futureMonthlyDebt > 0 ? eur(futureMonthlyDebt) : 'Néant'],
     ['Taux d’endettement actuel', debtRatio === null ? 'Non calculable' : pct(debtRatio)],
+    ['Taux d’endettement après reprise', futureDebtRatio === null ? 'Non calculable' : pct(futureDebtRatio)],
     ['Marge mensuelle théorique actuelle à 35 %', margin35 === null ? 'Non calculable' : eur(margin35)],
+    ['Marge mensuelle théorique à 35 % après reprise', futureMargin35 === null ? 'Non calculable' : eur(futureMargin35)],
     ['Patrimoine immobilier brut', eur(propertyTotal)],
     ['Patrimoine financier directement justifié', financialExact > 0 ? eur(financialExact) : 'Non consolidé'],
     ['Patrimoine financier indicatif', financialEstimated > 0 ? eur(financialEstimated) : 'Néant'],
