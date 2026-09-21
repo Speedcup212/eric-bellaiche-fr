@@ -324,6 +324,7 @@ export default function CifDossierSummaryPage() {
   const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
   const [savingAudit, setSavingAudit] = useState(false);
   const [auditMessage, setAuditMessage] = useState('');
+  const [auditEditing, setAuditEditing] = useState(false);
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
@@ -500,6 +501,56 @@ export default function CifDossierSummaryPage() {
     const done = auditWorkflowSteps.filter((step) => step.done).length;
     return { done, total:auditWorkflowSteps.length, percentage:Math.round((done / auditWorkflowSteps.length) * 100) };
   }, [auditWorkflowSteps]);
+
+  const auditSubjectGroups = useMemo(() => {
+    const groups: Record<string, AuditSupportItem[]> = {
+      assurance_vie: [],
+      pea: [],
+      cto: [],
+      scpi: [],
+      immobilier: [],
+      credit: [],
+      retraite: [],
+      transmission: [],
+      autre: [],
+    };
+    for (const item of auditDraft.supports) {
+      const label = `${item.support} ${item.analyse} ${item.decision}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const key =
+        /assurance.?vie|contrat av|fonds euro/.test(label) ? 'assurance_vie' :
+        /\bpea\b|msci|cac 40|stoxx/.test(label) ? 'pea' :
+        /\bcto\b|compte.?titres|s&p|nasdaq|japon|emerg/.test(label) ? 'cto' :
+        /scpi|opc[i]?|sci de placement/.test(label) ? 'scpi' :
+        /credit|crédit|pret|prêt|mensualit|banque|financement/.test(label) ? 'credit' :
+        /per\b|retraite|pereco|pee/.test(label) ? 'retraite' :
+        /succession|transmission|donation|beneficiaire|bénéficiaire|demembrement|démembrement/.test(label) ? 'transmission' :
+        /immobilier|lyon|marseille|lmnp|lmp|denormandie|malraux|monument|jeanbrun|relance logement|deficit foncier|déficit foncier|location|residence principale|résidence principale|meuble|meublé|sci\b/.test(label) ? 'immobilier' :
+        'autre';
+      groups[key].push(item);
+    }
+    return groups;
+  }, [auditDraft.supports]);
+
+  const auditRealEstateTypes = [
+    'Résidence principale',
+    'Location nue',
+    'LMNP',
+    'LMP',
+    'Location meublée / courte durée',
+    'Denormandie',
+    'Malraux',
+    'Monuments historiques',
+    'Relance logement (Jeanbrun)',
+    'Déficit foncier',
+    'Nue-propriété / démembrement',
+    'SCI à l’IR',
+    'SCI à l’IS',
+    'Résidences gérées',
+    'Murs commerciaux / professionnels',
+    'SCPI / immobilier collectif',
+  ];
+
+  const auditAllocationTotal = auditDraft.allocation.reduce((sum, item) => sum + (auditNumber(item.montant) ?? 0), 0);
 
   function updateAuditField<K extends keyof AuditDraft>(key: K, value: AuditDraft[K]) {
     setAuditMessage('');
