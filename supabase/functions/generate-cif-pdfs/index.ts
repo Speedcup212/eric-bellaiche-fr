@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.34-SIGNATURES';
+const PDF_VERSION = '2026-MAITRE-PDF-2.35-MISSION-PAGE1-AEREE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -1088,6 +1088,7 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
   let missionSignatureDrawn = false;
   let inMissionRetraction = false;
   let missionRetractionDateDrawn = false;
+  let inMissionIntro = type === 'mission';
   let inDerActivitiesList = false;
   let inDerCommunicationsList = false;
   let inMissionProductList = false;
@@ -1104,6 +1105,10 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
     let value = replaceSignatureProvider(block.t, type).trim();
     if (!value) continue;
+
+    if (type === 'mission' && value === '1. Objet') {
+      inMissionIntro = false;
+    }
 
     if (type === 'der' && value.startsWith('Vous pouvez vérifier cette immatriculation sur le site internet')) {
       inDerActivitiesList = true;
@@ -1142,6 +1147,7 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
 
     if (type === 'mission' && !insertedMissionClients && value.includes('Ci-après le(s) « Client(s) »')) {
       drawClientCards(ctx, clientLines);
+      ctx.y -= 6;
       insertedMissionClients = true;
     }
 
@@ -1321,6 +1327,22 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
         size: 9.45,
         bulletColor: MUTED,
       } : {});
+      continue;
+    }
+
+    if (type === 'mission' && inMissionIntro) {
+      const isShortIntroLine =
+        value.length <= 42 ||
+        value.startsWith('Ci-après') ||
+        value.startsWith("D'une part") ||
+        value.startsWith("D'autre part") ||
+        value.startsWith('Il a tout d’abord') ||
+        value.startsWith("Il a tout d'abord");
+      regulatoryText(ctx, value, {
+        size: 9.9,
+        lineHeight: 14.5,
+        after: isShortIntroLine ? 7.5 : 9,
+      });
       continue;
     }
 
