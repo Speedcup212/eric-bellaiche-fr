@@ -956,46 +956,79 @@ export default function CifDossierSummaryPage() {
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
     const recueilData = sections.map((section) => `${section.investisseur_id}:${section.section_code}:${JSON.stringify(section.payload ?? {})}`).sort().join('|');
-    return `${readiness}::${recueilData}`;
-  }, [investorDocumentStates, sections]);
+    return `${readiness}::household-recueil:${householdRecueilState.percentage}:${householdRecueilState.complete}::${recueilData}`;
+  }, [investorDocumentStates, sections, householdRecueilState.percentage, householdRecueilState.complete]);
   useEffect(() => {
-    if (!dossierId || !dossier || !investorDocumentStates.some((state) => state.readyTypes.length)) return;
+    const hasIndividualDocuments = investorDocumentStates.some((state) => state.readyTypes.length);
+    if (!dossierId || !dossier || (!householdRecueilState.hasData && !hasIndividualDocuments)) return;
     let active = true;
     const generate = async () => {
       setGeneratingDocuments(true);
       const nextErrors: Record<string,string> = {};
       const produced: GeneratedDocument[] = [];
+      const jobs: Array<Promise<void>> = [];
 
-      await Promise.all(investorDocumentStates.flatMap((state) =>
-        state.readyTypes.map(async (type) => {
-          const key = `${state.investor.investisseur_id}:${type}`;
+      if (householdRecueilState.hasData) {
+        jobs.push((async () => {
+          const key = 'household:recueil';
           try {
             const { data, error } = await supabase.functions.invoke('generate-cif-pdfs', {
-              body: { dossier_id: dossierId, investisseur_id: state.investor.investisseur_id, document_types: [type] },
+              body: { dossier_id: dossierId, document_types: ['recueil'] },
             });
             if (error) {
-              nextErrors[key] = 'PDF temporairement indisponible';
+              nextErrors[key] = 'PDF du recueil foyer temporairement indisponible';
               return;
             }
             if (Array.isArray(data?.documents)) {
               produced.push(...(data.documents as GeneratedDocument[]));
             }
             const remoteError = Array.isArray(data?.errors)
-              ? data.errors.find((item: { type?: string; error?: string }) => item?.type === type)?.error
+              ? data.errors.find((item: { type?: string; error?: string }) => item?.type === 'recueil')?.error
               : null;
             if (remoteError) nextErrors[key] = remoteError;
-            else if (!Array.isArray(data?.documents) || !data.documents.some((item: GeneratedDocument) => item.type === type)) {
-              nextErrors[key] = data?.error || 'PDF temporairement indisponible';
+            else if (!Array.isArray(data?.documents) || !data.documents.some((item: GeneratedDocument) => item.type === 'recueil' && !item.investisseur_id)) {
+              nextErrors[key] = data?.error || 'PDF du recueil foyer temporairement indisponible';
             }
           } catch (error) {
             nextErrors[key] = messageFromError(error);
           }
-        })
-      ));
+        })());
+      }
+
+      for (const state of investorDocumentStates) {
+        for (const type of state.readyTypes) {
+          jobs.push((async () => {
+            const key = `${state.investor.investisseur_id}:${type}`;
+            try {
+              const { data, error } = await supabase.functions.invoke('generate-cif-pdfs', {
+                body: { dossier_id: dossierId, investisseur_id: state.investor.investisseur_id, document_types: [type] },
+              });
+              if (error) {
+                nextErrors[key] = 'PDF temporairement indisponible';
+                return;
+              }
+              if (Array.isArray(data?.documents)) {
+                produced.push(...(data.documents as GeneratedDocument[]));
+              }
+              const remoteError = Array.isArray(data?.errors)
+                ? data.errors.find((item: { type?: string; error?: string }) => item?.type === type)?.error
+                : null;
+              if (remoteError) nextErrors[key] = remoteError;
+              else if (!Array.isArray(data?.documents) || !data.documents.some((item: GeneratedDocument) => item.type === type)) {
+                nextErrors[key] = data?.error || 'PDF temporairement indisponible';
+              }
+            } catch (error) {
+              nextErrors[key] = messageFromError(error);
+            }
+          })());
+        }
+      }
+
+      await Promise.all(jobs);
 
       if (!active) return;
       setGeneratedDocuments((current) => {
-        const merged = [...current];
+        const merged = [...current.filter((item) => !(item.type === 'recueil' && item.investisseur_id))];
         for (const doc of produced) {
           const index = merged.findIndex((item) => item.investisseur_id === doc.investisseur_id && item.type === doc.type);
           if (index >= 0) merged[index] = doc;
