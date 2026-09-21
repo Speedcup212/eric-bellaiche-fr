@@ -729,7 +729,7 @@ export default function CifDossierSummaryPage() {
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Étude patrimoniale</p>
             <h2 className="mt-1 text-2xl font-semibold text-white">Audit patrimonial et proposition d’investissement</h2>
             <p className="mt-1 text-sm text-slate-300">{clientDisplayName}</p>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">Trame cabinet conservée : recommandation en une page, diagnostic, allocation et séquencement, recommandations détaillées par sujet, fiscalité, adéquation, crash test, plan d’action, conclusion et contrôles.</p>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">Trame cabinet 2026 conservée : recommandation en une page, diagnostic, allocation et séquencement, recommandations détaillées par sujet, fiscalité, adéquation, crash test, plan d’action, conclusion et contrôles.</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
