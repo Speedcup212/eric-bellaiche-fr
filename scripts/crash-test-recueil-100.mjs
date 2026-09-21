@@ -114,8 +114,8 @@ for (const fixture of invalidFixtures) {
   assert(validate(profile).includes(fixture.expected), `${fixture.name} aurait dû être refusé`);
 }
 
-const [familyPage, documentsPage, documentStyles, journeyBase, helpers, cabinetPage, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration, householdDocumentContextMigration, questionnaireUniquenessMigration] = await Promise.all([
-  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('src/pages/portal/CifAdminPage.tsx'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'), read('supabase/migrations/20260921144500_sync_household_document_context.sql'), read('supabase/migrations/20260921145500_prevent_duplicate_questionnaire_sessions.sql'),
+const [familyPage, documentsPage, documentStyles, journeyBase, helpers, cabinetPage, dossierSummary, pdfGenerator, migration, financialMigration, financialCoreMigration, currentAccountsMigration, creditMigration, householdDocumentContextMigration, questionnaireUniquenessMigration] = await Promise.all([
+  read('src/pages/portal/ClientRecueilJourneyPage.tsx'), read('src/pages/portal/ClientDocumentsPage.tsx'), read('src/patrimony-dark.css'), read('src/pages/portal/ClientRecueilJourneyBase.tsx'), read('src/portal/portalHelpers.ts'), read('src/pages/portal/CifAdminPage.tsx'), read('src/pages/portal/CifDossierSummaryPage.tsx'), read('supabase/functions/generate-cif-pdfs/index.ts'), read('supabase/migrations/20260825120000_atomic_family_setup.sql'), read('supabase/migrations/20260825143000_add_financial_recueil_section.sql'), read('supabase/migrations/20260825153500_allow_financial_in_recueil_core.sql'), read('supabase/migrations/20260825173000_move_current_accounts_to_financial.sql'), read('supabase/migrations/20260825180000_add_quick_credit_recueil_section.sql'), read('supabase/migrations/20260921144500_sync_household_document_context.sql'), read('supabase/migrations/20260921145500_prevent_duplicate_questionnaire_sessions.sql'),
 ]);
 
 assert.match(familyPage, /rpc\('save_my_family_setup'/);
@@ -144,6 +144,11 @@ assert.match(journeyBase, /Informations du foyer confirmées/, 'Les confirmation
 assert.match(cabinetPage, /Avancement du recueil par personne/, 'Le cockpit cabinet doit distinguer clairement le recueil du reste du parcours');
 assert.match(cabinetPage, /100 % · À valider/, 'Un recueil complet mais non validé doit être affiché à 100 % avec une action de validation, jamais à 50 %');
 assert.match(cabinetPage, /style=\{\{width:`\$\{recueil\}%`\}\}/, 'La barre individuelle du cockpit doit utiliser directement le pourcentage du recueil');
+assert.match(dossierSummary, /Recueil d’informations du foyer/, 'En couple, le cabinet doit afficher un seul recueil du foyer');
+assert.match(dossierSummary, /un seul document signé par les deux clients/, 'Le recueil commun doit expliciter la double signature');
+assert.doesNotMatch(dossierSummary, /\(\['recueil','qpi','esg'\]/, 'Le recueil ne doit plus être rendu comme document individuel');
+assert.match(pdfGenerator, /householdRecueil = type === 'recueil' && fullSnapshot\.investors\.length > 1/, 'Le générateur doit forcer le recueil couple au niveau foyer');
+assert.match(pdfGenerator, /signature_scope: type === 'recueil' && snapshot\.investors\.length > 1 \? 'household_all_clients'/, 'Le PDF commun doit être marqué comme signé par tous les clients du foyer');
 assert.match(journeyBase, /Une fois confirmées, elles sont repliées et ne gênent plus le parcours/, 'Le parcours doit masquer les actions déjà traitées');
 assert.match(documentStyles, /\.credit-card[\s\S]{0,180}background: #102440 !important/);
 assert.match(documentStyles, /\.credit-card input,[\s\S]{0,220}background: #ffffff !important/);
