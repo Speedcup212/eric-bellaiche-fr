@@ -141,9 +141,11 @@ assert.match(journeyBase, /householdReviewTotal = householdReview\.length/, 'Le 
 assert.match(journeyBase, /householdReviewComplete = householdReviewTotal > 0 && householdConfirmedCount === householdReviewTotal/, 'Le statut global du foyer doit utiliser le même ensemble que le compteur');
 assert.doesNotMatch(journeyBase, /Math\.max\(2,[^\n]*householdReview/, 'Le dénominateur des confirmations ne doit jamais être codé en dur');
 assert.match(journeyBase, /Informations du foyer confirmées/, 'Les confirmations validées doivent être repliées dans un résumé compact');
-assert.match(cabinetPage, /Avancement du recueil par personne/, 'Le cockpit cabinet doit distinguer clairement le recueil du reste du parcours');
-assert.match(cabinetPage, /100 % · À valider/, 'Un recueil complet mais non validé doit être affiché à 100 % avec une action de validation, jamais à 50 %');
-assert.match(cabinetPage, /style=\{\{width:`\$\{recueil\}%`\}\}/, 'La barre individuelle du cockpit doit utiliser directement le pourcentage du recueil');
+assert.match(cabinetPage, /Avancement du parcours par personne/, 'Le cockpit cabinet doit afficher le parcours global par personne');
+assert.match(cabinetPage, /Recueil \{recueil\} %/, 'Le cockpit doit afficher séparément le pourcentage du recueil');
+assert.match(cabinetPage, /Profil \{qpiDone\?'complet':'à faire'\}/, 'Le profil investisseur doit être visible comme étape indépendante');
+assert.match(cabinetPage, /ESG \{esgNA\?'non exprimé'/, 'L ESG doit être distingué du recueil et du profil');
+assert.match(cabinetPage, /style=\{\{width:`\$\{overall\}%`\}\}/, 'La barre individuelle doit représenter le parcours global et non le seul recueil');
 assert.match(dossierSummary, /Recueil d’informations du foyer/, 'En couple, le cabinet doit afficher un seul recueil du foyer');
 assert.match(dossierSummary, /un seul document signé par les deux clients/, 'Le recueil commun doit expliciter la double signature');
 assert.doesNotMatch(dossierSummary, /\(\['recueil'\s*,\s*'qpi'\s*,\s*'esg'\]/, 'Le recueil ne doit plus être rendu comme document individuel');
