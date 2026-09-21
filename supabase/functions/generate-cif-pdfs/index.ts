@@ -8,11 +8,15 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.17-ERGONOMIE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.18-LISIBILITE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
+const REG_MARGIN = 62;
 const NAVY = rgb(31 / 255, 55 / 255, 85 / 255);
+const BODY = rgb(43 / 255, 43 / 255, 43 / 255);
+const MUTED = rgb(92 / 255, 101 / 255, 114 / 255);
+const ZEBRA = rgb(247 / 255, 249 / 255, 252 / 255);
 const BLUE = rgb(47 / 255, 94 / 255, 147 / 255);
 const GREEN = rgb(20 / 255, 110 / 255, 75 / 255);
 const TEAL = rgb(20 / 255, 120 / 255, 115 / 255);
@@ -89,6 +93,16 @@ function eur(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; re
 function pct(value: unknown) { if (!hasValue(value)) return 'Non renseigné'; return `${frNumber(value)} %`; }
 function frDate(value: unknown) { if (!value) return 'Non renseignée'; const d = new Date(String(value)); if (Number.isNaN(d.getTime())) return clean(value); return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d); }
 function slug(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase(); }
+function fileNamePart(value: unknown, fallback = 'Client') {
+  const raw = clean(value, fallback).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return raw.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
+}
+function regulatoryPdfFileName(type: 'der' | 'mission', snapshot: Json, datePart: string) {
+  const parties = snapshot.investors.map((inv: Json) => fileNamePart(inv.nom || investorName(inv))).filter(Boolean).join('-') || 'Clients';
+  return type === 'der'
+    ? `DER_Eric-Bellaiche_${parties}_${datePart}.pdf`
+    : `Lettre-de-mission_Eric-Bellaiche_${parties}_${datePart}.pdf`;
+}
 async function sha256Hex(data: Uint8Array | string) { const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data; const hash = await crypto.subtle.digest('SHA-256', bytes); return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join(''); }
 function extractByCode(sections: Json[], investorId: string) { return Object.fromEntries(sections.filter((s) => s.investisseur_id === investorId).map((s) => [s.section_code, s.payload ?? {}])); }
 function investorName(inv: Json) { return `${clean(inv.prenom, '')} ${clean(inv.nom, '')}`.trim() || 'Investisseur'; }
@@ -136,23 +150,28 @@ function readable(value: unknown) { if (Array.isArray(value)) return value.map((
 function wrap(font: PDFFont, value: string, size: number, width: number) { const words = clean(value).split(/\s+/).filter(Boolean); if (!words.length) return ['']; const lines: string[] = []; let line = words[0]; for (const word of words.slice(1)) { const candidate = `${line} ${word}`; if (font.widthOfTextAtSize(candidate, size) <= width) line = candidate; else { lines.push(line); line = word; } } lines.push(line); return lines; }
 function drawTemplateHeader(ctx: PdfContext) {
   if (ctx.templateMode === 'der') {
-    ctx.page.drawText('CNCEF PATRIMOINE - Avril 2026', { x: MARGIN, y: A4.height - 30, size: 8, font: ctx.bold, color: NAVY });
-    ctx.y = A4.height - 52;
+    const left = 'CNCEF PATRIMOINE · Avril 2026';
+    const right = 'Eric Bellaiche · CIF D016571 · ORIAS 13001580';
+    ctx.page.drawText(clean(left), { x: REG_MARGIN, y: A4.height - 25, size: 6.6, font: ctx.bold, color: NAVY });
+    const rightWidth = ctx.regular.widthOfTextAtSize(clean(right), 6.4);
+    ctx.page.drawText(clean(right), { x: A4.width - REG_MARGIN - rightWidth, y: A4.height - 25, size: 6.4, font: ctx.regular, color: MUTED });
+    ctx.page.drawLine({ start: { x: REG_MARGIN, y: A4.height - 35 }, end: { x: A4.width - REG_MARGIN, y: A4.height - 35 }, thickness: 0.45, color: BORDER });
+    ctx.y = A4.height - 55;
     return;
   }
   if (ctx.templateMode === 'mission') {
     const lines = [
-      'Eric Bellaiche : Conseiller en Investissement Financier n° D016571 - membre de la CNCEF Patrimoine, association agréée par l’AMF',
-      'RCS de Grenoble N° 441861135, 33 avenue de Savoie, 38580 Allevard - 06 52 56 56 54',
-      'Toute modification des informations pouvant affecter significativement la nature ou l’orientation de la mission de conseil',
-      'devra être portée à la connaissance du Conseiller Financier n° D016571 - membre de la CNCEF Patrimoine, association agréée par l’AMF',
+      'Eric Bellaiche · CIF D016571 · membre CNCEF Patrimoine agréée AMF · ORIAS 13001580',
+      'RCS Grenoble 441861135 · 33 avenue de Savoie, 38580 Allevard · 06 52 56 56 54',
+      'Toute modification pouvant affecter significativement la mission de conseil doit être portée à la connaissance du Conseiller.',
     ];
-    let y = A4.height - 24;
-    for (const line of lines) {
-      ctx.page.drawText(clean(line), { x: MARGIN, y, size: 6.7, font: ctx.regular, color: NAVY });
-      y -= 9;
+    let y = A4.height - 23;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.page.drawText(clean(lines[i]), { x: REG_MARGIN, y, size: i === 0 ? 6.3 : 5.9, font: i === 0 ? ctx.bold : ctx.regular, color: i === 0 ? NAVY : MUTED });
+      y -= 8;
     }
-    ctx.y = A4.height - 70;
+    ctx.page.drawLine({ start: { x: REG_MARGIN, y: A4.height - 49 }, end: { x: A4.width - REG_MARGIN, y: A4.height - 49 }, thickness: 0.45, color: BORDER });
+    ctx.y = A4.height - 67;
   }
 }
 async function newPdfContext(templateMode?: 'der' | 'mission') {
@@ -573,6 +592,16 @@ function primaryClientCity(snapshot: Json) {
   const identity = extractByCode(snapshot.sections, primary.id).identity ?? {};
   return clean(identity?.address?.ville, '____________________');
 }
+
+function regulatoryText(ctx: PdfContext, value: string, options: Json = {}) {
+  drawText(ctx, value, {
+    ...options,
+    x: options.x ?? REG_MARGIN,
+    width: options.width ?? (A4.width - 2 * REG_MARGIN),
+    color: options.color ?? BODY,
+  });
+}
+
 function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type: 'der' | 'mission') {
   const t = clean(value).trim();
   const normalized = t.toUpperCase();
@@ -595,6 +624,7 @@ function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type
     ) return 1;
 
     if (
+      normalized === 'STATUTS LÉGAUX ET AUTORITÉS DE TUTELLE :' ||
       normalized === 'CONSEILLER EN INVESTISSEMENTS FINANCIERS' ||
       normalized.startsWith('INTERMÉDIAIRE EN ASSURANCE') ||
       normalized.startsWith('INTERMÉDIAIRE EN OPÉRATIONS') ||
@@ -608,35 +638,83 @@ function regulatoryHeadingLevel(block: RegulatoryModelBlock, value: string, type
       normalized === 'COMMISSIONNEMENT :' ||
       normalized === "MODALITÉS DE SAISINE DE L'ENTREPRISE" ||
       normalized.startsWith('TRAITEMENT DES RÉCLAMATIONS') ||
-      normalized === 'MISE À JOUR DES INFORMATIONS' ||
-      normalized === 'VOTRE CONTACT'
+      normalized === 'MISE À JOUR DES INFORMATIONS'
     ) return 2;
 
-    if (/^\d+\.\s/.test(t) || /^HONORAIRES\b/.test(normalized) || /^COMMISSION\b/.test(normalized)) return 3;
+    if (
+      normalized === 'INFORMATIONS' ||
+      normalized === 'VOTRE CONTACT' ||
+      normalized === "COURTIER D'ASSURANCE" ||
+      /^\d+\.\s/.test(t) ||
+      /^HONORAIRES\b/.test(normalized) ||
+      /^COMMISSION\b/.test(normalized)
+    ) return 3;
   }
 
   if (block.k === 'h' && t.length <= 74 && !/:\s+\S{3,}/.test(t) && !/\d{4,}/.test(t)) return 2;
   return 0;
 }
-function drawRegulatoryHeading(ctx: PdfContext, value: string, level: number) {
-  const size = level === 1 ? 13.2 : level === 2 ? 10.8 : 9.8;
-  const before = level === 1 ? 14 : level === 2 ? 9 : 6;
-  const after = level === 1 ? 7 : level === 2 ? 5 : 3;
-  const color = level === 1 ? BLUE : NAVY;
-  ensure(ctx, before + size * 1.4 + after);
-  ctx.y -= before;
-  drawText(ctx, value, { bold: true, size, lineHeight: size * 1.25, color, after });
+
+function regulatoryHeadingDisplay(value: string, type: 'der' | 'mission') {
+  const t = clean(value).trim();
+  const n = t.toUpperCase();
+  if (type === 'der') {
+    const map: Record<string, string> = {
+      'STATUTS LÉGAUX ET AUTORITÉS DE TUTELLE :': 'Statuts légaux et autorités de tutelle',
+      'CONSEILLER EN INVESTISSEMENTS FINANCIERS': 'Conseiller en investissements financiers',
+      'INTERMÉDIAIRE EN ASSURANCE :': 'Intermédiaire en assurance',
+      'INTERMÉDIAIRE EN ASSURANCE': 'Intermédiaire en assurance',
+      'INTERMÉDIAIRE EN OPÉRATIONS BANCAIRES ET SERVICES DE PAIEMENTS': 'Intermédiaire en opérations bancaires et services de paiement',
+      'TRANSACTION IMMOBILIERE (SANS MANIEMENT DE FONDS)': 'Transaction immobilière (sans maniement de fonds)',
+      'RESPONSABILITÉ CIVILE PROFESSIONNELLE': 'Responsabilité civile professionnelle',
+      'GARANTIES FINANCIÈRES': 'Garanties financières',
+      'PARTENAIRES': 'Partenaires',
+      'POLITIQUE EN MATIÈRE DE DURABILITÉ': 'Politique en matière de durabilité',
+      'RÉMUNÉRATION IOBSP': 'Rémunération IOBSP',
+      'COMMISSIONNEMENT :': 'Commissionnement',
+      'INFORMATIONS': 'Informations',
+      'VOTRE CONTACT': 'Votre contact',
+      "COURTIER D'ASSURANCE": "Courtier d'assurance",
+      '1. FINANCIER :': '1. Investissements financiers',
+      '2. SCPI (SOCIÉTÉS CIVILES DE PLACEMENT IMMOBILIER) :': '2. SCPI',
+      "- IMMOBILIER : RÉMUNÉRATION D'AGENT IMMOBILIER": '3. Immobilier',
+      "1. RÉMUNÉRATION D'AGENT IMMOBILIER :": "3.1. Rémunération d'agent immobilier",
+    };
+    if (map[n]) return map[n];
+  }
+  return t;
 }
+
+function drawRegulatoryHeading(ctx: PdfContext, value: string, level: number, type: 'der' | 'mission') {
+  const display = regulatoryHeadingDisplay(value, type);
+  const size = level === 1 ? 14.2 : level === 2 ? 11.3 : 10.2;
+  const before = level === 1 ? 18 : level === 2 ? 11 : 7;
+  const after = level === 1 ? 8 : level === 2 ? 5.5 : 4;
+  const color = level === 1 || level === 2 ? BLUE : BODY;
+  ensure(ctx, before + size * 1.45 + after + (level === 1 ? 6 : 0));
+  ctx.y -= before;
+  regulatoryText(ctx, display, { bold: true, size, lineHeight: size * 1.22, color, after });
+  if (level === 1) {
+    ctx.page.drawLine({
+      start: { x: REG_MARGIN, y: ctx.y + 3 },
+      end: { x: A4.width - REG_MARGIN, y: ctx.y + 3 },
+      thickness: 0.7,
+      color: BORDER,
+    });
+    ctx.y -= 3;
+  }
+}
+
 function drawClientCards(ctx: PdfContext, clients: Array<{ heading: string; details: string[] }>) {
-  const width = A4.width - 2 * MARGIN;
-  const gap = 7;
+  const width = A4.width - 2 * REG_MARGIN;
+  const gap = 8;
   for (const client of clients) {
     const detailText = client.details.join(' - ');
-    const detailLines = detailText ? wrap(ctx.regular, clean(detailText), 8.8, width - 22) : [];
-    const height = Math.max(48, 31 + detailLines.length * 11);
+    const detailLines = detailText ? wrap(ctx.regular, clean(detailText), 9.15, width - 24) : [];
+    const height = Math.max(52, 33 + detailLines.length * 11.8);
     ensure(ctx, height + gap);
     ctx.page.drawRectangle({
-      x: MARGIN,
+      x: REG_MARGIN,
       y: ctx.y - height,
       width,
       height,
@@ -644,49 +722,76 @@ function drawClientCards(ctx: PdfContext, clients: Array<{ heading: string; deta
       borderColor: BORDER,
       color: LIGHT_BLUE,
     });
-    ctx.page.drawText(clean(client.heading), { x: MARGIN + 10, y: ctx.y - 17, size: 10.2, font: ctx.bold, color: NAVY });
-    let ty = ctx.y - 32;
+    ctx.page.drawText(clean(client.heading), { x: REG_MARGIN + 11, y: ctx.y - 18, size: 10.4, font: ctx.bold, color: NAVY });
+    let ty = ctx.y - 34;
     for (const line of detailLines) {
-      ctx.page.drawText(line, { x: MARGIN + 10, y: ty, size: 8.8, font: ctx.regular, color: NAVY });
-      ty -= 11;
+      ctx.page.drawText(line, { x: REG_MARGIN + 11, y: ty, size: 9.15, font: ctx.regular, color: BODY });
+      ty -= 11.8;
     }
     ctx.y -= height + gap;
   }
 }
+
 function drawRegulatoryTable(ctx: PdfContext, rows: string[][]) {
   if (!rows.length) return;
   const normalized = rows.map((row) => row.map((value) => clean(value)));
-  const headers = normalized[0];
-  const body = normalized.slice(1);
-  const available = A4.width - 2 * MARGIN;
   const colCount = Math.max(...normalized.map((row) => row.length), 1);
-  const colWidths = Array.from({ length: colCount }, () => available / colCount);
-  const padding = 5.5;
-  const fontSize = colCount >= 4 ? 7.25 : 7.75;
-  const lineHeight = fontSize * 1.3;
+  const available = A4.width - 2 * REG_MARGIN;
+  const padded = normalized.map((row) => Array.from({ length: colCount }, (_, i) => row[i] ?? ''));
+  const headers = padded[0];
+  const body = padded.slice(1);
+
+  const charWeights = Array.from({ length: colCount }, (_, i) => {
+    const maxChars = Math.max(...padded.map((row) => String(row[i] ?? '').length), 8);
+    return Math.min(34, Math.max(10, maxChars));
+  });
+  const totalWeight = charWeights.reduce((a, b) => a + b, 0);
+  const colWidths = charWeights.map((weight) => available * weight / totalWeight);
+
+  const paddingX = 6;
+  const paddingY = 6;
+  const fontSize = colCount >= 4 ? 7.45 : 8;
+  const lineHeight = fontSize * 1.32;
+  const isAmount = (value: string) => /^-?[\d\s.,]+(?:\s*(?:€|EUR|%))?$/i.test(value.trim());
 
   const measure = (values: string[], bold: boolean) => {
     const font = bold ? ctx.bold : ctx.regular;
-    const wrapped = Array.from({ length: colCount }, (_, i) => wrap(font, clean(values[i] ?? ''), fontSize, colWidths[i] - padding * 2));
-    return { wrapped, height: Math.max(22, Math.max(...wrapped.map((lines) => lines.length), 1) * lineHeight + padding * 2) };
+    const wrapped = Array.from({ length: colCount }, (_, i) =>
+      wrap(font, clean(values[i] ?? ''), fontSize, colWidths[i] - paddingX * 2)
+    );
+    return {
+      wrapped,
+      height: Math.max(24, Math.max(...wrapped.map((lines) => lines.length), 1) * lineHeight + paddingY * 2),
+    };
   };
-  const drawRow = (values: string[], isHeader: boolean) => {
+
+  const drawRow = (values: string[], isHeader: boolean, bodyIndex = 0) => {
     const measured = measure(values, isHeader);
     const font = isHeader ? ctx.bold : ctx.regular;
-    let x = MARGIN;
+    let x = REG_MARGIN;
     for (let i = 0; i < colCount; i++) {
+      const fill = isHeader ? NAVY : (bodyIndex % 2 === 1 ? ZEBRA : WHITE);
       ctx.page.drawRectangle({
         x,
         y: ctx.y - measured.height,
         width: colWidths[i],
         height: measured.height,
-        borderWidth: 0.65,
+        borderWidth: 0.55,
         borderColor: BORDER,
-        color: isHeader ? NAVY : WHITE,
+        color: fill,
       });
-      let ty = ctx.y - padding - fontSize;
+      let ty = ctx.y - paddingY - fontSize;
+      const amountCell = !isHeader && isAmount(values[i] ?? '');
       for (const line of measured.wrapped[i]) {
-        ctx.page.drawText(line, { x: x + padding, y: ty, size: fontSize, font, color: isHeader ? WHITE : NAVY });
+        const lineWidth = font.widthOfTextAtSize(line, fontSize);
+        const tx = amountCell ? x + colWidths[i] - paddingX - lineWidth : x + paddingX;
+        ctx.page.drawText(line, {
+          x: tx,
+          y: ty,
+          size: fontSize,
+          font,
+          color: isHeader ? WHITE : BODY,
+        });
         ty -= lineHeight;
       }
       x += colWidths[i];
@@ -696,66 +801,145 @@ function drawRegulatoryTable(ctx: PdfContext, rows: string[][]) {
 
   const headerHeight = measure(headers, true).height;
   const firstHeight = body.length ? measure(body[0], false).height : 0;
-  ensure(ctx, headerHeight + firstHeight + 12);
+  ensure(ctx, headerHeight + firstHeight + 18);
+  ctx.y -= 4;
   drawRow(headers, true);
   for (let i = 0; i < body.length; i++) {
     const rowHeight = measure(body[i], false).height;
-    if (ctx.y - rowHeight < 54) {
+    if (ctx.y - rowHeight < 56) {
       addPage(ctx);
       drawRow(headers, true);
     }
-    drawRow(body[i], false);
+    drawRow(body[i], false, i);
   }
-  ctx.y -= 12;
+  ctx.y -= 14;
 }
+
+function drawBulletParagraph(ctx: PdfContext, value: string) {
+  const text = clean(value).replace(/^[-•]\s*/, '');
+  const x = REG_MARGIN + 14;
+  const width = A4.width - REG_MARGIN - x;
+  const size = 9.7;
+  const lineHeight = 13.1;
+  const lines = wrap(ctx.regular, text, size, width);
+  const height = lines.length * lineHeight + 5;
+  ensure(ctx, height);
+  ctx.page.drawCircle({ x: REG_MARGIN + 4.5, y: ctx.y - 6.3, size: 1.7, color: BLUE });
+  for (const line of lines) {
+    ctx.page.drawText(line, { x, y: ctx.y - size, size, font: ctx.regular, color: BODY });
+    ctx.y -= lineHeight;
+  }
+  ctx.y -= 5;
+}
+
+function drawRegulatoryNote(ctx: PdfContext, value: string) {
+  const width = A4.width - 2 * REG_MARGIN;
+  const size = 9.65;
+  const lines = wrap(ctx.bold, clean(value), size, width - 20);
+  const height = Math.max(34, lines.length * 12.5 + 16);
+  ensure(ctx, height + 4);
+  ctx.page.drawRectangle({
+    x: REG_MARGIN,
+    y: ctx.y - height,
+    width,
+    height,
+    borderWidth: 0.8,
+    borderColor: BORDER,
+    color: LIGHT_BLUE,
+  });
+  let ty = ctx.y - 15;
+  for (const line of lines) {
+    ctx.page.drawText(line, { x: REG_MARGIN + 10, y: ty, size, font: ctx.bold, color: BODY });
+    ty -= 12.5;
+  }
+  ctx.y -= height + 6;
+}
+
 function drawSignaturePanel(ctx: PdfContext, snapshot: Json, type: 'der' | 'mission') {
   const city = primaryClientCity(snapshot);
   const clients = originalClientLines(snapshot);
   const titleText = type === 'der' ? 'Lieu, date et signature' : 'Signatures';
-  const panelHeight = Math.max(178, 118 + Math.max(0, clients.length - 1) * 24);
-  if (ctx.y - panelHeight - 48 < 52) addPage(ctx);
-  drawRegulatoryHeading(ctx, titleText, 1);
+  const panelHeight = Math.max(150, 104 + Math.max(0, clients.length - 1) * 20);
+
+  if (ctx.y - panelHeight - 48 < 54) addPage(ctx);
+  drawRegulatoryHeading(ctx, titleText, 1, type);
 
   const gap = 12;
-  const totalWidth = A4.width - 2 * MARGIN;
+  const totalWidth = A4.width - 2 * REG_MARGIN;
   const colWidth = (totalWidth - gap) / 2;
   const top = ctx.y;
-  const clientX = MARGIN;
-  const adviserX = MARGIN + colWidth + gap;
+  const clientX = REG_MARGIN;
+  const adviserX = REG_MARGIN + colWidth + gap;
 
   for (const [x, headingText] of [[clientX, 'Le(s) Client(s)'], [adviserX, 'Le Conseiller']] as Array<[number,string]>) {
-    ctx.page.drawRectangle({ x, y: top - panelHeight, width: colWidth, height: panelHeight, borderWidth: 1, borderColor: BORDER, color: WHITE });
-    ctx.page.drawRectangle({ x, y: top - 31, width: colWidth, height: 31, borderWidth: 0, color: LIGHT_BLUE });
-    ctx.page.drawText(headingText, { x: x + 10, y: top - 20, size: 10, font: ctx.bold, color: NAVY });
+    ctx.page.drawRectangle({ x, y: top - panelHeight, width: colWidth, height: panelHeight, borderWidth: 0.9, borderColor: BORDER, color: WHITE });
+    ctx.page.drawRectangle({ x, y: top - 30, width: colWidth, height: 30, borderWidth: 0, color: LIGHT_BLUE });
+    ctx.page.drawText(headingText, { x: x + 10, y: top - 20, size: 9.8, font: ctx.bold, color: NAVY });
   }
 
-  let clientY = top - 50;
+  let clientY = top - 48;
   for (const client of clients) {
-    ctx.page.drawText(clean(client.heading), { x: clientX + 10, y: clientY, size: 9.3, font: ctx.bold, color: NAVY });
-    clientY -= 15;
+    ctx.page.drawText(clean(client.heading), { x: clientX + 10, y: clientY, size: 9.1, font: ctx.bold, color: BODY });
+    clientY -= 14;
   }
-  ctx.page.drawText(clean(`Lieu : ${city}`), { x: clientX + 10, y: top - 92, size: 8.5, font: ctx.regular, color: NAVY });
-  ctx.page.drawText('Date :', { x: clientX + 10, y: top - 110, size: 8.5, font: ctx.regular, color: NAVY });
-  ctx.page.drawText('Zone de signature Youtrust', { x: clientX + 10, y: top - panelHeight + 30, size: 8.2, font: ctx.bold, color: BLUE });
+  ctx.page.drawText(clean(`Lieu : ${city}`), { x: clientX + 10, y: top - 88, size: 8.5, font: ctx.regular, color: BODY });
+  ctx.page.drawText('Date :', { x: clientX + 10, y: top - 104, size: 8.5, font: ctx.regular, color: BODY });
+  ctx.page.drawText('Zone de signature Youtrust', { x: clientX + 10, y: top - panelHeight + 22, size: 8, font: ctx.bold, color: BLUE });
 
-  ctx.page.drawText('Eric Bellaiche', { x: adviserX + 10, y: top - 50, size: 9.3, font: ctx.bold, color: NAVY });
-  ctx.page.drawText('Lieu : Allevard', { x: adviserX + 10, y: top - 92, size: 8.5, font: ctx.regular, color: NAVY });
-  ctx.page.drawText('Date :', { x: adviserX + 10, y: top - 110, size: 8.5, font: ctx.regular, color: NAVY });
-  ctx.page.drawText('Zone de signature Youtrust', { x: adviserX + 10, y: top - panelHeight + 30, size: 8.2, font: ctx.bold, color: GREEN });
+  ctx.page.drawText('Eric Bellaiche', { x: adviserX + 10, y: top - 48, size: 9.1, font: ctx.bold, color: BODY });
+  ctx.page.drawText('Lieu : Allevard', { x: adviserX + 10, y: top - 88, size: 8.5, font: ctx.regular, color: BODY });
+  ctx.page.drawText('Date :', { x: adviserX + 10, y: top - 104, size: 8.5, font: ctx.regular, color: BODY });
+  ctx.page.drawText('Zone de signature Youtrust', { x: adviserX + 10, y: top - panelHeight + 22, size: 8, font: ctx.bold, color: GREEN });
 
   ctx.y -= panelHeight + 8;
 }
+
 function replaceSignatureProvider(value: string, type: 'der' | 'mission') {
   if (type !== 'mission') return value;
   return value.replace(/Yousign/g, 'Youtrust').replace(/YOUSIGN/g, 'YOUTRUST');
 }
+
+function finalizeRegulatoryPdf(ctx: PdfContext, type: 'der' | 'mission', snapshot: Json) {
+  const partyNames = snapshot.investors.map((inv: Json) => investorName(inv)).filter(Boolean).join(' / ');
+  const documentLabel = type === 'der' ? "Document d'entrée en relation (DER)" : 'Lettre de mission patrimoniale';
+  const footerLabel = type === 'der' ? 'DER' : 'Lettre de mission';
+
+  ctx.pdf.setTitle(`${documentLabel} - Eric Bellaiche - ${partyNames}`);
+  ctx.pdf.setAuthor('Eric Bellaiche');
+  ctx.pdf.setSubject(`${documentLabel} - Conseiller en investissements financiers`);
+  ctx.pdf.setCreator('Cabinet Eric Bellaiche - CRM');
+  ctx.pdf.setProducer('Cabinet Eric Bellaiche');
+  ctx.pdf.setKeywords([footerLabel, 'CIF', 'Eric Bellaiche', 'ORIAS 13001580', 'CNCEF Patrimoine']);
+  ctx.pdf.setCreationDate(new Date());
+  ctx.pdf.setModificationDate(new Date());
+
+  const pages = ctx.pdf.getPages();
+  const total = pages.length;
+  const left = `${footerLabel} - Eric Bellaiche - ORIAS 13001580`;
+  pages.forEach((page, index) => {
+    page.drawLine({
+      start: { x: REG_MARGIN, y: 33 },
+      end: { x: A4.width - REG_MARGIN, y: 33 },
+      thickness: 0.45,
+      color: BORDER,
+    });
+    page.drawText(left, { x: REG_MARGIN, y: 19, size: 6.8, font: ctx.regular, color: MUTED });
+    const right = `Page ${index + 1} / ${total}`;
+    const rightWidth = ctx.regular.widthOfTextAtSize(right, 6.8);
+    page.drawText(right, { x: A4.width - REG_MARGIN - rightWidth, y: 19, size: 6.8, font: ctx.regular, color: MUTED });
+  });
+}
+
 async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock[], type: 'der' | 'mission', snapshot: Json) {
   const clientLines = originalClientLines(snapshot);
   const clientCity = primaryClientCity(snapshot);
   let insertedMissionClients = false;
   let skipOriginalSignatureLines = false;
 
-  for (const block of blocks) {
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index];
+    const nextBlock = blocks[index + 1];
+
     if (block.k === 'table') {
       if (!skipOriginalSignatureLines) drawRegulatoryTable(ctx, block.rows);
       continue;
@@ -800,40 +984,66 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
       value.startsWith('Pour le conseiller')
     )) continue;
 
-    if (type === 'der' && (value === 'DOCUMENT' || value === "D'ENTRÉE EN RELATION")) {
-      drawText(ctx, value, { bold: true, size: value === 'DOCUMENT' ? 16 : 18, color: NAVY, lineHeight: 21, after: 5 });
-      continue;
+    if (type === 'der' && value === 'DOCUMENT') {
+      const nextText = nextBlock && nextBlock.k !== 'table' ? replaceSignatureProvider(nextBlock.t, type).trim() : '';
+      if (nextText === "D'ENTRÉE EN RELATION") {
+        ensure(ctx, 54);
+        regulatoryText(ctx, "DOCUMENT D'ENTRÉE EN RELATION", { bold: true, size: 18, lineHeight: 21, color: NAVY, after: 10 });
+        index += 1;
+        continue;
+      }
     }
-    if (type === 'mission' && (value === "Lettre de mission d'Audit Patrimonial Global" || value === 'et gestion de patrimoine')) {
-      drawText(ctx, value, { bold: true, size: value.startsWith('Lettre') ? 15 : 13.5, color: NAVY, lineHeight: 19, after: 5 });
-      continue;
+
+    if (type === 'mission' && value === "Lettre de mission d'Audit Patrimonial Global") {
+      const nextText = nextBlock && nextBlock.k !== 'table' ? replaceSignatureProvider(nextBlock.t, type).trim() : '';
+      if (nextText === 'et gestion de patrimoine') {
+        ensure(ctx, 58);
+        regulatoryText(ctx, "Lettre de mission d'Audit Patrimonial Global et gestion de patrimoine", { bold: true, size: 15.2, lineHeight: 18.6, color: NAVY, after: 10 });
+        index += 1;
+        continue;
+      }
+    }
+
+    if (type === 'der' && value === '- Immobilier : Rémunération d\'Agent Immobilier') {
+      value = '3. Immobilier';
+    }
+    if (type === 'der' && value === '1. Rémunération d\'Agent Immobilier :') {
+      value = "3.1. Rémunération d'Agent Immobilier";
     }
 
     const headingLevel = regulatoryHeadingLevel(block, value, type);
     if (headingLevel) {
-      drawRegulatoryHeading(ctx, value, headingLevel);
+      const minBlock = nextBlock?.k === 'table' ? 140 : headingLevel <= 2 ? 92 : 62;
+      ensure(ctx, minBlock);
+      drawRegulatoryHeading(ctx, value, headingLevel, type);
       continue;
     }
-    if (block.k === 'bullet') {
-      drawText(ctx, `- ${value}`, { size: 9.55, lineHeight: 12.7, after: 5 });
+
+    if (value === 'Dans votre cas, ce bilan est offert.') {
+      drawRegulatoryNote(ctx, value);
       continue;
     }
-    drawText(ctx, value, { size: 9.55, lineHeight: 12.7, after: 5.5 });
+
+    if (block.k === 'bullet' || /^[-•]\s+/.test(value)) {
+      drawBulletParagraph(ctx, value);
+      continue;
+    }
+
+    regulatoryText(ctx, value, { size: 9.7, lineHeight: 13.1, after: 6 });
   }
 }
-
 async function buildDer(snapshot: Json) {
   const ctx = await newPdfContext('der');
   const blocks = await loadDerModel();
   await renderOriginalModel(ctx, blocks, 'der', snapshot);
-  footer(ctx);
+  finalizeRegulatoryPdf(ctx, 'der', snapshot);
   return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 async function buildMission(snapshot: Json) {
   const ctx = await newPdfContext('mission');
   const blocks = await loadMissionModel();
   await renderOriginalModel(ctx, blocks, 'mission', snapshot);
-  footer(ctx);
+  finalizeRegulatoryPdf(ctx, 'mission', snapshot);
   return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 
@@ -915,7 +1125,7 @@ Deno.serve(async (req) => {
       try {
         validateReady(snapshot, type);
       const snapshotHash = await sha256Hex(JSON.stringify({ type, version: PDF_VERSION, dossier: snapshot.dossier, investor_id: targetInvestorId || null, investors: snapshot.investors, sections: snapshot.sections, sessions: snapshot.sessions, qpi: snapshot.qpiResults, esg: snapshot.esgPreferences, qpi_experience: snapshot.qpiProductExperience, qpi_experience_details: snapshot.qpiExperienceDetails, answers: snapshot.answers, recueil_completeness: snapshot.recueilCompleteness ?? [] })); const { data: existing } = await admin.from('documents_reglementaires').select('id,storage_bucket,storage_path_pdf,metadata,date_generation').eq('dossier_id', dossierId).eq('type_document', type).eq('version_modele', PDF_VERSION).eq('metadata->>snapshot_hash', snapshotHash).eq('statut', 'generated').order('created_at', { ascending: false }).limit(1).maybeSingle(); if (existing?.storage_path_pdf) { const { data: signed } = await admin.storage.from(existing.storage_bucket ?? BUCKET).createSignedUrl(existing.storage_path_pdf, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: existing.id, reused: true, signed_url: signed?.signedUrl ?? null, path: existing.storage_path_pdf }); continue; }
-      const bytes = type === 'recueil' ? await buildRecueil(snapshot) : type === 'qpi' ? await buildQuestionnaire(snapshot, 'QPI') : type === 'esg' ? await buildQuestionnaire(snapshot, 'ESG') : type === 'der' ? await buildDer(snapshot) : await buildMission(snapshot); const fileHash = await sha256Hex(bytes); const datePart = new Date().toISOString().slice(0, 10); const reference = slug(snapshot.dossier.reference || snapshot.dossier.libelle || dossierId.slice(0, 8)); const investorSlug = targetInvestorId ? `-${slug(investorName(snapshot.investors[0]))}` : ''; const fileName = `${type}-${reference}${investorSlug}-${datePart}-${fileHash.slice(0, 10)}.pdf`; const storagePath = targetInvestorId ? `${dossierId}/${targetInvestorId}/${type}/${fileName}` : `${dossierId}/${type}/${fileName}`; const { error: uploadError } = await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'application/pdf', upsert: true }); if (uploadError) throw uploadError; const { data: row, error: insertError } = await admin.from('documents_reglementaires').insert({ dossier_id: dossierId, type_document: type, version_modele: PDF_VERSION, statut: 'generated', storage_bucket: BUCKET, storage_path_pdf: storagePath, date_generation: new Date().toISOString(), hash_sha256: fileHash, metadata: { snapshot_hash: snapshotHash, generated_from: 'portal_supabase_pdf', final_format: 'pdf', signature_provider: ['der','mission'].includes(type) ? 'youtrust_manual' : 'youtrust', signature_status: ['der','mission'].includes(type) ? 'pdf_ready_for_manual_upload' : type === 'recueil' && !((snapshot.recueilCompleteness ?? []).length > 0 && (snapshot.recueilCompleteness ?? []).every((row: Json) => row.complete === true)) ? 'draft' : 'ready_to_send', recueil_complete: type === 'recueil' ? ((snapshot.recueilCompleteness ?? []).length > 0 && (snapshot.recueilCompleteness ?? []).every((row: Json) => row.complete === true)) : null, recueil_percentage: type === 'recueil' && (snapshot.recueilCompleteness ?? []).length ? Math.round((snapshot.recueilCompleteness ?? []).reduce((sum: number, row: Json) => sum + Number(row.percentage ?? 0), 0) / (snapshot.recueilCompleteness ?? []).length) : null, document_date: type === 'recueil' ? snapshot.recueil_date : type === 'qpi' ? snapshot.qpi_date : type === 'esg' ? snapshot.esg_date : new Date().toISOString(), investor_id: targetInvestorId || null, investor_ids: snapshot.investors.map((i: Json) => i.id), source_word_generator: 'generate-cif-documents' } }).select('id').single(); if (insertError) throw insertError; const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: row.id, reused: false, signed_url: signed?.signedUrl ?? null, path: storagePath, hash_sha256: fileHash });
+      const bytes = type === 'recueil' ? await buildRecueil(snapshot) : type === 'qpi' ? await buildQuestionnaire(snapshot, 'QPI') : type === 'esg' ? await buildQuestionnaire(snapshot, 'ESG') : type === 'der' ? await buildDer(snapshot) : await buildMission(snapshot); const fileHash = await sha256Hex(bytes); const datePart = new Date().toISOString().slice(0, 10); const reference = slug(snapshot.dossier.reference || snapshot.dossier.libelle || dossierId.slice(0, 8)); const investorSlug = targetInvestorId ? `-${slug(investorName(snapshot.investors[0]))}` : ''; const isRegulatoryHousehold = !targetInvestorId && (type === 'der' || type === 'mission'); const fileName = isRegulatoryHousehold ? regulatoryPdfFileName(type as 'der' | 'mission', snapshot, datePart) : `${type}-${reference}${investorSlug}-${datePart}-${fileHash.slice(0, 10)}.pdf`; const storagePath = targetInvestorId ? `${dossierId}/${targetInvestorId}/${type}/${fileName}` : isRegulatoryHousehold ? `${dossierId}/${type}/${fileHash.slice(0, 10)}/${fileName}` : `${dossierId}/${type}/${fileName}`; const { error: uploadError } = await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'application/pdf', upsert: true }); if (uploadError) throw uploadError; const { data: row, error: insertError } = await admin.from('documents_reglementaires').insert({ dossier_id: dossierId, type_document: type, version_modele: PDF_VERSION, statut: 'generated', storage_bucket: BUCKET, storage_path_pdf: storagePath, date_generation: new Date().toISOString(), hash_sha256: fileHash, metadata: { snapshot_hash: snapshotHash, generated_from: 'portal_supabase_pdf', final_format: 'pdf', signature_provider: ['der','mission'].includes(type) ? 'youtrust_manual' : 'youtrust', signature_status: ['der','mission'].includes(type) ? 'pdf_ready_for_manual_upload' : type === 'recueil' && !((snapshot.recueilCompleteness ?? []).length > 0 && (snapshot.recueilCompleteness ?? []).every((row: Json) => row.complete === true)) ? 'draft' : 'ready_to_send', recueil_complete: type === 'recueil' ? ((snapshot.recueilCompleteness ?? []).length > 0 && (snapshot.recueilCompleteness ?? []).every((row: Json) => row.complete === true)) : null, recueil_percentage: type === 'recueil' && (snapshot.recueilCompleteness ?? []).length ? Math.round((snapshot.recueilCompleteness ?? []).reduce((sum: number, row: Json) => sum + Number(row.percentage ?? 0), 0) / (snapshot.recueilCompleteness ?? []).length) : null, document_date: type === 'recueil' ? snapshot.recueil_date : type === 'qpi' ? snapshot.qpi_date : type === 'esg' ? snapshot.esg_date : new Date().toISOString(), investor_id: targetInvestorId || null, investor_ids: snapshot.investors.map((i: Json) => i.id), source_word_generator: 'generate-cif-documents' } }).select('id').single(); if (insertError) throw insertError; const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600); results.push({ type, investisseur_id: targetInvestorId || null, format: 'pdf', document_id: row.id, reused: false, signed_url: signed?.signedUrl ?? null, path: storagePath, hash_sha256: fileHash });
       } catch (documentError) {
         const message = documentError instanceof Error ? documentError.message : 'Génération impossible';
         console.error('generate-cif-pdfs document', { dossierId, targetInvestorId, type, message });
