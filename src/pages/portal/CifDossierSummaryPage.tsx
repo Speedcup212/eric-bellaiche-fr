@@ -1226,7 +1226,9 @@ export default function CifDossierSummaryPage() {
         });
         const derReady = derMissing.length === 0;
         const householdRecueilDocument = generatedDocuments.find((item) => item.type === 'recueil' && !item.investisseur_id);
-        const householdRecueilError = generationErrors['household:recueil'];
+        const individualRecueilDocument = generatedDocuments.find((item) => item.type === 'recueil' && item.investisseur_id === investor.investisseur_id);
+        const recueilDocument = isCoupleDossier ? householdRecueilDocument : individualRecueilDocument;
+        const recueilGenerationError = isCoupleDossier ? generationErrors['household:recueil'] : generationErrors[`${investor.investisseur_id}:recueil`];
         const householdNames = orderedInvestorDocumentStates
           .map((item) => [item.investor.investisseurs?.prenom, item.investor.investisseurs?.nom].filter(Boolean).join(' ').trim())
           .filter(Boolean)
@@ -1256,23 +1258,23 @@ export default function CifDossierSummaryPage() {
                 <div className={`rounded-xl border px-3.5 py-3 ${householdRecueilState.complete ? 'border-blue-500/40 bg-[#102A4C]' : 'border-amber-500/40 bg-[#3A2A0A]'}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold leading-5 text-blue-100">Recueil d’informations du foyer</p>
-                      <p className="mt-0.5 text-[11px] leading-4 text-slate-300">{householdNames || 'Couple'} · un seul document signé par les deux clients</p>
+                      <p className="text-sm font-bold leading-5 text-blue-100">{isCoupleDossier ? 'Recueil d’informations du foyer' : 'Recueil d’informations'}</p>
+                      <p className="mt-0.5 text-[11px] leading-4 text-slate-300">{isCoupleDossier ? `${householdNames || 'Couple'} · un seul document signé par les deux clients` : 'Données déclarées par le client'}</p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase leading-none ${householdRecueilState.complete ? 'bg-blue-500 text-white' : 'border border-amber-400/40 bg-amber-400/15 text-amber-100'}`}>{householdRecueilState.complete ? 'Complet' : `En cours · ${householdRecueilState.percentage} %`}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-300">
-                    {householdRecueilState.rows.map((row) => {
+                    {isCoupleDossier && householdRecueilState.rows.map((row) => {
                       const label = [row.investor.investisseurs?.prenom, row.investor.investisseurs?.nom].filter(Boolean).join(' ').trim() || 'Client';
                       return <span key={row.investor.investisseur_id} className="rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1">{label} · {row.percentage} %</span>;
                     })}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {householdRecueilDocument?.signed_url ? <a href={householdRecueilDocument.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-bold text-white transition hover:bg-blue-500"><Download className="h-3.5 w-3.5" /> Voir le PDF commun</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation du recueil commun</span> : null}
+                    {recueilDocument?.signed_url ? <a href={householdRecueilDocument.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-bold text-white transition hover:bg-blue-500"><Download className="h-3.5 w-3.5" /> Voir le PDF commun</a> : generatingDocuments ? <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-200"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Préparation du recueil commun</span> : null}
                     <button type="button" onClick={() => setActiveTab('clients')} className="rounded-lg border border-[#315173] bg-[#10243E] px-3 py-2 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]">Voir les réponses</button>
                   </div>
-                  {householdRecueilState.complete && <p className="mt-2 text-[10px] font-semibold text-emerald-200">Prêt à être signé par les deux clients sur un seul PDF.</p>}
-                  {householdRecueilError && !householdRecueilDocument?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-200">{householdRecueilError}</p>}
+                  {householdRecueilState.complete && <p className="mt-2 text-[10px] font-semibold text-emerald-200">{isCoupleDossier ? 'Prêt à être signé par les deux clients sur un seul PDF.' : 'Prêt à être signé.'}</p>}
+                  {recueilGenerationError && !recueilDocument?.signed_url && <p className="mt-2 text-[10px] font-semibold text-amber-200">{recueilGenerationError}</p>}
                 </div>
 
                 {(['qpi','esg'] as GeneratedDocument['type'][]).map((type) => {
