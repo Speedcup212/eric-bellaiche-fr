@@ -721,7 +721,7 @@ export default function CifDossierSummaryPage() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{householdConfirmations.map((item) => <div key={item.section_code} className={`rounded-2xl border p-4 ${item.status==='change_requested'?'border-amber-300 bg-amber-50':'border-emerald-200 bg-emerald-50'}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold text-slate-950">{sectionLabel[item.section_code] ?? item.section_code}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status==='change_requested'?'bg-amber-200 text-amber-900':'bg-emerald-200 text-emerald-900'}`}>{item.status==='change_requested'?'À arbitrer':'Confirmé'}</span></div>{item.note&&<p className="mt-3 text-sm leading-5 text-slate-700">{item.note}</p>}<p className="mt-3 text-[11px] text-slate-400">Mis à jour le {new Date(item.updated_at).toLocaleString('fr-FR')}</p></div>)}</div>
     </section>}
 
-    {activeTab === 'audit' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
+    {activeTab === 'audit' && <section className="flow-root rounded-3xl border border-[#25405F] bg-[#08182B] p-5 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-6">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
@@ -740,7 +740,7 @@ export default function CifDossierSummaryPage() {
 
       {auditMessage && <div className={'mt-5 rounded-xl border px-4 py-3 text-sm font-medium ' + (auditMessage.startsWith('Audit validé') || auditMessage.startsWith('Brouillon') ? 'border-emerald-500/30 bg-emerald-950/25 text-emerald-100' : 'border-amber-500/35 bg-amber-950/25 text-amber-100')}>{auditMessage}</div>}
 
-      <div className="mt-6 rounded-2xl border border-[#2D4C6E] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#2D4C6E] bg-[#0B1A2F] p-5">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Situation</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.familyStatus || 'À compléter'}</p></div>
           <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Patrimoine financier</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.financialAssets.found ? euro(snapshot.financialAssets.value + (snapshot.liquidAssets.found ? snapshot.liquidAssets.value : 0)) : 'À compléter'}</p></div>
@@ -754,7 +754,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">1. Recommandation en une page</p><h3 className="mt-1 text-lg font-semibold text-white">Objectif prioritaire et architecture cible</h3></div>
           <span className="text-xs text-slate-400">Montants de travail — validation conseiller requise</span>
@@ -785,7 +785,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">2. Diagnostic patrimonial</p>
         <h3 className="mt-1 text-lg font-semibold text-white">Photographie, déséquilibres et objectifs hiérarchisés</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -803,7 +803,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-300">3. Allocation cible et séquencement</p>
         <h3 className="mt-1 text-lg font-semibold text-white">Sécurité et projets d’abord, investissements ensuite</h3>
         <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
@@ -822,7 +822,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">4. Recommandations par sujet</p><h3 className="mt-1 text-lg font-semibold text-white">Analyse détaillée des enveloppes, actifs et solutions</h3></div><p className="text-xs text-slate-400">Seules les solutions pertinentes doivent être retenues dans la recommandation finale.</p></div>
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
           {[
@@ -847,7 +847,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">5. Fiscalité et choix des enveloppes</p>
         <h3 className="mt-1 text-lg font-semibold text-white">La fiscalité soutient la stratégie, elle ne la dicte pas</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -861,7 +861,7 @@ export default function CifDossierSummaryPage() {
         <div className="mt-4 space-y-3">{auditDraft.fiscal_notes.length ? auditDraft.fiscal_notes.map((item,index) => <div key={'audit-tax-' + index} className="rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-sm font-semibold text-amber-100">{item.sujet || 'Point fiscal'}</p><p className="mt-1 text-sm leading-6 text-slate-300">{item.analyse || 'Analyse à compléter.'}</p></div>) : <p className="text-sm text-slate-400">Aucune analyse fiscale rédigée.</p>}</div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-violet-300">6. Adéquation, risques et justification</p>
         <h3 className="mt-1 text-lg font-semibold text-white">Pourquoi la recommandation est compatible avec le dossier</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -873,7 +873,7 @@ export default function CifDossierSummaryPage() {
         {auditDraft.protection_notes && <div className="mt-4 rounded-xl border border-[#315173] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Protection / retraite / transmission</p><p className="mt-2 text-sm leading-6 text-slate-300">{auditDraft.protection_notes}</p></div>}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-rose-300">7. Crash test et plan d’action</p>
         <h3 className="mt-1 text-lg font-semibold text-white">Tester la stratégie lorsque les hypothèses se dégradent</h3>
         <div className="mt-4 overflow-x-auto rounded-xl border border-[#315173]">
@@ -884,7 +884,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">8. Conclusion, contrôles et documentation</p>
         <h3 className="mt-1 text-lg font-semibold text-white">Décision patrimoniale et points à lever avant exécution</h3>
         <div className="mt-4 rounded-xl border border-cyan-400/25 bg-cyan-950/15 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">Décision patrimoniale</p><p className="mt-2 text-sm leading-6 text-white">{auditDraft.diagnostic || 'À rédiger.'}</p></div>
@@ -894,7 +894,7 @@ export default function CifDossierSummaryPage() {
         </div>
       </div>
 
-      {auditEditing && <div className="mt-6 rounded-2xl border border-fuchsia-400/25 bg-fuchsia-950/10 p-5">
+      {auditEditing && <div className="mt-4 rounded-2xl border border-fuchsia-400/25 bg-fuchsia-950/10 p-5">
         <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-fuchsia-200">Mode correction conseiller</p><h3 className="mt-1 text-lg font-semibold text-white">Corriger le contenu généré sans transformer l’audit en formulaire</h3></div><button type="button" onClick={() => setAuditEditing(false)} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white">Fermer</button></div>
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           <label className="text-xs font-semibold text-slate-300">Diagnostic / décision<textarea rows={7} value={auditDraft.diagnostic} onChange={(event) => updateAuditField('diagnostic',event.target.value)} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-3 py-3 text-sm leading-6 text-white outline-none" /></label>
@@ -905,7 +905,7 @@ export default function CifDossierSummaryPage() {
         <div className="mt-5 rounded-xl border border-[#315173] bg-[#071425] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-white">Recommandations par sujet</p><button type="button" onClick={() => updateAuditField('supports',[...auditDraft.supports,{support:'',analyse:'',decision:''}])} className="rounded-lg border border-emerald-400/30 px-3 py-2 text-xs font-semibold text-emerald-100">+ Sujet</button></div><div className="mt-3 space-y-3">{auditDraft.supports.map((item,index) => <div key={'edit-support-' + index} className="rounded-lg border border-[#25405F] p-3"><div className="flex gap-2"><input value={item.support} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,support:event.target.value}:row))} placeholder="Sujet / support / actif" className="min-w-0 flex-1 rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><button type="button" onClick={() => updateAuditField('supports',auditDraft.supports.filter((_,i) => i!==index))} className="rounded-lg border border-rose-500/30 px-3 text-xs text-rose-200">×</button></div><textarea rows={3} value={item.analyse} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,analyse:event.target.value}:row))} placeholder="Analyse" className="mt-2 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /><input value={item.decision} onChange={(event) => updateAuditField('supports',auditDraft.supports.map((row,i) => i===index ? {...row,decision:event.target.value}:row))} placeholder="Décision" className="mt-2 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-3 py-2 text-sm text-white" /></div>)}</div></div>
       </div>}
 
-      <div className="mt-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/35 to-[#0B1A2F] p-5">
+      <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/35 to-[#0B1A2F] p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">Validation conseiller</p><h3 className="mt-1 text-lg font-semibold text-white">Audit de travail → validation Eric → déclaration d’adéquation</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Le brouillon reste modifiable. La déclaration d’adéquation n’utilise cette recommandation qu’après validation de l’audit.</p>{auditValidationMissing.length > 0 && <p className="mt-2 text-xs font-semibold text-amber-200">À compléter avant validation : {auditValidationMissing.join(', ')}.</p>}</div>
           <div className="flex shrink-0 flex-wrap gap-2">
