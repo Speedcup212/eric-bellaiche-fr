@@ -320,7 +320,7 @@ export default function CifDossierSummaryPage() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('synthese');
   const [selectedDocumentInvestorId, setSelectedDocumentInvestorId] = useState<string | null>(null);
   const [documentReviewOnly, setDocumentReviewOnly] = useState(false);
-  const [auditRecommendation, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
+  const [, setAuditRecommendation] = useState<AuditRecommendationRow | null>(null);
   const [auditDraft, setAuditDraft] = useState<AuditDraft>(() => auditDraftFromRow(null));
   const [savingAudit, setSavingAudit] = useState(false);
   const [auditMessage, setAuditMessage] = useState('');
@@ -742,7 +742,7 @@ export default function CifDossierSummaryPage() {
 
       <div className="mt-4 rounded-2xl border border-[#2D4C6E] bg-[#0B1A2F] p-5">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Situation</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.familyStatus || 'À compléter'}</p></div>
+          <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Situation</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.familyStatus.found ? snapshot.familyStatus.value : 'À compléter'}</p></div>
           <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Patrimoine financier</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.financialAssets.found ? euro(snapshot.financialAssets.value + (snapshot.liquidAssets.found ? snapshot.liquidAssets.value : 0)) : 'À compléter'}</p></div>
           <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Immobilier</p><p className="mt-2 text-sm font-semibold text-white">{household.realEstate.totalValue > 0 ? euro(household.realEstate.totalValue) : 'À compléter'}</p></div>
           <div className="rounded-xl border border-[#25405F] bg-[#071425] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Capacité d’épargne</p><p className="mt-2 text-sm font-semibold text-white">{snapshot.savingsCapacityMonthly.found ? euro(snapshot.savingsCapacityMonthly.value) + ' / mois' : 'À compléter'}</p></div>
