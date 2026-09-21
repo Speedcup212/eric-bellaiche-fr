@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.30-MISSION-PRODUITS-PAGE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.31-MISSION-TITRES';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -729,10 +729,23 @@ function regulatoryHeadingDisplay(value: string, type: 'der' | 'mission') {
 
 function drawRegulatoryHeading(ctx: PdfContext, value: string, level: number, type: 'der' | 'mission') {
   const display = regulatoryHeadingDisplay(value, type);
-  const size = level === 1 ? 14.2 : level === 2 ? 11.3 : 10.2;
-  const before = level === 1 ? 18 : level === 2 ? 11 : 7;
-  const after = level === 1 ? 8 : level === 2 ? 5.5 : 4;
-  const color = level === 1 || level === 2 ? BLUE : BODY;
+  const size =
+    type === 'mission'
+      ? (level === 1 ? 13.2 : 10.8)
+      : (level === 1 ? 14.2 : level === 2 ? 11.3 : 10.2);
+  const before =
+    type === 'mission'
+      ? (level === 1 ? 16 : 9)
+      : (level === 1 ? 18 : level === 2 ? 11 : 7);
+  const after =
+    type === 'mission'
+      ? (level === 1 ? 7 : 5)
+      : (level === 1 ? 8 : level === 2 ? 5.5 : 4);
+  const color =
+    type === 'mission'
+      ? (level === 1 ? BLUE : BODY)
+      : (level === 1 || level === 2 ? BLUE : BODY);
+
   ensure(ctx, before + size * 1.45 + after + (level === 1 ? 6 : 0));
   ctx.y -= before;
   regulatoryText(ctx, display, { bold: true, size, lineHeight: size * 1.22, color, after });
