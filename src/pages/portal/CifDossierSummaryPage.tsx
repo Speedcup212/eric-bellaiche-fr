@@ -549,7 +549,22 @@ export default function CifDossierSummaryPage() {
       if (!data?.signed_url) throw new Error(data?.error || 'Génération de l’audit impossible.');
       setAuditPdfUrl(String(data.signed_url));
     } catch (error) {
-      setAuditPdfError(messageFromError(error));
+      let detail = messageFromError(error);
+      const functionError = error as { context?: Response };
+      if (functionError.context) {
+        try {
+          const payload = await functionError.context.clone().json() as { error?: string };
+          if (payload?.error) detail = payload.error;
+        } catch {
+          try {
+            const text = await functionError.context.clone().text();
+            if (text.trim()) detail = text.trim();
+          } catch {
+            // Keep the normalized client-side error when the function response cannot be decoded.
+          }
+        }
+      }
+      setAuditPdfError(detail);
     } finally {
       setGeneratingAuditPdf(false);
     }
