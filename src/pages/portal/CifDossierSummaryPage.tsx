@@ -874,9 +874,9 @@ export default function CifDossierSummaryPage() {
     }
     try {
       await navigator.clipboard.writeText(auditFullPrompt);
-      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} + contexte dossier + complément copiés. Colle le contenu dans la discussion ChatGPT ouverte.`);
+      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} + contexte dossier + complément copiés. Dans ChatGPT : Ctrl+V puis Entrée.`);
     } catch {
-      setAuditMessage('ChatGPT est ouvert. Le navigateur n’a pas autorisé la copie automatique du prompt complet.');
+      setAuditMessage('ChatGPT est ouvert, mais la copie automatique a été refusée par le navigateur. Utilise « Copier le prompt complet », puis Ctrl+V dans ChatGPT.');
     }
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
@@ -909,9 +909,9 @@ export default function CifDossierSummaryPage() {
 
     try {
       await navigator.clipboard.writeText(generationPrompt);
-      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} et commande de génération copiés. ChatGPT peut produire puis enregistrer l’audit.`);
+      setAuditMessage(`Prompt maître v${auditPromptVersion || '1.0'} et commande de génération copiés. Dans ChatGPT : Ctrl+V puis Entrée pour lancer l’audit.`);
     } catch {
-      setAuditMessage('ChatGPT va être ouvert. Le navigateur n’a pas autorisé la copie automatique de la commande complète.');
+      setAuditMessage('ChatGPT est ouvert, mais la copie automatique a été refusée par le navigateur. Copie la commande, puis Ctrl+V dans ChatGPT.');
     }
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
@@ -1153,6 +1153,7 @@ export default function CifDossierSummaryPage() {
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Discussion</p>
           <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
           <p className="mt-2 text-sm leading-6 text-slate-400">Le prompt maître du cabinet est identique pour tous les dossiers. Le CRM ajoute automatiquement le contexte du client et, si tu le souhaites, une consigne spécifique.</p>
+          <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-100">ChatGPT n’autorise pas un site externe à écrire automatiquement dans sa zone de saisie. Le bouton copie donc le prompt complet puis ouvre ChatGPT : il reste seulement à faire <strong>Ctrl+V</strong> puis <strong>Entrée</strong>.</p>
           <div className="mt-3 flex items-center gap-2 text-xs">
             <span className={`rounded-full px-2.5 py-1 font-bold ${auditMasterPrompt ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
               {auditMasterPrompt ? `Prompt maître v${auditPromptVersion || '1.0'} chargé` : 'Chargement du prompt maître…'}
@@ -1172,7 +1173,7 @@ export default function CifDossierSummaryPage() {
             className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
           />
           <div className="mt-3 flex flex-wrap gap-2">
-            <button disabled={!auditMasterPrompt} type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">Ouvrir dans ChatGPT</button>
+            <button disabled={!auditMasterPrompt} type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">Copier + ouvrir ChatGPT</button>
             <button disabled={!auditMasterPrompt} type="button" onClick={async () => { try { await navigator.clipboard.writeText(auditFullPrompt); setAuditMessage('Prompt maître + contexte dossier + complément copiés.'); } catch { setAuditMessage('Impossible de copier automatiquement le prompt complet.'); } }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">Copier le prompt complet</button>
           </div>
         </div>
