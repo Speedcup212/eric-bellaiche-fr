@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.38-RECUEIL-FOYER-PAR-RUBRIQUE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.39-RECUEIL-FOYER-PAGINATION';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -241,8 +241,15 @@ function drawResultPanel(ctx: PdfContext, label: string, score: string, level: s
 function esgLevel(score: number) { if (score >= 75) return 'Très forte'; if (score >= 50) return 'Forte'; if (score >= 25) return 'Modérée'; return 'Faible'; }
 
 
+function recueilHeading(ctx: PdfContext, value: string, level = 1) {
+  // Keep the heading with the following participant/table instead of leaving it alone at page bottom.
+  ensure(ctx, level === 1 ? 118 : 92);
+  heading(ctx, value, level);
+}
+
 function drawRecueilParticipantLabel(ctx: PdfContext, index: number, inv: Json) {
-  ensure(ctx, 30);
+  // Keep participant label with at least the table header + first row.
+  ensure(ctx, 92);
   ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 24, width: A4.width - 2 * MARGIN, height: 24, color: rgb(0.95, 0.97, 1), borderColor: BORDER, borderWidth: 0.7 });
   ctx.page.drawText(`IDENTIFIANT ${index} - ${investorName(inv)}`, { x: MARGIN + 8, y: ctx.y - 16, size: 9.2, font: ctx.bold, color: NAVY });
   ctx.y -= 31;
@@ -269,7 +276,7 @@ async function buildRecueilCouple(snapshot: Json) {
   let financialExact = 0;
   let financialEstimated = 0;
 
-  heading(ctx, `${n++}. Identité et coordonnées`);
+  recueilHeading(ctx, `${n++}. Identité et coordonnées`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const id = map.identity ?? {};
@@ -288,7 +295,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ], [34,66]);
   });
 
-  heading(ctx, `${n++}. Situation familiale`);
+  recueilHeading(ctx, `${n++}. Situation familiale`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const fam = map.family ?? {};
@@ -305,7 +312,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ], [34,66]);
   });
 
-  heading(ctx, `${n++}. Situation professionnelle`);
+  recueilHeading(ctx, `${n++}. Situation professionnelle`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const pro = map.professional ?? {};
@@ -321,7 +328,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ], [34,66]);
   });
 
-  heading(ctx, `${n++}. Objectifs et horizons`);
+  recueilHeading(ctx, `${n++}. Objectifs et horizons`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const objs = map.objectives?.items ?? [];
@@ -332,7 +339,7 @@ async function buildRecueilCouple(snapshot: Json) {
     ]) : [['-','Aucun objectif renseigné','-']], [12,62,26]);
   });
 
-  heading(ctx, `${n++}. Revenus et équilibre financier`);
+  recueilHeading(ctx, `${n++}. Revenus et équilibre financier`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const cap = map.capacity ?? {};
@@ -346,12 +353,12 @@ async function buildRecueilCouple(snapshot: Json) {
     ], [58,42]);
   });
 
-  heading(ctx, `${n++}. Situation fiscale détaillée`);
+  recueilHeading(ctx, `${n++}. Situation fiscale détaillée`);
   const tax = maps.find(({ map }: Json) => map.tax && Object.keys(map.tax).length)?.map?.tax ?? {};
   const id1Name = clean(tax.nom_identifiant_1 ?? investorName(maps[0]?.inv ?? {}));
   const id2Name = clean(tax.nom_identifiant_2 ?? investorName(maps[1]?.inv ?? {}));
   const taxRows = (rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => rows.filter(([,value]) => hasValue(value)).map(([label,value,kind]) => [label, kind === 'eur' ? eur(value) : kind === 'pct' ? pct(value) : kind === 'date' ? frDate(value) : clean(value)]);
-  const taxTable = (titleText: string, rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => { const filtered = taxRows(rows); if (filtered.length) { heading(ctx,titleText,2); drawTable(ctx,['Donnée fiscale','Valeur'],filtered,[62,38]); } };
+  const taxTable = (titleText: string, rows: Array<[string, unknown, 'eur'|'pct'|'date'|'text']>) => { const filtered = taxRows(rows); if (filtered.length) { recueilHeading(ctx,titleText,2); drawTable(ctx,['Donnée fiscale','Valeur'],filtered,[62,38]); } };
 
   taxTable('Identifiants fiscaux et avis', [
     ['Identifiant 1', id1Name, 'text'],
@@ -456,12 +463,12 @@ async function buildRecueilCouple(snapshot: Json) {
     financialEstimated += num(map.financial?.estimated_total_amount);
   });
 
-  heading(ctx, `${n++}. Patrimoine immobilier consolidé`);
+  recueilHeading(ctx, `${n++}. Patrimoine immobilier consolidé`);
   drawTable(ctx, ['Bien','Ville','Usage','Détention','Propriétaire','Valeur'], properties.length ? properties.map((x: Json, idx: number) => [
     `Bien ${idx + 1}`, clean(x.ville), clean(x.usage), clean(x.mode_detention), clean(x.proprietaire), eur(x.valeur_actuelle)
   ]) : [['-','-','Aucun bien déclaré','-','-','0 EUR']], [10,18,18,18,18,18]);
 
-  heading(ctx, `${n++}. Patrimoine financier et liquidités`);
+  recueilHeading(ctx, `${n++}. Patrimoine financier et liquidités`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const fin = map.financial ?? {};
@@ -494,12 +501,12 @@ async function buildRecueilCouple(snapshot: Json) {
   const margin35 = monthlyIncome > 0 ? monthlyIncome * 0.35 - monthlyDebt : null;
   const propertyTotal = properties.reduce((sum: number, x: Json) => sum + num(x.valeur_actuelle), 0);
 
-  heading(ctx, `${n++}. Crédits et endettement détaillés`);
+  recueilHeading(ctx, `${n++}. Crédits et endettement détaillés`);
   if (!credits.length) {
     drawTable(ctx,['Donnée','Valeur'],[['Situation','Aucun crédit déclaré']],[62,38]);
   } else {
     credits.forEach((x: Json, idx: number) => {
-      heading(ctx, `Crédit ${idx + 1} - ${clean(x.type_credit ?? x.type_pret)}`, 2);
+      recueilHeading(ctx, `Crédit ${idx + 1} - ${clean(x.type_credit ?? x.type_pret)}`, 2);
       const missing = 'Non indiqué sur le document transmis';
       drawTable(ctx,['Caractéristique','Valeur'],[
         ['Bien / projet rattaché', hasValue(x.credit_rattache_a) ? clean(x.credit_rattache_a) : missing],
@@ -536,7 +543,7 @@ async function buildRecueilCouple(snapshot: Json) {
   ], [64,36]);
   drawText(ctx,'Limite de calcul : le taux d’endettement et la marge à 35 % sont des indicateurs théoriques. Ils ne constituent ni un accord bancaire ni une capacité d’emprunt garantie.',{bold:true,color:GREEN,size:8.4,after:12});
 
-  heading(ctx, `${n++}. Informations réglementaires`);
+  recueilHeading(ctx, `${n++}. Informations réglementaires`);
   maps.forEach(({ inv, map }: Json, index: number) => {
     drawRecueilParticipantLabel(ctx, index + 1, inv);
     const reg = map.regulatory ?? {};
@@ -555,7 +562,7 @@ async function buildRecueilCouple(snapshot: Json) {
   });
 
   ensure(ctx,145);
-  heading(ctx, `${n++}. Validation des informations`);
+  recueilHeading(ctx, `${n++}. Validation des informations`);
   drawText(ctx,'En signant, les clients confirment avoir relu les informations reproduites dans le présent recueil et déclarent qu’elles sont, à leur connaissance, exactes, sincères et complètes à la date du recueil. Les éléments signalés comme non renseignés ou à confirmer devront être complétés avant toute recommandation qui en dépend.',{size:8.6});
   drawText(ctx,'Portée de la signature : la signature du recueil ne vaut ni recommandation d’investissement, ni offre de financement, ni engagement de souscription.',{bold:true,color:GREEN,size:8.6,after:12});
   signatureBoxes(ctx, investors);
