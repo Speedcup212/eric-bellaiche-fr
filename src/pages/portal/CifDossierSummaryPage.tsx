@@ -729,21 +729,35 @@ export default function CifDossierSummaryPage() {
     };
   }, [sections, investors, sourceDocuments]);
   const investorSummaries = useMemo(() => investors.map((investor) => { const investorSections = sections.filter((r) => r.investisseur_id === investor.investisseur_id); const payloadByCode = Object.fromEntries(investorSections.map((r) => [r.section_code, r.payload ?? {}])); const spouse = investors.find((r) => r.investisseur_id !== investor.investisseur_id)?.investisseurs ?? null; const context = contexts.find((r) => r.investisseur_id === investor.investisseur_id) ?? {}; const consistencySnapshot: ConsistencySnapshot = { identity: payloadByCode.identity ?? {}, family: payloadByCode.family ?? {}, professional: payloadByCode.professional ?? {}, capacity: payloadByCode.capacity ?? {}, patrimony: payloadByCode.patrimony ?? {}, financial: payloadByCode.financial ?? {}, credits: payloadByCode.credits ?? {}, regulatory: payloadByCode.regulatory ?? {}, documents: context, spouse }; const issues = evaluateConsistency(consistencySnapshot); const investorProvenance = provenance.filter((r) => !r.investisseur_id || r.investisseur_id === investor.investisseur_id); const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier }); const sessionIds = qpiSessions.filter((row) => row.investisseur_id === investor.investisseur_id).map((row) => row.id); const unresolvedQpiControls = qpiControls.filter((control) => sessionIds.includes(control.session_id) && control.alerte && !control.traite); const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id); const needsRecueilReview = completeness ? !completeness.complete : true; const effectiveReadiness = (unresolvedQpiControls.length > 0 || needsRecueilReview) && summary.readiness === 'ready' ? 'review' as const : summary.readiness; return { investor, investorSections, issues, summary, unresolvedQpiControls, effectiveReadiness, completeness }; }), [investors, sections, contexts, provenance, checklist, qpiSessions, qpiControls, recueilCompleteness]);
+  const householdRecueilState = useMemo(() => {
+    const rows = investors.map((investor) => {
+      const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id);
+      return {
+        investor,
+        percentage: completeness?.percentage ?? 0,
+        complete: completeness?.complete === true,
+        validated: ['completed','validated'].includes(investor.recueil_status),
+      };
+    });
+    const hasData = sections.length > 0;
+    const percentage = rows.length ? Math.round(rows.reduce((sum,row) => sum + Number(row.percentage ?? 0), 0) / rows.length) : 0;
+    const complete = rows.length > 0 && rows.every((row) => row.complete);
+    const validated = rows.length > 0 && rows.every((row) => row.validated);
+    return { rows, hasData, percentage, complete, validated };
+  }, [investors, recueilCompleteness, sections]);
+
   const investorDocumentStates = useMemo(() => investors.map((investor) => {
     const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id);
     const recueil = ['completed', 'validated'].includes(investor.recueil_status) && completeness?.complete === true;
-    const recueilHasData = sections.some((section) => section.investisseur_id === investor.investisseur_id);
-    const recueilPdfAvailable = recueilHasData || ['completed', 'validated'].includes(investor.recueil_status);
     const qpi = ['completed', 'validated'].includes(investor.qpi_status);
     const esgNotApplicable = investor.esg_opt_in === false;
     const esg = ['completed', 'validated'].includes(investor.esg_status);
     const readyTypes: GeneratedDocument['type'][] = [
-      ...(recueilPdfAvailable ? ['recueil' as const] : []),
       ...(qpi ? ['qpi' as const] : []),
       ...(esg ? ['esg' as const] : []),
     ];
-    return { investor, recueil, recueilPdfAvailable, recueilPercentage: completeness?.percentage ?? 0, qpi, esg, esgNotApplicable, readyTypes };
-  }), [investors, recueilCompleteness, sections]);
+    return { investor, recueil, recueilPercentage: completeness?.percentage ?? 0, qpi, esg, esgNotApplicable, readyTypes };
+  }), [investors, recueilCompleteness]);
   const orderedInvestorDocumentStates = useMemo(() => [...investorDocumentStates].sort((a, b) => (a.investor.role_dossier === 'investisseur_1' ? 0 : 1) - (b.investor.role_dossier === 'investisseur_1' ? 0 : 1)), [investorDocumentStates]);
   const selectedDocumentState = useMemo(() => orderedInvestorDocumentStates.find((state) => state.investor.investisseur_id === selectedDocumentInvestorId) ?? orderedInvestorDocumentStates[0] ?? null, [orderedInvestorDocumentStates, selectedDocumentInvestorId]);
   const selectedSourceDocuments = useMemo(() => {
