@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'npm:pdf-lib@1.17.1';
-import { loadDerModel, loadMissionModel, type RegulatoryModelBlock } from './regulatory-models.ts';
+import { loadDerModel, type RegulatoryModelBlock } from './regulatory-models.ts';
+import { loadMissionModel } from './mission-model.ts';
 
 const allowedOrigins = new Set([
   'https://eric-bellaiche.fr',
@@ -8,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.23-MISSION';
+const PDF_VERSION = '2026-MAITRE-PDF-2.24-MISSION-EXACT';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -1173,7 +1174,13 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
     }
 
     if (block.k === 'bullet' || /^[-•]\s+/.test(value)) {
-      drawBulletParagraph(ctx, value);
+      const level = block.k === 'bullet' ? Number(block.level ?? 0) : 0;
+      drawBulletParagraph(ctx, value, level > 0 ? {
+        x: REG_MARGIN + 28,
+        width: A4.width - 2 * REG_MARGIN - 28,
+        size: 9.45,
+        bulletColor: MUTED,
+      } : {});
       continue;
     }
 
