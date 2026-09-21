@@ -563,7 +563,7 @@ export default function CifDossierSummaryPage() {
         .from('documents_reglementaires')
         .select('storage_bucket,storage_path_pdf,date_generation')
         .eq('dossier_id', dossierId)
-        .eq('type_document', 'audit_patrimonial')
+        .eq('type_document', 'audit')
         .eq('statut', 'generated')
         .order('created_at', { ascending: false })
         .limit(1)
