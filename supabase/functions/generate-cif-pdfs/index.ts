@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'npm:pdf-lib@1.17.1';
+import { loadDerModel, loadMissionModel, type RegulatoryModelBlock } from './regulatory-models.ts';
 
 const allowedOrigins = new Set([
   'https://eric-bellaiche.fr',
@@ -7,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.15';
+const PDF_VERSION = '2026-MAITRE-PDF-2.16-ORIGINAUX';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -21,7 +22,7 @@ const WHITE = rgb(1, 1, 1);
 
 type Json = Record<string, any>;
 type DocumentType = 'recueil' | 'qpi' | 'esg' | 'der' | 'mission';
-type PdfContext = { pdf: PDFDocument; page: PDFPage; regular: PDFFont; bold: PDFFont; y: number; pageNumber: number };
+type PdfContext = { pdf: PDFDocument; page: PDFPage; regular: PDFFont; bold: PDFFont; y: number; pageNumber: number; templateMode?: 'der' | 'mission' };
 
 const ESG_LABELS: Record<string, string> = {
   allocation_globale: 'Tous les placements', allocation: 'Tous les placements', produit: 'Au cas par cas selon le placement', autre: 'Autre choix',
@@ -133,9 +134,47 @@ function creditPaymentLabel(x: Json) {
 }
 function readable(value: unknown) { if (Array.isArray(value)) return value.map((v) => ESG_LABELS[String(v)] ?? clean(v)).join(', '); const s = clean(value); return ESG_LABELS[s] ?? ESG_LABELS[s.toLowerCase()] ?? s; }
 function wrap(font: PDFFont, value: string, size: number, width: number) { const words = clean(value).split(/\s+/).filter(Boolean); if (!words.length) return ['']; const lines: string[] = []; let line = words[0]; for (const word of words.slice(1)) { const candidate = `${line} ${word}`; if (font.widthOfTextAtSize(candidate, size) <= width) line = candidate; else { lines.push(line); line = word; } } lines.push(line); return lines; }
-async function newPdfContext() { const pdf = await PDFDocument.create(); const regular = await pdf.embedFont(StandardFonts.Helvetica); const bold = await pdf.embedFont(StandardFonts.HelveticaBold); const page = pdf.addPage([A4.width, A4.height]); return { pdf, page, regular, bold, y: A4.height - MARGIN, pageNumber: 1 } as PdfContext; }
-function footer(ctx: PdfContext) { ctx.page.drawText(`Cabinet Eric Bellaiche - page ${ctx.pageNumber} - modèle ${PDF_VERSION}`, { x: MARGIN, y: 20, size: 7, font: ctx.regular, color: rgb(0.45, 0.5, 0.6) }); }
-function addPage(ctx: PdfContext) { footer(ctx); ctx.page = ctx.pdf.addPage([A4.width, A4.height]); ctx.pageNumber += 1; ctx.y = A4.height - MARGIN; }
+function drawTemplateHeader(ctx: PdfContext) {
+  if (ctx.templateMode === 'der') {
+    ctx.page.drawText('CNCEF PATRIMOINE - Avril 2026', { x: MARGIN, y: A4.height - 30, size: 8, font: ctx.bold, color: NAVY });
+    ctx.y = A4.height - 52;
+    return;
+  }
+  if (ctx.templateMode === 'mission') {
+    const lines = [
+      'Eric Bellaiche : Conseiller en Investissement Financier n° D016571 - membre de la CNCEF Patrimoine, association agréée par l’AMF',
+      'RCS de Grenoble N° 441861135, 33 avenue de Savoie, 38580 Allevard - 06 52 56 56 54',
+      'Toute modification des informations pouvant affecter significativement la nature ou l’orientation de la mission de conseil',
+      'devra être portée à la connaissance du Conseiller Financier n° D016571 - membre de la CNCEF Patrimoine, association agréée par l’AMF',
+    ];
+    let y = A4.height - 24;
+    for (const line of lines) {
+      ctx.page.drawText(clean(line), { x: MARGIN, y, size: 6.7, font: ctx.regular, color: NAVY });
+      y -= 9;
+    }
+    ctx.y = A4.height - 70;
+  }
+}
+async function newPdfContext(templateMode?: 'der' | 'mission') {
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const page = pdf.addPage([A4.width, A4.height]);
+  const ctx = { pdf, page, regular, bold, y: A4.height - MARGIN, pageNumber: 1, templateMode } as PdfContext;
+  if (templateMode) drawTemplateHeader(ctx);
+  return ctx;
+}
+function footer(ctx: PdfContext) {
+  if (ctx.templateMode) return;
+  ctx.page.drawText(`Cabinet Eric Bellaiche - page ${ctx.pageNumber} - modèle ${PDF_VERSION}`, { x: MARGIN, y: 20, size: 7, font: ctx.regular, color: rgb(0.45, 0.5, 0.6) });
+}
+function addPage(ctx: PdfContext) {
+  footer(ctx);
+  ctx.page = ctx.pdf.addPage([A4.width, A4.height]);
+  ctx.pageNumber += 1;
+  ctx.y = A4.height - MARGIN;
+  if (ctx.templateMode) drawTemplateHeader(ctx);
+}
 function ensure(ctx: PdfContext, height: number) { if (ctx.y - height < 44) addPage(ctx); }
 function drawText(ctx: PdfContext, value: string, options: Json = {}) { const size = options.size ?? 9.5; const font = options.bold ? ctx.bold : ctx.regular; const width = options.width ?? (A4.width - 2 * MARGIN); const x = options.x ?? MARGIN; const lineHeight = options.lineHeight ?? size * 1.28; const lines = wrap(font, clean(value), size, width); const height = lines.length * lineHeight + (options.after ?? 4); ensure(ctx, height); for (const line of lines) { ctx.page.drawText(line, { x, y: ctx.y - size, size, font, color: options.color ?? NAVY }); ctx.y -= lineHeight; } ctx.y -= options.after ?? 4; }
 function title(ctx: PdfContext, main: string, dateLine: string) { drawText(ctx, 'CABINET ERIC BELLAICHE', { bold: true, size: 11, color: BLUE, after: 10 }); drawText(ctx, main, { bold: true, size: 18, color: NAVY, after: 8 }); drawText(ctx, dateLine, { bold: true, size: 9, color: GREEN, after: 16 }); }
@@ -514,69 +553,118 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
 }
 
 
-const DER_MODEL_SECTIONS: Array<[string,string[]]> = [["INTRODUCTION",["En application des différentes législations auxquelles nos activités sont soumises, nous vous prions de trouver ci-après les informations réglementaires qui régiront l'ensemble de nos relations contractuelles.","Eric Bellaiche est susceptible de fournir des conseils en investissement de manière non indépendante. Dans le cadre d'une prestation de conseil fournie à titre non indépendant et conformément à la réglementation applicable, Eric Bellaiche peut percevoir des rémunérations, commissions ou avantages monétaires ou non monétaires en rapport avec la fourniture de la prestation de conseil, versés ou fournis par un tiers, sous réserve du respect des règles d'information du client, d'amélioration du service et de l'obligation d'agir au mieux des intérêts du client.","Le présent document d'entrée en relation est un élément essentiel de la relation entre le client et le cabinet Eric Bellaiche. Il résume les informations légales communiquées au client dès le début de la relation d'affaires."]],["Statuts légaux et autorités de tutelle",["Eric Bellaiche est enregistré au Registre Unique des intermédiaires en assurance, banque et finance auprès de l'ORIAS sous le numéro d'immatriculation 13001580.","Activités réglementées : Conseiller en investissements financiers (CIF), Courtier d'assurance ou de réassurance (COA), Mandataire d'intermédiaire en opérations de banque et en services de paiement (MIOBSP), Agent commercial en transaction immobilière sans maniement de fonds.","Nom-Prénom : Bellaiche Eric. Dénomination sociale : Eric Bellaiche. Forme sociale : Entreprise individuelle. RCS : Grenoble. SIREN : 441861135. Code APE : 6619B. Adresse : 33 Avenue de Savoie, 38580 Allevard. Téléphone : 06 52 56 56 54. Email : eric.bellaiche@gmail.com. Site internet : https://eric-bellaiche.fr/."]],["Votre contact",["Eric Bellaiche - 33 Avenue de Savoie, 38580 Allevard - eric.bellaiche@gmail.com - 06 52 56 56 54."]],["SECTEUR IMMOBILIER",["Transactions immobilières sans maniement de fonds. Activité régie par la loi n° 70-9 du 2 janvier 1970 dite loi Hoguet et les textes qui s'y rattachent.","Eric Bellaiche intervient notamment en qualité d'agent commercial pour le compte de partenaires titulaires de cartes professionnelles, dont SAS FEDERIMO et GRIDKY, selon les habilitations et délégations en vigueur.","Responsabilité civile professionnelle : Matrisk Assurance, police MRCSFGP202305FR00000000050302A00, 22 rue de la Maison Rouge, 77185 Lognes. Garantie transaction immobilière : 600 000 EUR par sinistre et par année d'assurance.","Partenaires immobiliers : GRIDKY, FEDERIMO, CONSULTIM. Nature : plateformes immobilières. Type d'accord : mandat. Mode de rémunération : commissionnement."]],["ASSISTANCE PATRIMONIALE ET FISCALE",["Eric Bellaiche peut proposer, à titre accessoire à sa mission patrimoniale, une assistance patrimoniale à la préparation déclarative fiscale.","Cette prestation consiste à aider le client à identifier, organiser et comprendre les informations patrimoniales utiles à sa déclaration d'impôt sur le revenu, notamment en lien avec les revenus fonciers, revenus de capitaux mobiliers, SCPI, contrats d'assurance-vie, PER, dispositifs fiscaux et charges déductibles.","Le client demeure seul responsable de l'exactitude, de l'exhaustivité, de la saisie, de la validation et du dépôt de sa déclaration. Eric Bellaiche n'intervient pas en qualité d'expert-comptable, d'avocat fiscaliste ou de mandataire fiscal et ne garantit pas l'absence de rectification fiscale.","En présence d'une situation complexe, le client est invité à consulter un professionnel habilité."]],["SECTEUR ASSURANCE",["Courtier d'assurance - ORIAS 13001580 - sous le contrôle de l'Autorité de Contrôle Prudentiel et de Résolution (ACPR), 4 place de Budapest, 75346 Paris Cedex 9.","Eric Bellaiche n'est pas soumis à une obligation contractuelle de travailler exclusivement avec une ou plusieurs entreprises d'assurance. Il agit notamment avec NORTIA et INTENCIAL PATRIMOINE.","Eric Bellaiche ne détient aucune participation directe ou indirecte égale ou supérieure à 10 % des droits de vote ou du capital d'une entreprise d'assurance.","Responsabilité civile professionnelle : Matrisk Assurance, police MRCSFGP202305FR00000000050302A00. Garantie intermédiaire en assurance : 1 500 000 EUR par sinistre et 2 000 000 EUR par année d'assurance."]],["SECTEUR FINANCIER",["Conseiller en investissements financiers - ORIAS 13001580 - membre de la CNCEF PATRIMOINE, association agréée par l'Autorité des Marchés Financiers. Numéro CIF : D016571.","Le service de conseil en investissement est délivré à titre non indépendant. Il se limite à une gamme de produits sélectionnés et référencés notamment par NORTIA INVEST et INTENCIAL PATRIMOINE auprès de sociétés de gestion et d'émetteurs avec lesquels ces partenaires sont liés contractuellement.","NORTIA INVEST et INTENCIAL PATRIMOINE peuvent percevoir des commissions sur les frais d'entrée appliqués par les partenaires et rétrocéder tout ou partie de ces frais au CIF. Le détail applicable aux solutions effectivement recommandées est précisé dans la déclaration d'adéquation ou ses annexes.","Eric Bellaiche ne détient pas de participation directe ou indirecte égale ou supérieure à 10 % des droits de vote ou du capital d'une entreprise d'assurance ou d'un établissement de crédit.","Politique en matière de durabilité : le cabinet tient compte, selon les préférences exprimées par le client, des investissements durables au sens du règlement SFDR, de la Taxonomie européenne et des principales incidences négatives en matière de durabilité.","Responsabilité civile professionnelle : Matrisk Assurance. Garantie conseiller en investissements financiers : 600 000 EUR par sinistre et 600 000 EUR par année d'assurance."]],["SECTEUR FINANCEMENT",["Intermédiaire en opérations de banque et services de paiement - MIOBSP - ORIAS 13001580 - sous le contrôle de l'ACPR.","Eric Bellaiche exerce cette activité en vertu de mandats délivrés par ses partenaires, notamment CIBFinance, selon les conventions en vigueur.","Eric Bellaiche peut être rémunéré par son mandant ou ses partenaires au titre de sa mission d'intermédiation. À titre d'exemple, pour un financement de 200 000 EUR, une commission de 0,5 % représente 1 000 EUR, sous réserve des plafonds et conditions du partenaire. La rémunération n'est due qu'après le versement effectif des fonds prêtés.","Un crédit vous engage et doit être remboursé. Vérifiez vos capacités de remboursement avant de vous engager. Aucun versement ne peut être exigé par l'IOBSP avant le versement effectif des fonds prêtés.","Garantie IOBSP : 500 000 EUR par sinistre et 800 000 EUR par année d'assurance."]],["RÉMUNÉRATION",["Bilan patrimonial : des honoraires forfaitaires compris entre 800 EUR et 3 000 EUR peuvent être appliqués selon la complexité du dossier. Dans votre cas, ce bilan est offert.","Assistance patrimoniale à la préparation déclarative fiscale : les honoraires sont déterminés dans la lettre de mission ou dans tout avenant signé entre les parties.","Conseil financier et assuranciel - rémunération non indépendante : Eric Bellaiche peut percevoir des commissions ou rétrocessions de la part des producteurs, distributeurs ou plateformes partenaires, sous réserve du respect des règles applicables d'information et d'amélioration du service.","Frais de gestion : la fraction perçue par Eric Bellaiche peut varier entre 0,08 % et 0,75 % selon les produits et partenaires.","SCPI : le taux de commissionnement peut varier entre 4,50 % et 8 % du montant de la souscription selon les conditions des partenaires et la nature de l'investissement. Ces commissions sont comprises dans les frais statutaires applicables et n'entraînent pas de frais supplémentaire distinct pour le client.","Immobilier : la commission peut varier entre 2,6 % et 10 % du prix de vente TTC selon le type de bien et la complexité de l'opération. Elle est due à la signature de l'acte authentique et versée selon les conditions du partenaire ou promoteur."]],["RÉCLAMATIONS - MÉDIATION",["Pour toute réclamation, le client s'adresse préalablement à Eric Bellaiche sur support durable : eric.bellaiche@gmail.com ou 33 Avenue de Savoie, 38580 Allevard.","Le cabinet s'engage à accuser réception dans un délai maximum de dix jours ouvrables, sauf réponse apportée dans ce délai, et à apporter une réponse au plus tard dans les deux mois, sauf circonstances particulières dûment justifiées.","Au titre de l'activité de conseiller en investissements financiers, le client peut saisir le Médiateur de l'Autorité des marchés financiers, 17 place de la Bourse, 75082 Paris Cedex 02.","Au titre des autres activités, le client peut saisir CNPM - Médiation de la consommation, 27 Avenue de la Libération, 42400 Saint-Chamond."]],["RGPD",["Dans le cadre de ses prestations, Eric Bellaiche est susceptible de procéder au traitement de données personnelles concernant le client. Les données sont collectées et traitées uniquement au regard des finalités convenues, dans le respect de leur sécurité et de leur intégrité.","Le client dispose notamment des droits d'accès, de rectification, d'effacement, de limitation et de portabilité prévus par les textes applicables. Le responsable de traitement peut être contacté à l'adresse eric.bellaiche@gmail.com ou au 33 Avenue de Savoie, 38580 Allevard.","Le client peut introduire une réclamation auprès de la CNIL, 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07."]],["Moyens de communication et mise à jour",["Les modes de communication utilisés sont notamment les réunions physiques, réunions à distance, courriers, échanges de courriels, téléphone et signature électronique via Youtrust, ainsi que les supports durables sécurisés le cas échéant.","Eric Bellaiche communique au client toute mise à jour significative des informations réglementaires. Le client peut également obtenir ces informations sur simple demande."]]];
-const MISSION_MODEL_SECTIONS: Array<[string,string[]]> = [["PRÉAMBULE",["Le Client souhaite être accompagné dans ses problématiques financières et patrimoniales. Le Conseiller développe une offre globale de conseil en gestion de patrimoine et d'assistance et propose, pour ce faire, différents services et prestations de conseil.","Lors de leur entrée en relation, le Conseiller a remis au Client un document présentant ses mentions légales, activités, statuts réglementés, numéros d'enregistrement, le caractère non indépendant du conseil susceptible d'être fourni, ainsi que les modalités de traitement des réclamations : le document d'entrée en relation (DER).","La présente lettre de mission définit les termes de la mission confiée au Conseiller."]],["1. Objet",["La présente Lettre de Mission a pour objet de définir les conditions spécifiques dans lesquelles le Conseiller fournit une prestation de conseil au Client dans le cadre de ses activités de conseiller en investissements financiers.","La mission comprend trois phases principales : l'audit patrimonial, la mise en œuvre des recommandations et le suivi des investissements."]],["2. Prestation confiée au Conseiller",["La Prestation tient compte des objectifs d'investissement du Client, de sa situation financière et patrimoniale, de ses connaissances et de son expérience en matière d'investissement, de sa tolérance au risque, de sa capacité à supporter des pertes ainsi que, le cas échéant, de ses préférences en matière de durabilité.","Réalisation d'un audit patrimonial global de la situation actuelle sur les plans économiques, juridiques et fiscaux dans un objectif d'optimisation.","Assistance ponctuelle à la préparation déclarative fiscale du Client, strictement accessoire à la mission patrimoniale, lorsque cette prestation est expressément convenue.","Les travaux consistent à décrire, évaluer et proposer des préconisations sur la situation économique, patrimoniale et fiscale du Client afin d'exprimer un avis et de proposer une orientation adaptée à ses objectifs et à sa tolérance au risque.","La Prestation est fournie de manière non indépendante. L'analyse des instruments financiers peut être restreinte à ceux référencés par les partenaires du Conseiller. Les obligations du Conseiller sont des obligations de moyens et aucune performance ne peut être garantie."]],["3. Déclaration d'adéquation",["Lorsqu'il fournit une prestation de conseil en investissements financiers, le Conseiller fournit au Client une déclaration d'adéquation écrite justifiant les propositions d'investissement, leurs avantages et leurs risques au regard de l'expérience et des connaissances du Client, de sa situation financière, de ses objectifs d'investissement et, le cas échéant, de ses préférences en matière de durabilité."]],["4. Informations sur les coûts et frais liés à la Prestation",["Le Conseiller fournit au Client une information agrégée portant sur les coûts et frais liés aux instruments financiers, les coûts et frais liés au service fourni et le total des coûts et frais liés à la Prestation.","Les informations ex ante sont présentées dans le cadre de la déclaration d'adéquation et sont fondées sur les coûts effectivement supportés ou, à défaut, sur une estimation raisonnable, exprimés en montant absolu et en pourcentage.","En présence d'une relation continue, les informations ex post sont également communiquées selon les obligations applicables."]],["5. Stratégies d'investissement et instruments financiers envisagés",["Le Conseiller est susceptible de conseiller des instruments financiers, services et stratégies d'investissement référencés par ses partenaires, notamment NORTIA INVEST et INTENCIAL PATRIMOINE.","Les catégories de solutions susceptibles d'être proposées comprennent notamment : assurance-vie, contrats de capitalisation, PEA, SCPI, PER, prévoyance, solutions fiscales, épargne salariale et solutions de diversification.","Les stratégies d'investissement et allocations d'actifs découlent de l'audit patrimonial, des objectifs du Client, de son horizon de placement et de sa tolérance au risque. Les performances passées ne préjugent pas des performances futures."]],["6. Engagements du Conseiller",["Le Conseiller s'engage à apporter tout son soin à la bonne exécution de la Prestation dans l'intérêt du Client, conformément aux normes professionnelles de la CNCEF PATRIMOINE et aux obligations législatives et réglementaires applicables.","Le Conseiller porte à la connaissance du Client toute actualisation significative des informations contenues dans le DER.","Le Conseiller traite de manière strictement confidentielle les documents, analyses et informations recueillis, sous réserve des obligations légales, réglementaires, judiciaires, administratives ou de contrôle."]],["7. Engagements du Client",["Le Client s'engage à communiquer au Conseiller, avec transparence, toute information et tout document nécessaires à la bonne exécution de la Prestation et à signaler sans délai toute modification susceptible de l'affecter.","Le Client a conscience que le Conseiller ne peut réaliser correctement la Prestation en l'absence d'informations suffisantes ou en présence d'informations erronées.","Le Conseiller procède à une évaluation du profil de risque, des objectifs d'investissement et de l'horizon de placement. Des scénarios de stress et de volatilité peuvent être présentés dans le cadre des recommandations.","Le Conseiller peut collaborer avec des partenaires externes. Ceux-ci sont sélectionnés avec soin mais demeurent responsables de leurs propres actes et conseils."]],["8. Rémunération du Conseiller",["La rémunération du Conseiller comprend, selon les prestations réalisées, des honoraires versés par le Client ainsi que des commissions ou rétrocessions perçues de producteurs ou distributeurs de produits et services financiers.","Premier rendez-vous d'analyse patrimoniale : offert.","Bilan patrimonial : offert pour la présente mission, pour une valeur indicative de 800 EUR.","Conseil financier et assuranciel : rémunération non indépendante. Eric Bellaiche peut recevoir des commissions ou rétrocessions liées aux produits recommandés et aux actes d'intermédiation.","Investissements financiers - frais de gestion : fraction comprise, selon les produits et partenaires, entre 0,08 % et 0,75 %.","SCPI : selon le modèle maître, le taux de commissionnement peut varier entre 0,3 % et 6,50 % du montant de la souscription en fonction des partenaires et de la nature de l'investissement. Ces commissions sont incluses dans les frais statutaires applicables et n'entraînent pas de frais supplémentaire distinct pour le Client.","Transactions immobilières : commission pouvant varier entre 2,6 % et 10 % du prix de vente TTC selon le type de bien et la complexité de l'opération.","Conduite de projets immobiliers sur mesure : honoraires pouvant être fixés à 4,8 % HT du budget total du projet, avec échéancier 20 % à la signature, 60 % à l'acte authentique et 20 % à la finalisation ou livraison, lorsque cette prestation est expressément convenue.","Assistance patrimoniale à la préparation déclarative fiscale : honoraires fixés à 300 EUR lorsque cette prestation est expressément incluse dans la mission."]],["9. Obligations à la charge des Parties",["La Prestation est exécutée dans le cadre d'une coopération étroite et active. Chaque Partie s'engage à agir de bonne foi, dans un climat de loyauté et d'efficacité.","Le Conseiller respecte les normes de conformité internes et externes applicables à son activité."]],["10. Responsabilité",["Le Conseiller n'est responsable que de l'accomplissement de la Prestation confiée au titre de la présente Lettre de Mission. Il est tenu à une obligation de moyens.","Le Conseiller ne peut être tenu responsable des pertes financières résultant des fluctuations des marchés ou d'événements imprévus et ne garantit aucun rendement ou performance particulière."]],["11. Lutte contre le blanchiment de capitaux",["Le Conseiller est tenu de procéder aux contrôles et déclarations prévus par le Code monétaire et financier au titre de la lutte contre le blanchiment et le financement du terrorisme et met en place un dispositif de surveillance et de contrôle adapté."]],["12. Gestion des conflits d'intérêts",["Le Conseiller applique une politique de gestion des conflits d'intérêts afin d'identifier, prévenir et gérer les situations susceptibles de porter atteinte aux intérêts du Client. Lorsque les mesures mises en place ne suffisent pas, le Client reçoit une information spécifique permettant une décision éclairée."]],["13. Traitement des données à caractère personnel",["Les informations recueillies à l'occasion de la conclusion et de l'exécution de la mission sont traitées pour sa bonne réalisation et pour satisfaire aux obligations réglementaires du Conseiller. Elles peuvent être transmises aux partenaires nécessaires à la mise en œuvre des solutions conseillées et aux autorités compétentes.","Le Client peut exercer les droits relatifs à ses données personnelles selon les modalités indiquées dans le DER."]],["14. Droit de rétractation",["Lorsque la réglementation applicable le prévoit, notamment en cas de démarchage, de contrat conclu à distance ou hors établissement, le Client dispose d'un délai de rétractation de quatorze jours à compter de la signature.","Si le Client demande l'exécution de la Prestation avant l'expiration du délai et exerce ensuite son droit de rétractation, il peut être tenu de rémunérer le service effectivement fourni, au prorata des diligences réalisées, lorsque des honoraires sont dus."]],["15. Réclamations Client - Médiation",["Pour toute réclamation concernant la Prestation, le Client s'adresse préalablement au Conseiller sur support durable. Les modalités de traitement et les coordonnées du médiateur compétent figurent dans le DER."]],["16. Durée du contrat - entrée en vigueur - dénonciation",["La Lettre de Mission prend effet à sa date de signature et couvre l'audit patrimonial, la mise en œuvre des recommandations et le suivi des investissements.","La phase d'audit patrimonial est prévue pour une durée initiale d'un mois. La phase de mise en œuvre peut s'étendre sur une période de 12 à 24 mois selon la complexité des projets. La phase de suivi est renouvelable par périodes successives d'un an, sauf dénonciation dans les conditions prévues.","La stratégie patrimoniale fait l'objet d'une revue périodique, au moins annuelle ou lors de tout événement majeur porté à la connaissance du Conseiller, afin d'apprécier si les recommandations demeurent adéquates."]],["17. Convention sur la preuve",["Les Parties reconnaissent, conformément aux articles 1366 et 1367 du Code civil, que la présente Lettre de Mission est destinée à être signée électroniquement via Youtrust, service de signature électronique utilisé par le cabinet.","Le PDF généré par le CRM est mis à disposition du Conseiller pour dépôt manuel sur Youtrust. Le CRM n'effectue aucun envoi automatique vers le prestataire de signature.","La signature électronique apposée via Youtrust, accompagnée des éléments de preuve, dates et horodatages du prestataire, a entre les Parties la valeur probante reconnue par les textes applicables."]],["18. Droit applicable et tribunaux compétents",["La présente Lettre de Mission est régie par le droit français. Tout litige relatif à son exécution ou à son interprétation peut être soumis à médiation afin de rechercher une solution amiable avant tout recours judiciaire. À défaut, les juridictions compétentes sont déterminées conformément aux règles de droit applicables."]]];
 
-function legalParagraph(ctx: PdfContext, value: string, options: Json = {}) {
-  drawText(ctx, value, { size: options.size ?? 8.45, lineHeight: options.lineHeight ?? 10.8, after: options.after ?? 5, bold: options.bold ?? false, color: options.color ?? NAVY });
-}
-function legalSection(ctx: PdfContext, label: string, paragraphs: string[]) {
-  heading(ctx, label);
-  for (const paragraph of paragraphs) legalParagraph(ctx, paragraph);
-}
-function addressFromIdentity(identity: Json) {
-  const address = identity?.address ?? {};
-  return [address.numero_voie, address.complement, address.code_postal, address.ville, address.pays].filter(Boolean).join(' ') || 'Non renseignée';
-}
-function modelClientRows(snapshot: Json) {
+function originalClientLines(snapshot: Json) {
   return snapshot.investors.map((inv: Json) => {
     const identity = extractByCode(snapshot.sections, inv.id).identity ?? {};
-    return [clean(identity.civilite ?? inv.civilite, ''), investorName(inv), frDate(identity.date_naissance ?? inv.date_naissance), clean(identity.lieu_naissance ?? inv.lieu_naissance), addressFromIdentity(identity), clean(inv.email), clean(identity.mobile ?? inv.mobile)];
+    const civilite = clean(identity.civilite ?? inv.civilite, '').trim();
+    const name = investorName(inv);
+    const address = identity?.address ?? {};
+    const addressLine = [address.numero_voie, address.complement, address.code_postal, address.ville, address.pays].filter(Boolean).join(' ');
+    return {
+      heading: [civilite, name].filter(Boolean).join(' ').trim(),
+      details: [addressLine, inv.email, identity.mobile ?? inv.mobile].filter(Boolean).map((value) => clean(value)),
+    };
   });
 }
+function primaryClientCity(snapshot: Json) {
+  const primary = snapshot.investors[0];
+  if (!primary) return '____________________';
+  const identity = extractByCode(snapshot.sections, primary.id).identity ?? {};
+  return clean(identity?.address?.ville, '____________________');
+}
+function originalHeadingText(value: string) {
+  const t = clean(value).trim();
+  return t.length <= 90 && (
+    t === t.toUpperCase() ||
+    /^\d+(?:\.\d+)*[. ]/.test(t) ||
+    ['Statuts légaux et autorités de tutelle :','Votre Contact','Responsabilité civile professionnelle','Garanties financières','Politique en matière de durabilité','Rémunération IOBSP','Mise à jour des informations','Lieu, date et signature','Caractéristiques de la Prestation','Contexte de la Prestation'].includes(t)
+  );
+}
+function renderOriginalTable(ctx: PdfContext, rows: string[][]) {
+  if (!rows.length) return;
+  const normalized = rows.map((row) => row.map((value) => clean(value)));
+  const headers = normalized[0];
+  const body = normalized.slice(1);
+  drawTable(ctx, headers, body);
+}
+function replaceSignatureProvider(value: string, type: 'der' | 'mission') {
+  if (type !== 'mission') return value;
+  return value.replace(/Yousign/g, 'Youtrust').replace(/YOUSIGN/g, 'YOUTRUST');
+}
+async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock[], type: 'der' | 'mission', snapshot: Json) {
+  const clientLines = originalClientLines(snapshot);
+  const clientCity = primaryClientCity(snapshot);
+  let insertedMissionClients = false;
+
+  for (const block of blocks) {
+    if (block.k === 'table') {
+      renderOriginalTable(ctx, block.rows);
+      continue;
+    }
+
+    let value = replaceSignatureProvider(block.t, type);
+
+    if (type === 'der' && value === 'Mr') {
+      for (const client of clientLines) {
+        drawText(ctx, client.heading, { bold: true, size: 10.2, after: 2 });
+        if (client.details.length) drawText(ctx, client.details.join(' - '), { size: 8.4, after: 5 });
+      }
+      continue;
+    }
+    if (type === 'der' && /^Lieu\s*:$/.test(value)) {
+      value = `Lieu : ${clientCity}`;
+    }
+    if (type === 'der' && value === 'Lieu : Lieu : Allevard les bains') {
+      value = `Lieu : ${clientCity}     Lieu : Allevard les bains`;
+    }
+
+    if (type === 'mission' && !insertedMissionClients && value.includes('Ci-après le(s) « Client(s) »')) {
+      for (const client of clientLines) {
+        drawText(ctx, client.heading, { bold: true, size: 9.4, after: 1 });
+        if (client.details.length) drawText(ctx, client.details.join(' - '), { size: 8.1, after: 4 });
+      }
+      insertedMissionClients = true;
+    }
+    if (type === 'mission' && value === 'Fait à : Fait à : Allevard') {
+      value = `Fait à : ${clientCity}     Fait à : Allevard`;
+    }
+
+    if (type === 'der' && (value === 'DOCUMENT' || value === "D'ENTRÉE EN RELATION")) {
+      drawText(ctx, value, { bold: true, size: value === 'DOCUMENT' ? 16 : 18, color: NAVY, after: 4 });
+      continue;
+    }
+    if (type === 'mission' && (value === "Lettre de mission d'Audit Patrimonial Global" || value === 'et gestion de patrimoine')) {
+      drawText(ctx, value, { bold: true, size: value.startsWith('Lettre') ? 15 : 13.5, color: NAVY, after: 4 });
+      continue;
+    }
+
+    if (block.k === 'h' || originalHeadingText(value)) {
+      heading(ctx, value, /^\d+\.\d+/.test(value) ? 2 : 1);
+      continue;
+    }
+    if (block.k === 'bullet') {
+      drawText(ctx, `• ${value}`, { size: 8.35, lineHeight: 10.6, after: 4 });
+      continue;
+    }
+    drawText(ctx, value, { size: 8.35, lineHeight: 10.6, after: 4 });
+  }
+}
 async function buildDer(snapshot: Json) {
-  const ctx = await newPdfContext();
-  const dossier = snapshot.dossier ?? {};
-  title(ctx, "DOCUMENT D'ENTRÉE EN RELATION", 'CNCEF PATRIMOINE - Avril 2026 - Référence dossier : ' + clean(dossier.reference ?? dossier.libelle));
-  heading(ctx, 'Client(s)');
-  drawTable(ctx, ['Civilité','Nom et prénom','Naissance','Lieu','Adresse','E-mail','Téléphone'], modelClientRows(snapshot), [8,18,12,12,24,17,9]);
-  const primaryIdentity = extractByCode(snapshot.sections, snapshot.investors[0]?.id ?? '').identity ?? {};
-  legalParagraph(ctx, 'Lieu : ' + clean(primaryIdentity?.address?.ville, 'Allevard'), { bold: true });
-  legalParagraph(ctx, 'Objet : Entrée en relation', { bold: true });
-  for (const [label, paragraphs] of DER_MODEL_SECTIONS) legalSection(ctx, label, paragraphs);
-  legalSection(ctx, 'Validation et signatures', [
-    'Le client reconnaît avoir pris connaissance du présent document et en conserver un exemplaire.',
-    'Le présent PDF est généré par le CRM pour dépôt manuel sur Youtrust. Le CRM n’effectue aucun envoi automatique vers le prestataire de signature. Les signatures, dates et horodatages seront apposés dans le processus Youtrust conformément au règlement eIDAS (UE) 910/2014.'
-  ]);
-  signatureBoxes(ctx, snapshot.investors);
+  const ctx = await newPdfContext('der');
+  const blocks = await loadDerModel();
+  await renderOriginalModel(ctx, blocks, 'der', snapshot);
   footer(ctx);
   return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
 async function buildMission(snapshot: Json) {
-  const ctx = await newPdfContext();
-  const dossier = snapshot.dossier ?? {};
-  title(ctx, "LETTRE DE MISSION D'AUDIT PATRIMONIAL GLOBAL ET GESTION DE PATRIMOINE", 'Référence dossier : ' + clean(dossier.reference ?? dossier.libelle));
-  heading(ctx, 'ENTRE LES SOUSSIGNÉS');
-  drawTable(ctx, ['Civilité','Nom et prénom','Naissance','Lieu','Adresse','E-mail','Téléphone'], modelClientRows(snapshot), [8,18,12,12,24,17,9]);
-  legalParagraph(ctx, "Ci-après le(s) « Client(s) », d'une part.", { bold: true });
-  legalParagraph(ctx, "Monsieur Eric Bellaiche, entreprise individuelle, 33 Avenue de Savoie, 38580 Allevard, RCS Grenoble n° 441861135, membre n° D016571 de la CNCEF Patrimoine, association agréée par l'Autorité des Marchés Financiers, ORIAS n° 13001580, code NAF 6619B, ci-après le « Conseiller », d'autre part.");
-  legalParagraph(ctx, "Ci-après désignés ensemble les « Parties ».");
-  for (const [label, paragraphs] of MISSION_MODEL_SECTIONS) legalSection(ctx, label, paragraphs);
-  const primaryIdentity = extractByCode(snapshot.sections, snapshot.investors[0]?.id ?? '').identity ?? {};
-  legalParagraph(ctx, 'Fait à : ' + clean(primaryIdentity?.address?.ville, 'Allevard'), { bold: true });
-  legalParagraph(ctx, 'Date : ____________________', { bold: true });
-  signatureBoxes(ctx, snapshot.investors);
-  legalSection(ctx, 'ANNEXE - FORMULAIRE DE RÉTRACTATION', [
-    'Veuillez compléter et renvoyer le présent formulaire uniquement si vous souhaitez vous rétracter du contrat.',
-    'À l’attention de : Eric Bellaiche, RCS Grenoble n° 441861135, 33 Avenue de Savoie, 38580 Allevard - 06 52 56 56 54.',
-    'Je/nous vous notifie/notifions par la présente ma/notre rétractation du contrat portant sur la prestation suivante : Conseil en investissements financiers / mission patrimoniale.',
-    'Référence du contrat / lettre de mission : ____________________. Date de conclusion : ____________________. Nom du/des Client(s) : ____________________. Adresse du/des Client(s) : ____________________.',
-    'J’exerce mon droit de rétractation dans le délai légal applicable, sans avoir à motiver ma décision ni à supporter de pénalités, dans les conditions prévues par les textes.',
-    'Date : ____________________. Signature du/des Client(s), uniquement en cas de notification sur papier : ____________________.'
-  ]);
+  const ctx = await newPdfContext('mission');
+  const blocks = await loadMissionModel();
+  await renderOriginalModel(ctx, blocks, 'mission', snapshot);
   footer(ctx);
   return new Uint8Array(await ctx.pdf.save({ useObjectStreams: false }));
 }
+
 async function loadSnapshot(client: any, dossierId: string) {
   const [dossierRes, investorRes, sectionRes, sessionRes] = await Promise.all([client.from('dossiers').select('*').eq('id', dossierId).single(), client.from('dossier_investisseurs').select('*,investisseurs(*)').eq('dossier_id', dossierId).order('role_dossier'), client.from('recueil_sections').select('*').eq('dossier_id', dossierId), client.from('questionnaire_sessions').select('*').eq('dossier_id', dossierId)]); for (const r of [dossierRes, investorRes, sectionRes, sessionRes]) if (r.error) throw r.error; const links = investorRes.data ?? []; const investors = links.map((row: Json) => ({ ...(Array.isArray(row.investisseurs) ? row.investisseurs[0] : row.investisseurs), ...row, id: row.investisseur_id })); const sessions = sessionRes.data ?? []; const templateIds = [...new Set(sessions.map((s: Json) => s.template_id).filter(Boolean))]; let templates: Json[] = [], questions: Json[] = [], answers: Json[] = [], options: Json[] = [], qpiResults: Json[] = [], esgPreferences: Json[] = [], qpiProductExperience: Json[] = [], qpiExperienceDetails: Json[] = [];
   if (templateIds.length) { const templateRes = await client.from('questionnaire_templates').select('*').in('id', templateIds); if (templateRes.error) throw templateRes.error; templates = templateRes.data ?? []; const questionRes = await client.from('questionnaire_questions').select('*').in('template_id', templateIds); if (questionRes.error) throw questionRes.error; questions = questionRes.data ?? []; const questionIds = questions.map((q: Json) => q.id); if (questionIds.length) { const optionRes = await client.from('questionnaire_options').select('*').in('question_id', questionIds); if (optionRes.error) throw optionRes.error; options = optionRes.data ?? []; } }
