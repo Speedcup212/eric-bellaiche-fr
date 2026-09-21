@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.29-MISSION-SANS-ENTETE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.30-MISSION-PRODUITS-PAGE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -1038,6 +1038,7 @@ async function renderOriginalModel(ctx: PdfContext, blocks: RegulatoryModelBlock
     }
 
     if (type === 'mission' && value === 'Les différents types de produits susceptibles d’être proposés :') {
+      if (ctx.y < A4.height - 100) addPage(ctx);
       inMissionProductList = true;
     }
     if (type === 'mission' && inMissionProductList && value.startsWith('Les stratégies d’investissement')) {
