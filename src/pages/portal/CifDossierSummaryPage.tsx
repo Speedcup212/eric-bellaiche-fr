@@ -504,37 +504,30 @@ export default function CifDossierSummaryPage() {
     setSourceReviewBusyId(doc.id);
     setSourceAnalysisMessage('');
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const previous = doc.metadata ?? {};
-      const fieldsApplied = Number(previous.fields_applied ?? 0);
-      const reviewDecision = decision === 'rejected'
-        ? 'rejected'
-        : target
-          ? 'validated_linked'
-          : fieldsApplied > 0
-            ? 'validated_after_control'
-            : 'validated_without_integration';
-      const metadata = {
-        ...previous,
-        manual_review: {
-          decision: reviewDecision,
-          note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
-          target: target ? { kind:target.kind, key:target.key, label:target.label } : null,
-          fields_applied: fieldsApplied,
-          reviewed_at: new Date().toISOString(),
-          reviewer_id: auth.user?.id ?? null,
-        },
-      };
-      const { error } = await supabase
-        .from('documents_sources')
-        .update({
-          statut_analyse: decision,
-          metadata,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', doc.id);
+      const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0);
+      const { data, error } = await supabase.rpc('review_source_document', {
+        p_document_id: doc.id,
+        p_decision: decision,
+        p_note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
+        p_target_kind: target?.kind ?? null,
+        p_target_key: target?.key ?? null,
+        p_target_label: target?.label ?? null,
+      });
       if (error) throw error;
+      if (!data || (typeof data === 'object' && 'ok' in data && data.ok !== true)) {
+        throw new Error('La validation du document n’a pas été enregistrée.');
+      }
       setReviewingSourceDocumentId(null);
+      setSourceReviewTargets((current) => {
+        const next = { ...current };
+        delete next[doc.id];
+        return next;
+      });
+      setSourceReviewNotes((current) => {
+        const next = { ...current };
+        delete next[doc.id];
+        return next;
+      });
       setSourceAnalysisMessage(decision === 'validated'
         ? target
           ? 'Pièce validée et rattachée à « ' + target.label + ' ».'
