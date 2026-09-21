@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.28-MISSION-SIGNATURE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.29-MISSION-SANS-ENTETE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -161,18 +161,7 @@ function drawTemplateHeader(ctx: PdfContext) {
     return;
   }
   if (ctx.templateMode === 'mission') {
-    const lines = [
-      'Eric Bellaiche · CIF D016571 · membre CNCEF Patrimoine agréée AMF · ORIAS 13001580',
-      'RCS Grenoble 441861135 · 33 avenue de Savoie, 38580 Allevard · 06 52 56 56 54',
-      'Toute modification pouvant affecter significativement la mission de conseil doit être portée à la connaissance du Conseiller.',
-    ];
-    let y = A4.height - 23;
-    for (let i = 0; i < lines.length; i++) {
-      ctx.page.drawText(clean(lines[i]), { x: REG_MARGIN, y, size: i === 0 ? 6.3 : 5.9, font: i === 0 ? ctx.bold : ctx.regular, color: i === 0 ? NAVY : MUTED });
-      y -= 8;
-    }
-    ctx.page.drawLine({ start: { x: REG_MARGIN, y: A4.height - 49 }, end: { x: A4.width - REG_MARGIN, y: A4.height - 49 }, thickness: 0.45, color: BORDER });
-    ctx.y = A4.height - 67;
+    ctx.y = A4.height - MARGIN;
   }
 }
 async function newPdfContext(templateMode?: 'der' | 'mission') {
