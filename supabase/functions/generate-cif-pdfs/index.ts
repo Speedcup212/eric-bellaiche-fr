@@ -9,7 +9,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.32-MISSION-FINAL';
+const PDF_VERSION = '2026-MAITRE-PDF-2.33-MISSION-SIGNATURE';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -943,7 +943,7 @@ function drawSignaturePanel(ctx: PdfContext, snapshot: Json, type: 'der' | 'miss
   const city = primaryClientCity(snapshot);
   const clients = originalClientLines(snapshot);
   const titleText = type === 'der' ? 'Lieu, date et signature' : 'Signatures';
-  const panelHeight = 158;
+  const panelHeight = type === 'mission' ? 220 : 158;
 
   if (ctx.y - panelHeight - 48 < 54) addPage(ctx);
   drawRegulatoryHeading(ctx, titleText, 1, type);
@@ -1022,18 +1022,19 @@ function drawSignaturePanel(ctx: PdfContext, snapshot: Json, type: 'der' | 'miss
       color: BODY,
     });
 
+    const signatureBoxHeight = type === 'mission' ? 96 : 38;
     ctx.page.drawRectangle({
       x: x + 9,
       y: top - panelHeight + 18,
       width: colWidth - 18,
-      height: 38,
+      height: signatureBoxHeight,
       borderWidth: 0.7,
       borderColor: column.color,
       color: WHITE,
     });
-    ctx.page.drawText('Signature Youtrust', {
+    ctx.page.drawText(type === 'mission' ? 'Signature' : 'Signature Youtrust', {
       x: x + 14,
-      y: top - panelHeight + 34,
+      y: top - panelHeight + 31,
       size: 7.6,
       font: ctx.bold,
       color: column.color,
