@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
 ]);
 
-const PDF_VERSION = '2026-MAITRE-PDF-2.18-LISIBILITE';
+const PDF_VERSION = '2026-MAITRE-PDF-2.19-ADRESSE-FOYER';
 const BUCKET = 'regulatory-docs';
 const A4 = { width: 595.28, height: 841.89 };
 const MARGIN = 46;
@@ -574,12 +574,21 @@ async function buildQuestionnaire(snapshot: Json, type: 'QPI' | 'ESG') {
 
 
 function originalClientLines(snapshot: Json) {
+  const primaryInvestor = snapshot.investors[0];
+  const primaryMap = primaryInvestor ? extractByCode(snapshot.sections, primaryInvestor.id) : {};
+  const primaryAddress = primaryMap.identity?.address ?? {};
+  const taxAddress = clean(primaryMap.tax?.adresse_fiscale, '');
   return snapshot.investors.map((inv: Json) => {
-    const identity = extractByCode(snapshot.sections, inv.id).identity ?? {};
+    const sectionMap = extractByCode(snapshot.sections, inv.id);
+    const identity = sectionMap.identity ?? {};
     const civilite = clean(identity.civilite ?? inv.civilite, '').trim();
     const name = investorName(inv);
     const address = identity?.address ?? {};
-    const addressLine = [address.numero_voie, address.complement, address.code_postal, address.ville, address.pays].filter(Boolean).join(' ');
+    let addressLine = [address.numero_voie, address.complement, address.code_postal, address.ville, address.pays].filter(Boolean).join(' ');
+    if (!addressLine) {
+      const ownTaxAddress = clean(sectionMap.tax?.adresse_fiscale, '');
+      addressLine = ownTaxAddress || taxAddress || [primaryAddress.numero_voie, primaryAddress.complement, primaryAddress.code_postal, primaryAddress.ville, primaryAddress.pays].filter(Boolean).join(' ');
+    }
     return {
       heading: [civilite, name].filter(Boolean).join(' ').trim(),
       details: [addressLine, inv.email, identity.mobile ?? inv.mobile].filter(Boolean).map((value) => clean(value)),
