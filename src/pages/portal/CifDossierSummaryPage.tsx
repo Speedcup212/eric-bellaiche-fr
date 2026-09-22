@@ -986,8 +986,6 @@ export default function CifDossierSummaryPage() {
     return () => { active = false; window.clearInterval(timer); };
   }, [activeTab, dossierId]);
 
-  const auditReadyForPdf = auditDraft.statut === 'generated' || auditDraft.statut === 'validated';
-
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
     const recueilData = sections.map((section) => `${section.investisseur_id}:${section.section_code}:${JSON.stringify(section.payload ?? {})}`).sort().join('|');
