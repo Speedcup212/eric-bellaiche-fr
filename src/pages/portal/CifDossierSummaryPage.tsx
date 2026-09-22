@@ -153,8 +153,8 @@ const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: 'clients', label: 'Clients' },
   { id: 'patrimoine', label: 'Patrimoine' },
   { id: 'fiscalite', label: 'Fiscalité' },
-  { id: 'audit', label: 'Audit' },
   { id: 'documents', label: 'Documents' },
+  { id: 'audit', label: 'Audit' },
   { id: 'conformite', label: 'Conformité' },
 ];
 
