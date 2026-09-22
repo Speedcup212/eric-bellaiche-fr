@@ -1143,7 +1143,7 @@ export default function CifDossierSummaryPage() {
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {(() => {
             const householdRecueil = generatedDocuments.find((item) => item.type === 'recueil' && !item.investisseur_id && item.signed_url);
-            const individualRecueil = generatedDocuments.find((item) => item.type === 'recueil' && item.investisseur_id === investors[0]?.id && item.signed_url);
+            const individualRecueil = generatedDocuments.find((item) => item.type === 'recueil' && item.investisseur_id === investors[0]?.investisseur_id && item.signed_url);
             const recueil = householdRecueil || individualRecueil || generatedDocuments.find((item) => item.type === 'recueil' && item.signed_url);
             return <div className="rounded-xl border border-blue-500/30 bg-[#102A4C] p-4">
               <p className="text-sm font-bold text-blue-100">Recueil d’informations</p>
@@ -1161,7 +1161,7 @@ export default function CifDossierSummaryPage() {
               <p className="mt-1 text-xs text-slate-300">{docs.length ? `${docs.length} PDF${docs.length > 1 ? 's' : ''} disponible${docs.length > 1 ? 's' : ''}` : 'PDF non disponible'}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {docs.map((doc, index) => {
-                  const inv = investors.find((item) => item.id === doc.investisseur_id);
+                  const inv = investors.find((item) => item.investisseur_id === doc.investisseur_id);
                   const name = [inv?.investisseurs?.prenom, inv?.investisseurs?.nom].filter(Boolean).join(' ').trim();
                   return <a key={doc.document_id} href={doc.signed_url!} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white ${button}`}><Download className="h-3.5 w-3.5" /> {name || (index ? `Identifiant ${index + 1}` : 'Voir le PDF')}</a>;
                 })}
