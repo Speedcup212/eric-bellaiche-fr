@@ -409,9 +409,6 @@ export default function CifDossierSummaryPage() {
   const [auditMasterPrompt, setAuditMasterPrompt] = useState('');
   const [auditPromptVersion, setAuditPromptVersion] = useState('');
   const [auditPromptLoadError, setAuditPromptLoadError] = useState('');
-  const [generatingAuditAi, setGeneratingAuditAi] = useState(false);
-  const [generatingAuditPdf, setGeneratingAuditPdf] = useState(false);
-  const [auditPdfUrl, setAuditPdfUrl] = useState<string | null>(null);
   const [auditPdfError, setAuditPdfError] = useState('');
   const [uploadingAuditPdf, setUploadingAuditPdf] = useState(false);
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
@@ -970,50 +967,6 @@ export default function CifDossierSummaryPage() {
     window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
   };
 
-  const generateAuditInChatGPT = async () => {
-    if (!dossierId) return;
-    if (!auditMasterPrompt.trim()) {
-      setAuditMessage(auditPromptLoadError || 'Le prompt maître n’est pas chargé. Réessaie dans quelques secondes.');
-      return;
-    }
-
-    setGeneratingAuditAi(true);
-    setAuditMessage('Génération de l’audit en cours dans le CRM. L’IA analyse le dossier et peut effectuer les recherches web nécessaires.');
-
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error('Session cabinet expirée. Reconnecte-toi au CRM.');
-
-      const response = await fetch('/api/generate-patrimonial-audit', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          dossierId,
-          prompt: auditFullPrompt,
-          promptVersion: auditPromptVersion || '1.0',
-        }),
-      });
-
-      const payload = await response.json() as { error?: string; message?: string; audit?: AuditRecommendationRow; model?: string };
-      if (!response.ok) throw new Error(payload.error || 'Génération automatique de l’audit impossible.');
-      if (!payload.audit) throw new Error('Audit généré mais réponse CRM incomplète.');
-
-      setAuditRecommendation(payload.audit);
-      setAuditDraft(auditDraftFromRow(payload.audit));
-      setAuditPdfUrl(null);
-      setAuditMessage(`${payload.message || 'Audit généré et enregistré dans le CRM.'}${payload.model ? ` Modèle : ${payload.model}.` : ''}`);
-    } catch (error) {
-      setAuditMessage(messageFromError(error));
-    } finally {
-      setGeneratingAuditAi(false);
-    }
-  };
-
   useEffect(() => {
     if (!dossierId || activeTab !== 'audit') return;
     let active = true;
@@ -1034,69 +987,6 @@ export default function CifDossierSummaryPage() {
   }, [activeTab, dossierId]);
 
   const auditReadyForPdf = auditDraft.statut === 'generated' || auditDraft.statut === 'validated';
-
-  const generateAuditPdf = async () => {
-    if (!dossierId) return;
-    if (!auditReadyForPdf) {
-      setAuditPdfError('Génère d’abord l’audit avec l’IA. Le PDF ne doit pas être construit à partir d’un brouillon.');
-      return;
-    }
-    setGeneratingAuditPdf(true);
-    setAuditPdfError('');
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-cif-audit', { body: { dossier_id: dossierId } });
-      if (error) throw error;
-      if (!data?.signed_url) throw new Error(data?.error || 'Génération de l’audit impossible.');
-      setAuditPdfUrl(String(data.signed_url));
-    } catch (error) {
-      let detail = messageFromError(error);
-      const functionError = error as { context?: Response };
-      if (functionError.context) {
-        try {
-          const payload = await functionError.context.clone().json() as { error?: string };
-          if (payload?.error) detail = payload.error;
-        } catch {
-          try {
-            const text = await functionError.context.clone().text();
-            if (text.trim()) detail = text.trim();
-          } catch {
-            // Keep the normalized client-side error when the function response cannot be decoded.
-          }
-        }
-      }
-      setAuditPdfError(detail);
-    } finally {
-      setGeneratingAuditPdf(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!dossierId) return;
-    let active = true;
-    const loadAuditPdf = async () => {
-      const { data, error } = await supabase
-        .from('documents_reglementaires')
-        .select('storage_bucket,storage_path_pdf,date_generation,metadata')
-        .eq('dossier_id', dossierId)
-        .eq('type_document', 'audit')
-        .eq('statut', 'generated')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (error || !active) return;
-      const usable = (data ?? []).find((row) => {
-        const status = String((row.metadata as Record<string,unknown> | null)?.recommendation_status ?? '');
-        return status === 'generated' || status === 'validated';
-      });
-      if (!usable?.storage_path_pdf) {
-        setAuditPdfUrl(null);
-        return;
-      }
-      const { data: signed } = await supabase.storage.from(usable.storage_bucket || 'regulatory-docs').createSignedUrl(usable.storage_path_pdf, 3600);
-      if (active && signed?.signedUrl) setAuditPdfUrl(signed.signedUrl);
-    };
-    void loadAuditPdf();
-    return () => { active = false; };
-  }, [dossierId]);
 
   const documentGenerationKey = useMemo(() => {
     const readiness = investorDocumentStates.map((state) => `${state.investor.investisseur_id}:${state.readyTypes.join(',')}`).join('|');
