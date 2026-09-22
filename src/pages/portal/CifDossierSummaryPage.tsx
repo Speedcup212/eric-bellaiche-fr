@@ -1134,6 +1134,44 @@ export default function CifDossierSummaryPage() {
 
       {auditMessage && <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">{auditMessage}</div>}
 
+      <div className="mt-6 rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">Documents de travail</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">Pièces utiles pour préparer l’audit</h3>
+          <p className="mt-1 text-sm text-slate-400">Accès direct au recueil d’informations, au profil investisseur et aux préférences ESG sans quitter l’onglet Audit.</p>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {(() => {
+            const householdRecueil = generatedDocuments.find((item) => item.type === 'recueil' && !item.investisseur_id && item.signed_url);
+            const individualRecueil = generatedDocuments.find((item) => item.type === 'recueil' && item.investisseur_id === investors[0]?.id && item.signed_url);
+            const recueil = householdRecueil || individualRecueil || generatedDocuments.find((item) => item.type === 'recueil' && item.signed_url);
+            return <div className="rounded-xl border border-blue-500/30 bg-[#102A4C] p-4">
+              <p className="text-sm font-bold text-blue-100">Recueil d’informations</p>
+              <p className="mt-1 text-xs text-slate-300">{recueil?.signed_url ? 'PDF disponible' : 'PDF non disponible'}</p>
+              <div className="mt-3">{recueil?.signed_url ? <a href={recueil.signed_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500"><Download className="h-3.5 w-3.5" /> Voir le PDF</a> : <button type="button" onClick={() => setActiveTab('documents')} className="rounded-lg border border-blue-400/25 px-3 py-2 text-xs font-bold text-blue-100">Voir Documents</button>}</div>
+            </div>;
+          })()}
+          {(['qpi','esg'] as const).map((type) => {
+            const label = type === 'qpi' ? 'Profil investisseur' : 'Préférences ESG';
+            const theme = type === 'qpi' ? 'border-indigo-500/30 bg-[#24274F]' : 'border-teal-500/30 bg-[#103A35]';
+            const button = type === 'qpi' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-teal-600 hover:bg-teal-500';
+            const docs = generatedDocuments.filter((item) => item.type === type && item.signed_url);
+            return <div key={type} className={`rounded-xl border p-4 ${theme}`}>
+              <p className="text-sm font-bold text-white">{label}</p>
+              <p className="mt-1 text-xs text-slate-300">{docs.length ? `${docs.length} PDF${docs.length > 1 ? 's' : ''} disponible${docs.length > 1 ? 's' : ''}` : 'PDF non disponible'}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {docs.map((doc, index) => {
+                  const inv = investors.find((item) => item.id === doc.investisseur_id);
+                  const name = [inv?.investisseurs?.prenom, inv?.investisseurs?.nom].filter(Boolean).join(' ').trim();
+                  return <a key={doc.document_id} href={doc.signed_url!} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white ${button}`}><Download className="h-3.5 w-3.5" /> {name || (index ? `Identifiant ${index + 1}` : 'Voir le PDF')}</a>;
+                })}
+                {!docs.length && <button type="button" onClick={() => setActiveTab('documents')} className="rounded-lg border border-white/20 px-3 py-2 text-xs font-bold text-white">Voir Documents</button>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>
+
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.8fr)]">
         <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
