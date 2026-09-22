@@ -1239,26 +1239,35 @@ export default function CifDossierSummaryPage() {
         <div className="rounded-2xl bg-cyan-500/15 p-3"><ShieldCheck className="h-5 w-5 text-cyan-200" /></div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">Audit patrimonial</p>
-          <h2 className="mt-1 text-xl font-semibold text-white">CRM → OpenAI → Audit → PDF</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-400">Le CRM assemble le prompt maître, le dossier et ton complément, puis génère et enregistre l’audit automatiquement.</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">Préparer l’audit et archiver le PDF final</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-400">Relis le prompt standard du cabinet, ajoute si nécessaire une consigne propre au dossier, puis travaille l’audit dans ChatGPT.</p>
         </div>
       </div>
 
       {auditMessage && <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">{auditMessage}</div>}
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-3">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.8fr)]">
         <div className="rounded-2xl border border-[#25405F] bg-[#0B1A2F] p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Discussion</p>
-          <h3 className="mt-1 text-lg font-semibold text-white">Travailler le dossier avec ChatGPT</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Le prompt maître du cabinet est identique pour tous les dossiers. Le CRM ajoute automatiquement le contexte du client et, si tu le souhaites, une consigne spécifique.</p>
-          <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-950/20 px-3 py-2 text-xs leading-5 text-amber-100">ChatGPT n’autorise pas un site externe à écrire automatiquement dans sa zone de saisie. Le bouton copie donc le prompt complet puis ouvre ChatGPT : il reste seulement à faire <strong>Ctrl+V</strong> puis <strong>Entrée</strong>.</p>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className={`rounded-full px-2.5 py-1 font-bold ${auditMasterPrompt ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
-              {auditMasterPrompt ? `Prompt maître v${auditPromptVersion || '1.0'} chargé` : 'Chargement du prompt maître…'}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">1 · Préparation</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Prompt d’audit patrimonial</h3>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${auditMasterPrompt ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
+              {auditMasterPrompt ? `Prompt maître v${auditPromptVersion || '1.0'}` : 'Chargement…'}
             </span>
-            {auditPromptLoadError && <span className="text-rose-300">{auditPromptLoadError}</span>}
           </div>
-          <label className="mt-4 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Complément facultatif pour ce dossier</label>
+          {auditPromptLoadError && <p className="mt-3 text-sm text-rose-300">{auditPromptLoadError}</p>}
+
+          <label className="mt-5 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Prompt maître du cabinet</label>
+          <textarea
+            value={auditMasterPrompt}
+            readOnly
+            rows={18}
+            className="mt-2 w-full resize-y rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 font-mono text-xs leading-5 text-slate-200 outline-none"
+          />
+
+          <label className="mt-5 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Complément facultatif — ajouté à la fin du prompt</label>
           <textarea
             value={auditChatComplement}
             onChange={(event) => {
@@ -1266,45 +1275,30 @@ export default function CifDossierSummaryPage() {
               setAuditChatComplement(value);
               if (dossierId) window.localStorage.setItem(`audit-complement:${dossierId}`, value);
             }}
-            rows={6}
-            placeholder="Ex. Challenge la réserve de sécurité, compare la conservation du locatif avec une vente, ou donne priorité à la liquidité. Laisse vide si aucune consigne spécifique."
+            rows={5}
+            placeholder="Ex. Étudier l’hypothèse de vente d’un appartement et comparer avec une exploitation Booking/Airbnb selon la réglementation locale."
             className="mt-2 w-full rounded-xl border border-[#315173] bg-[#071425] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
           />
-          <div className="mt-3 flex flex-wrap gap-2">
+          <p className="mt-2 text-xs text-slate-500">Le contexte du dossier CRM et ce complément sont ajoutés automatiquement au prompt copié.</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <button disabled={!auditMasterPrompt} type="button" onClick={() => void openAuditInChatGPT()} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">Copier + ouvrir ChatGPT</button>
             <button disabled={!auditMasterPrompt} type="button" onClick={async () => { try { await navigator.clipboard.writeText(auditFullPrompt); setAuditMessage('Prompt maître + contexte dossier + complément copiés.'); } catch { setAuditMessage('Impossible de copier automatiquement le prompt complet.'); } }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">Copier le prompt complet</button>
           </div>
         </div>
 
-        <div className={'rounded-2xl border p-5 ' + (auditReadyForPdf ? 'border-blue-400/35 bg-blue-950/25' : 'border-amber-400/30 bg-amber-950/20')}>
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className={'text-[10px] font-bold uppercase tracking-[0.12em] ' + (auditReadyForPdf ? 'text-blue-300' : 'text-amber-300')}>2 · Audit</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Générer l’audit</h3>
-            </div>
-            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditDraft.statut === 'validated' ? 'bg-emerald-400/15 text-emerald-200' : auditDraft.statut === 'generated' ? 'bg-blue-400/15 text-blue-200' : 'bg-amber-400/15 text-amber-200')}>
-              {auditDraft.statut === 'validated' ? 'Validé' : auditDraft.statut === 'generated' ? 'Audit généré' : 'À générer'}
-            </span>
-          </div>
-          <p className="mt-3 text-sm leading-6 text-slate-400">OpenAI analyse directement le prompt maître, toutes les données CRM et ton complément. Les recherches web prévues par le standard sont déclenchées si le dossier les nécessite.</p>
-          {auditRecommendation?.updated_at && <p className="mt-3 text-xs text-slate-500">Dernière mise à jour : {new Date(auditRecommendation.updated_at).toLocaleString('fr-FR')}</p>}
-          <button disabled={generatingAuditAi || !auditMasterPrompt} type="button" onClick={() => void generateAuditInChatGPT()} className={'mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ' + (auditReadyForPdf ? 'border border-blue-400/30 bg-blue-500/10 text-blue-100 hover:bg-blue-500/20' : 'bg-amber-400 text-slate-950 hover:bg-amber-300')}>
-            {generatingAuditAi && <Loader2 className="h-4 w-4 animate-spin" />}
-            {generatingAuditAi ? 'Analyse IA en cours…' : auditReadyForPdf ? 'Régénérer l’audit automatiquement' : 'Générer l’audit automatiquement'}
-          </button>
-          <p className="mt-3 text-xs leading-5 text-slate-500">Aucun onglet ChatGPT n’est nécessaire : le résultat est écrit directement dans le dossier CRM avec le statut « Audit généré ».</p>
-        </div>
-
-        <div className={'rounded-2xl border p-5 ' + (auditReadyForPdf ? 'border-emerald-500/25 bg-emerald-950/20' : 'border-slate-600/40 bg-slate-900/30')}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">3 · Document</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">2 · Document final</p>
               <h3 className="mt-1 text-lg font-semibold text-white">Audit patrimonial PDF</h3>
             </div>
-            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditPdfUrl ? 'bg-emerald-400/15 text-emerald-200' : auditReadyForPdf ? 'bg-blue-400/15 text-blue-200' : 'bg-slate-700/60 text-slate-300')}>{auditPdfUrl ? 'PDF généré' : auditReadyForPdf ? 'Prêt pour PDF' : 'Audit requis'}</span>
+            <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditRecommendation?.uploaded_pdf_path ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700/60 text-slate-300')}>
+              {auditRecommendation?.uploaded_pdf_path ? 'PDF archivé' : 'À importer'}
+            </span>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Importe ici l’audit PDF final créé dans ChatGPT. Il sera conservé dans le dossier client. La génération automatique par API reste facultative.</p>
-          {auditRecommendation?.uploaded_pdf_name && <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-3 py-3 text-xs text-emerald-100"><span className="font-bold">PDF enregistré :</span> {auditRecommendation.uploaded_pdf_name}</div>}
+          <p className="mt-3 text-sm leading-6 text-slate-400">Une fois l’audit finalisé dans ChatGPT, importe ici le PDF définitif pour le conserver dans le dossier client.</p>
+          {auditRecommendation?.uploaded_pdf_name && <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-950/30 px-3 py-3 text-xs text-emerald-100"><span className="font-bold">PDF enregistré :</span> {auditRecommendation.uploaded_pdf_name}{auditRecommendation.uploaded_pdf_at ? <span className="mt-1 block text-emerald-200/70">{new Date(auditRecommendation.uploaded_pdf_at).toLocaleString('fr-FR')}</span> : null}</div>}
           {auditPdfError && <p className="mt-3 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2 text-xs font-semibold text-rose-200">{auditPdfError}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
             <label className={"inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 " + (uploadingAuditPdf ? "pointer-events-none opacity-50" : "")}>
@@ -1313,7 +1307,6 @@ export default function CifDossierSummaryPage() {
               <input type="file" accept="application/pdf,.pdf" className="hidden" disabled={uploadingAuditPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAuditPdf(file); event.currentTarget.value = ''; }} />
             </label>
             {auditRecommendation?.uploaded_pdf_path && <button type="button" onClick={() => void openUploadedAuditPdf()} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15">Voir le PDF</button>}
-            {auditReadyForPdf && <button disabled={generatingAuditPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:opacity-50">{generatingAuditPdf ? 'Génération…' : 'Générer depuis le CRM'}</button>}
           </div>
         </div>
       </div>
