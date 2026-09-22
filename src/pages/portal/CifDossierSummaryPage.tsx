@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Download, FileCheck2, FileText, Home, Loader2, ShieldCheck, UserRound } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Download, FileCheck2, FileText, Home, Loader2, ShieldCheck, Upload, UserRound } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { evaluateConsistency, type ConsistencyIssue, type ConsistencySnapshot } from '../../portal/consistencyEngine';
@@ -44,6 +44,10 @@ type AuditRecommendationRow = {
   validated_at:string|null;
   created_at:string;
   updated_at:string;
+  uploaded_pdf_bucket?:string|null;
+  uploaded_pdf_path?:string|null;
+  uploaded_pdf_name?:string|null;
+  uploaded_pdf_at?:string|null;
 };
 type AuditDraft = {
   statut:'draft'|'generated'|'validated';
@@ -409,6 +413,7 @@ export default function CifDossierSummaryPage() {
   const [generatingAuditPdf, setGeneratingAuditPdf] = useState(false);
   const [auditPdfUrl, setAuditPdfUrl] = useState<string | null>(null);
   const [auditPdfError, setAuditPdfError] = useState('');
+  const [uploadingAuditPdf, setUploadingAuditPdf] = useState(false);
   const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
@@ -426,7 +431,7 @@ export default function CifDossierSummaryPage() {
     ]); for (const result of results) if (result.error) throw result.error;
     const auditRes = await supabase
       .from('audit_recommendations')
-      .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at')
+      .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at,uploaded_pdf_bucket,uploaded_pdf_path,uploaded_pdf_name,uploaded_pdf_at')
       .eq('dossier_id', dossierId)
       .maybeSingle();
     if (auditRes.error) throw auditRes.error;
@@ -495,6 +500,61 @@ export default function CifDossierSummaryPage() {
     } finally {
       setAnalyzingSourceIds((current) => { const next = new Set(current); next.delete(doc.id); return next; });
     }
+  };
+
+  const uploadAuditPdf = async (file: File) => {
+    if (!dossierId) return;
+    setAuditPdfError('');
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setAuditPdfError('Seuls les fichiers PDF sont acceptés.');
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setAuditPdfError('Le PDF dépasse 25 Mo.');
+      return;
+    }
+    setUploadingAuditPdf(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `${dossierId}/audit/${Date.now()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('regulatory-docs').upload(storagePath, file, {
+        contentType: 'application/pdf',
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+
+      const now = new Date().toISOString();
+      const payload = {
+        dossier_id: dossierId,
+        statut: 'validated' as const,
+        uploaded_pdf_bucket: 'regulatory-docs',
+        uploaded_pdf_path: storagePath,
+        uploaded_pdf_name: file.name,
+        uploaded_pdf_at: now,
+        updated_at: now,
+      };
+      const { data, error } = await supabase
+        .from('audit_recommendations')
+        .upsert(payload, { onConflict: 'dossier_id' })
+        .select('id,dossier_id,statut,diagnostic,projet_a_preserver,reserve_securite,epargne_a_arbitrer,allocation,supports,sequencing,fiscal_notes,protection_notes,controls,validated_at,created_at,updated_at,uploaded_pdf_bucket,uploaded_pdf_path,uploaded_pdf_name,uploaded_pdf_at')
+        .single();
+      if (error) throw error;
+      setAuditRecommendation(data as unknown as AuditRecommendationRow);
+      setAuditMessage('Audit PDF importé et enregistré dans le dossier.');
+    } catch (error) {
+      setAuditPdfError(messageFromError(error));
+    } finally {
+      setUploadingAuditPdf(false);
+    }
+  };
+
+  const openUploadedAuditPdf = async () => {
+    const bucket = auditRecommendation?.uploaded_pdf_bucket;
+    const path = auditRecommendation?.uploaded_pdf_path;
+    if (!bucket || !path) return;
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 120);
+    if (error) { setAuditPdfError(messageFromError(error)); return; }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   const openSourceDocument = async (doc: SourceDocumentRow) => {
@@ -1243,11 +1303,17 @@ export default function CifDossierSummaryPage() {
             </div>
             <span className={'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ' + (auditPdfUrl ? 'bg-emerald-400/15 text-emerald-200' : auditReadyForPdf ? 'bg-blue-400/15 text-blue-200' : 'bg-slate-700/60 text-slate-300')}>{auditPdfUrl ? 'PDF généré' : auditReadyForPdf ? 'Prêt pour PDF' : 'Audit requis'}</span>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Le PDF n’est généré qu’à partir d’un audit IA réellement produit et enregistré dans le CRM. Un simple brouillon ne peut pas créer de PDF.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Importe ici l’audit PDF final créé dans ChatGPT. Il sera conservé dans le dossier client. La génération automatique par API reste facultative.</p>
+          {auditRecommendation?.uploaded_pdf_name && <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-3 py-3 text-xs text-emerald-100"><span className="font-bold">PDF enregistré :</span> {auditRecommendation.uploaded_pdf_name}</div>}
           {auditPdfError && <p className="mt-3 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2 text-xs font-semibold text-rose-200">{auditPdfError}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={generatingAuditPdf || !auditReadyForPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-35">{generatingAuditPdf ? 'Génération…' : auditPdfUrl ? 'Actualiser le PDF' : 'Générer le PDF'}</button>
-            {auditPdfUrl && <button type="button" onClick={() => window.open(auditPdfUrl, '_blank', 'noopener,noreferrer')} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15">Voir le PDF</button>}
+            <label className={"inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-400 " + (uploadingAuditPdf ? "pointer-events-none opacity-50" : "")}>
+              {uploadingAuditPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {uploadingAuditPdf ? 'Import en cours…' : auditRecommendation?.uploaded_pdf_path ? 'Remplacer le PDF' : 'Importer le PDF'}
+              <input type="file" accept="application/pdf,.pdf" className="hidden" disabled={uploadingAuditPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAuditPdf(file); event.currentTarget.value = ''; }} />
+            </label>
+            {auditRecommendation?.uploaded_pdf_path && <button type="button" onClick={() => void openUploadedAuditPdf()} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15">Voir le PDF</button>}
+            {auditReadyForPdf && <button disabled={generatingAuditPdf} type="button" onClick={() => void generateAuditPdf()} className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:opacity-50">{generatingAuditPdf ? 'Génération…' : 'Générer depuis le CRM'}</button>}
           </div>
         </div>
       </div>
