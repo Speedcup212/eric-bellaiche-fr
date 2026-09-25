@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { inlineCriticalCss } from './vite-plugin-inline-css.ts';
 
 export default defineConfig({
-  plugins: [react(), inlineCriticalCss()],
+  plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
