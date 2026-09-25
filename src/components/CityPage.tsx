@@ -8,7 +8,7 @@ interface CityPageProps {
 }
 
 export default function CityPage({ cityData }: CityPageProps) {
-  const ERIC_PHOTO_SRC = "/cercleeb.svg";
+  const ERIC_PHOTO_SRC = "/.netlify/images?url=%2Fcercleeb.svg&w=192&h=192&fit=cover&fm=webp&q=72";
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#0F2B46] via-slate-50 to-white">
@@ -18,7 +18,7 @@ export default function CityPage({ cityData }: CityPageProps) {
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
               <img
-                src="/cercleeb.svg"
+                src="/.netlify/images?url=%2Fcercleeb.svg&w=112&h=112&fit=cover&fm=webp&q=72"
                 alt="Eric Bellaiche"
                 width={56}
                 height={56}
@@ -210,7 +210,7 @@ export default function CityPage({ cityData }: CityPageProps) {
           <div className="flex flex-col md:flex-row gap-12 items-center">
             <div className="md:w-1/3">
               <img 
-                src="/cercleeb.svg"
+                src="/.netlify/images?url=%2Fcercleeb.svg&w=384&h=384&fit=cover&fm=webp&q=72"
                 alt="Eric Bellaiche"
                 width={192}
                 height={192}
