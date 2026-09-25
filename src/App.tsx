@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
+import HomePage from './pages/HomePage';
 import ConsentBanner from './components/ConsentBanner';
 import PortalErrorBoundary from './portal/PortalErrorBoundary';
 
@@ -33,7 +34,6 @@ function AppLoadingFallback() {
   );
 }
 
-const HomePage = lazy(() => import('./pages/HomePage'));
 const GrenoblePageWrapper = lazy(() => import('./pages/GrenoblePageWrapper'));
 const MontrougePageWrapper = lazy(() => import('./pages/MontrougePageWrapper'));
 const ToulousePageWrapper = lazy(() => import('./pages/ToulousePageWrapper'));
