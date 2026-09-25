@@ -11,6 +11,8 @@ declare global {
   interface Window {
     dataLayer: any[];
     gtag: (...args: any[]) => void;
+    __loadGoogleTags?: () => void;
+    __googleTagsLoaded?: boolean;
   }
 }
 
@@ -41,6 +43,9 @@ const ConsentBanner: React.FC = () => {
   }, []);
 
   const updateConsentMode = (analytics: boolean, marketing: boolean) => {
+    if ((analytics || marketing) && window.__loadGoogleTags) {
+      window.__loadGoogleTags();
+    }
     if (window.gtag) {
       window.gtag('consent', 'update', {
         'analytics_storage': analytics ? 'granted' : 'denied',
