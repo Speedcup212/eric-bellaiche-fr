@@ -13,7 +13,7 @@ export default function CityPage({ cityData }: CityPageProps) {
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#0F2B46] via-slate-50 to-white">
       {/* Header Premium */}
-      <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm shadow-sm z-50" style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
+      <header className="fixed top-0 w-full bg-white/95 shadow-sm z-50" style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-4">
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
