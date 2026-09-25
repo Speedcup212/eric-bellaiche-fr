@@ -23,19 +23,35 @@
     <meta name="theme-color" content="#0F2B46" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
 
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-N2JLWKH');</script>
-    <!-- End Google Tag Manager -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-932681130"></script>
+    <!-- Google tags: consent-gated to protect privacy and keep initial rendering fast -->
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'AW-932681130');
+      window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+      window.gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        personalization_storage: 'denied',
+        wait_for_update: 500
+      });
+      window.__loadGoogleTags = function () {
+        if (window.__googleTagsLoaded) return;
+        window.__googleTagsLoaded = true;
+
+        var gtm = document.createElement('script');
+        gtm.async = true;
+        gtm.src = 'https://www.googletagmanager.com/gtm.js?id=GTM-N2JLWKH';
+        document.head.appendChild(gtm);
+
+        var ads = document.createElement('script');
+        ads.async = true;
+        ads.src = 'https://www.googletagmanager.com/gtag/js?id=AW-932681130';
+        document.head.appendChild(ads);
+
+        window.gtag('js', new Date());
+        window.gtag('config', 'AW-932681130');
+      };
     </script>
     <script type="application/ld+json">
 {
