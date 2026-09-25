@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import '../../cabinet-dark.css';
 import CifAdminPage from './CifAdminPage';
 import CifCabinetLogin from './CifCabinetLogin';
 import CifQuestionnairesPage from './CifQuestionnairesPage';
