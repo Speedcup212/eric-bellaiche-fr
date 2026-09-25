@@ -17,7 +17,13 @@ declare global {
 }
 
 const ConsentBanner: React.FC = () => {
-  const [showBanner, setShowBanner] = useState(false);
+  const [showBanner, setShowBanner] = useState(() => {
+    try {
+      return !localStorage.getItem('cookie-consent');
+    } catch {
+      return true;
+    }
+  });
   const [showDetails, setShowDetails] = useState(false);
   const [preferences, setPreferences] = useState<ConsentPreferences>({
     analytics: false,
@@ -26,19 +32,14 @@ const ConsentBanner: React.FC = () => {
   });
 
   useEffect(() => {
-    const consent = localStorage.getItem('cookie-consent');
-    if (!consent) {
-      if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(() => {
-          setShowBanner(true);
-        }, { timeout: 2000 });
-      } else {
-        setTimeout(() => setShowBanner(true), 1500);
-      }
-    } else {
+    try {
+      const consent = localStorage.getItem('cookie-consent');
+      if (!consent) return;
       const savedPreferences = JSON.parse(consent);
       setPreferences(savedPreferences);
       updateConsentMode(savedPreferences.analytics, savedPreferences.marketing);
+    } catch {
+      setShowBanner(true);
     }
   }, []);
 
