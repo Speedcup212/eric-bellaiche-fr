@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import '../cabinet-dark.css';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import MandatoryMfa from './MandatoryMfa';
