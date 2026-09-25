@@ -178,3 +178,12 @@ a[href="tel:+33652565654"]:has(svg)::after {
   font-weight: 700;
   margin-left: .2rem;
 }
+
+/* Public homepage: defer below-the-fold rendering work without changing layout. */
+@supports (content-visibility: auto) {
+  #root > main > section:nth-of-type(n + 3),
+  #root > main > footer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 900px;
+  }
+}
