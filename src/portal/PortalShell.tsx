@@ -1,4 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react';
+import '../patrimony-dark.css';
+import '../documents-contrast-fix.css';
 import type { Session } from '@supabase/supabase-js';
 import { LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
