@@ -9,7 +9,7 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    cssCodeSplit: false,
+    cssCodeSplit: true,
     minify: 'oxc',
     rollupOptions: {
       output: {
