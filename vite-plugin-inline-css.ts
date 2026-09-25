@@ -9,32 +9,29 @@ export function inlineCriticalCss(): Plugin {
       handler(html, { bundle }) {
         if (!bundle) return html;
 
-        let cssContent = '';
-        let cssFileName = '';
+        const stylesheetPattern = /<link\b[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+\.css)["'][^>]*>/gi;
+        const links = Array.from(html.matchAll(stylesheetPattern));
+        if (!links.length) return html;
 
-        for (const [fileName, output] of Object.entries(bundle)) {
-          if (fileName.endsWith('.css') && 'source' in output) {
-            cssContent = output.source as string;
-            cssFileName = fileName;
-            break;
-          }
+        let inlineCss = '';
+        let nextHtml = html;
+
+        for (const match of links) {
+          const href = match[1];
+          const fileName = href.replace(/^\//, '');
+          const output = bundle[fileName];
+          if (!output || !('source' in output)) continue;
+
+          inlineCss += String(output.source);
+          nextHtml = nextHtml.replace(match[0], '');
         }
 
-        if (!cssContent) return html;
+        if (!inlineCss) return html;
 
-        const inlineStyle = `    <style>${cssContent}</style>\n`;
-
-        html = html.replace(
-          new RegExp(`<link[^>]*href="[^"]*${cssFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>`, 'g'),
-          ''
-        );
-
-        html = html.replace(
+        return nextHtml.replace(
           '<title>',
-          `${inlineStyle}    <title>`
+          `    <style data-entry-css>${inlineCss}</style>\n    <title>`
         );
-
-        return html;
       },
     },
   };
