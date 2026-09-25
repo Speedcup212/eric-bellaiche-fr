@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import '../../recueil-validation.css';
+import '../../recueil-validation';
 import { CheckCircle2, Pencil, UsersRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ClientRecueilJourneyBase from './ClientRecueilJourneyBase';
