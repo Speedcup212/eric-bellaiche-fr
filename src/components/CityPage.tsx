@@ -18,7 +18,7 @@ export default function CityPage({ cityData }: CityPageProps) {
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
               <img
-                src="/.netlify/images?url=%2Fcercleeb.svg&w=112&h=112&fit=cover&fm=webp&q=72"
+                src={ERIC_PHOTO_SRC}
                 alt="Eric Bellaiche"
                 width={56}
                 height={56}
