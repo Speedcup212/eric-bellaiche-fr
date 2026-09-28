@@ -45,6 +45,7 @@ const CgpCifRedirect = lazy(() => import('./pages/CgpCifRedirect'));
 const ConseillerScpiRedirect = lazy(() => import('./pages/ConseillerScpiRedirect'));
 const ArticlePageWrapper = lazy(() => import('./pages/ArticlePageWrapper'));
 const ArticlesHubPage = lazy(() => import('./pages/ArticlesHubPage'));
+const EricBellaicheMaximusScpiPage = lazy(() => import('./pages/EricBellaicheMaximusScpiPage'));
 const ClientLoginPage = lazyWithReload(() => import('./pages/portal/ClientLoginPage'), 'client-login');
 const ClientInvitationPage = lazyWithReload(() => import('./pages/portal/ClientInvitationPage'), 'client-invitation');
 const PortalShell = lazyWithReload(() => import('./portal/PortalShell'), 'portal-shell');
@@ -84,6 +85,7 @@ export default function App() {
     <Route path="/" element={<RootEntry />} />
     <Route path="/conseil-investissement-grenoble" element={<GrenoblePageWrapper />} /><Route path="/conseil-investissement-montrouge" element={<MontrougePageWrapper />} /><Route path="/conseil-investissement-toulouse" element={<ToulousePageWrapper />} /><Route path="/conseil-investissement-rennes" element={<RennesPageWrapper />} /><Route path="/conseil-investissement-aix-en-provence" element={<AixPageWrapper />} /><Route path="/conseil-investissement-nantes" element={<NantesPageWrapper />} />
     <Route path="/merci" element={<ThankYouPage />} /><Route path="/eric-bellaiche-cgp-cif" element={<CgpCifRedirect />} /><Route path="/eric-bellaiche-cgp-cif/*" element={<CgpCifRedirect />} /><Route path="/conseiller-scpi" element={<ConseillerScpiRedirect />} /><Route path="/conseiller-scpi/*" element={<ConseillerScpiRedirect />} />
+    <Route path="/eric-bellaiche-maximusscpi" element={<EricBellaicheMaximusScpiPage />} /><Route path="/eric-bellaiche-maximusscpi/*" element={<EricBellaicheMaximusScpiPage />} />
     <Route path="/articles" element={<ArticlesHubPage />} />{articleSlugs.map((slug) => <Route key={slug} path={`/articles/${slug}`} element={<ArticlePageWrapper slug={slug} />} />)}{articleSlugs.map((slug) => <Route key={`${slug}-wildcard`} path={`/articles/${slug}/*`} element={<ArticlePageWrapper slug={slug} />} />)}
     <Route path="/espace-client/connexion" element={<PortalErrorBoundary><ClientLoginPage /></PortalErrorBoundary>} /><Route path="/espace-client/invitation" element={<PortalErrorBoundary><ClientInvitationPage /></PortalErrorBoundary>} />
     <Route path="/espace-client" element={<PortalErrorBoundary><PortalShell /></PortalErrorBoundary>}><Route index element={<ClientDashboardPage />} /><Route path="documents" element={<ClientDocumentsPage />} /><Route path="recueil" element={<ClientRecueilEntryPage />} /><Route path="recueil/parcours" element={<ClientRecueilPage />} /><Route path="profil-investisseur" element={<QuestionnairePage mode="QPI" />} /><Route path="esg" element={<QuestionnairePage mode="ESG" />} /><Route path="synthese" element={<ClientSummaryPage />} /></Route>
