@@ -203,6 +203,7 @@ export default function ArticlesHubPage() {
             <a href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Accueil</a>
             <a href="/eric-bellaiche-cgp-cif/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Qui suis-je</a>
             <a href="/conseiller-scpi/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Conseiller SCPI</a>
+            <a href="/eric-bellaiche-maximusscpi/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Éric Bellaiche & MaximusSCPI</a>
           </div>
           <p>&copy; {new Date().getFullYear()} Eric Bellaiche &mdash; CGP-CIF &bull; ORIAS 13001580</p>
         </div>
