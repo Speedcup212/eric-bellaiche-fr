@@ -18,6 +18,7 @@
     "test:data-status": "node scripts/test-data-status-engine.mjs",
     "test:advisor-summary": "node scripts/test-advisor-summary-engine.mjs",
     "test:couple-policy": "node scripts/test-couple-family-policy.mjs",
+    "test:couple-shared": "node scripts/test-shared-couple-contacts.mjs",
     "test:household-consolidation": "node scripts/test-household-consolidation-engine.mjs",
     "test:investor-profile": "node scripts/test-investor-profile-engine.mjs",
     "test:document-policy": "node scripts/test-document-policy.mjs",
@@ -29,7 +30,7 @@
     "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs",
     "test:source-documents": "node scripts/test-source-document-enrichment.mjs",
     "lint:portal": "eslint src/lib src/portal src/pages/portal src/App.tsx scripts",
-    "test:deploy-gate": "npm run test:recueil-100 && npm run typecheck:portal && npm run lint:portal"
+    "test:deploy-gate": "npm run test:recueil-100 && npm run test:couple-shared && npm run typecheck:portal && npm run lint:portal"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
