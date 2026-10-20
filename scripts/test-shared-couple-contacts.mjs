@@ -12,6 +12,8 @@ for (const [label, condition] of [
   ['Partage email seulement si accepté', cabinet.includes('p_shared_contacts:shared')],
   ['Pas d’invitation automatique secondaire', cabinet.includes('sharedContactSecondary(x,inv)')],
   ['Affichage statut des comptes secondaires', cabinet.includes("sharedSecondary?'Contact partagé'")],
+  ['Contraste du panneau conjoint sur fond sombre', cabinet.includes('border-slate-600 bg-[#102844] p-4 text-white') && cabinet.includes('text-xs text-slate-200') && cabinet.includes('bg-[#183454] p-3 text-sm font-semibold text-white')],
+  ['Champs de contact commun lisibles en lecture seule', cabinet.includes('disabled:opacity-100 disabled:text-white') && cabinet.includes('placeholder:text-slate-300')],
   ['Recueil familial partagé', family.includes('coordonnees_communes_couple: isCouple && family.sharedContacts')],
   ['Profil personnel distinct', family.includes('const spouseEmail = family.sharedContacts ? primaryContact.email')],
   ['RPC avec consentement explicite', sql.includes('p_shared_contacts boolean')],
@@ -25,4 +27,4 @@ for (const [label, condition] of [
   assert.ok(condition, label);
 }
 
-console.log('Coordonnées communes au couple : 13 garde-fous vérifiés.');
+console.log('Coordonnées communes au couple : 15 garde-fous vérifiés.');
