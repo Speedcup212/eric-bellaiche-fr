@@ -88,7 +88,8 @@ assert.match(journey, /save_my_recueil_section|recueil_sections/, 'Le recueil do
 assert.match(journey, /setProgress|fetchPortalProgress/, 'Le recueil doit recharger la progression');
 assert.match(familyPage, /save_my_family_setup/, 'Le couple doit être créé via la RPC atomique');
 assert.match(familyPage, /Le parcours s’enregistre au fur et à mesure/, 'Le client doit être informé de la reprise possible');
-assert.match(familyPage, /email personnel/, 'Le conjoint doit avoir une adresse personnelle distincte');
+assert.match(familyPage, /Coordonnées communes au couple/, 'La famille doit pouvoir choisir un contact commun');
+assert.match(familyPage, /Le cabinet organisera sa validation individuelle/, 'La validation du conjoint doit rester individualisée');
 assert.match(validationGuard, /manquant|compl|valid/i, 'La validation finale doit exposer les éléments manquants');
 assert.match(questionnairePage, /QPI|profil investisseur|questionnaire/i, 'Le parcours QPI doit être présent');
 assert.match(questionnairePage, /ESG|durabilit/i, 'Le parcours ESG doit être présent');

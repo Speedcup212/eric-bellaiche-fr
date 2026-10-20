@@ -22,6 +22,7 @@ type FamilyDraft = {
   conjoint_nom: string;
   conjoint_email: string;
   conjoint_mobile: string;
+  sharedContacts: boolean;
 };
 
 const emptyFamily: FamilyDraft = {
@@ -35,6 +36,7 @@ const emptyFamily: FamilyDraft = {
   conjoint_nom: '',
   conjoint_email: '',
   conjoint_mobile: '',
+  sharedContacts: false,
 };
 
 const individualSituations = ['Célibataire', 'Divorcé', 'Séparé', 'Veuf / Veuve'];
@@ -65,6 +67,7 @@ export default function ClientRecueilJourneyPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [familyReady, setFamilyReady] = useState<boolean | null>(null);
   const [family, setFamily] = useState<FamilyDraft>(emptyFamily);
+  const [primaryContact, setPrimaryContact] = useState({ email: '', mobile: '' });
   const dossierId = searchParams.get('dossier');
 
   const isCouple = family.dossier_scope === 'couple';
@@ -80,6 +83,9 @@ export default function ClientRecueilJourneyPage() {
       setProgress(selected);
       if (!selected) return;
 
+      const { data: identity, error: identityError } = await supabase.from('investisseurs').select('email,mobile').eq('id',selected.investisseur_id).maybeSingle();
+      if(identityError)throw identityError;
+      if(active)setPrimaryContact({email:String(identity?.email??''),mobile:String(identity?.mobile??'')});
       const { data, error } = await supabase
         .from('recueil_sections')
         .select('payload,completed_at')
@@ -106,6 +112,7 @@ export default function ClientRecueilJourneyPage() {
         conjoint_nom: String(payload.conjoint_nom ?? ''),
         conjoint_email: String(payload.conjoint_email ?? ''),
         conjoint_mobile: String(payload.conjoint_mobile ?? ''),
+        sharedContacts: payload.coordonnees_communes_couple === true || Boolean(identity?.email && String(payload.conjoint_email ?? '').trim().toLowerCase() === String(identity.email).trim().toLowerCase()),
       });
       setFamilyReady(Boolean(data?.completed_at));
     };
@@ -153,6 +160,7 @@ export default function ClientRecueilJourneyPage() {
       conjoint_nom: scope === 'couple' ? state.conjoint_nom : '',
       conjoint_email: scope === 'couple' ? state.conjoint_email : '',
       conjoint_mobile: scope === 'couple' ? state.conjoint_mobile : '',
+      sharedContacts: scope === 'couple' ? state.sharedContacts : false,
     }));
   };
 
@@ -166,11 +174,13 @@ export default function ClientRecueilJourneyPage() {
       const childCount = Number(family.nombre_enfants);
       if (!Number.isInteger(childCount) || childCount < 0) throw new Error('Le nombre d’enfants doit être un nombre entier positif ou nul.');
       if (legalDetailsRequired && (!family.date_evenement || !family.regime_convention)) throw new Error('Pour une situation mariée ou pacsée, indiquez la date et le régime / la convention.');
-      if (isCouple && (!family.conjoint_civilite || !family.conjoint_prenom.trim() || !family.conjoint_nom.trim() || !family.conjoint_email.trim())) {
-        throw new Error('Complétez les informations de la deuxième personne : civilité, prénom, nom et email personnel.');
+      const spouseEmail = family.sharedContacts ? primaryContact.email.trim().toLowerCase() : family.conjoint_email.trim().toLowerCase();
+      const spouseMobile = family.sharedContacts ? primaryContact.mobile.trim() : family.conjoint_mobile.trim();
+      if (isCouple && (!family.conjoint_civilite || !family.conjoint_prenom.trim() || !family.conjoint_nom.trim() || !spouseEmail)) {
+        throw new Error('Complétez la civilité, le prénom, le nom et l’email (commun ou distinct) de la deuxième personne.');
       }
-      if (isCouple && !isValidEmail(family.conjoint_email)) throw new Error('Indiquez une adresse email personnelle valide pour la deuxième personne.');
-      if (isCouple && family.conjoint_mobile.trim() && !isValidMobile(family.conjoint_mobile)) throw new Error('Indiquez un numéro de mobile valide pour la deuxième personne, ou laissez ce champ vide.');
+      if (isCouple && !isValidEmail(spouseEmail)) throw new Error('Indiquez une adresse email valide pour le foyer ou la deuxième personne.');
+      if (isCouple && spouseMobile && !isValidMobile(spouseMobile)) throw new Error('Indiquez un numéro de mobile valide pour la deuxième personne, ou laissez ce champ vide.');
 
       const payload = {
         dossier_scope: family.dossier_scope,
@@ -186,8 +196,9 @@ export default function ClientRecueilJourneyPage() {
         conjoint_civilite: isCouple ? family.conjoint_civilite : '',
         conjoint_prenom: isCouple ? family.conjoint_prenom.trim() : '',
         conjoint_nom: isCouple ? family.conjoint_nom.trim() : '',
-        conjoint_email: isCouple ? family.conjoint_email.trim().toLowerCase() : '',
-        conjoint_mobile: isCouple ? family.conjoint_mobile.trim() : '',
+        conjoint_email: isCouple ? spouseEmail : '',
+        conjoint_mobile: isCouple ? spouseMobile : '',
+        coordonnees_communes_couple: isCouple && family.sharedContacts,
       };
 
       const { error: familyError } = await supabase.rpc('save_my_family_setup', {
@@ -197,8 +208,8 @@ export default function ClientRecueilJourneyPage() {
         p_civilite: isCouple ? family.conjoint_civilite : null,
         p_prenom: isCouple ? family.conjoint_prenom.trim() : null,
         p_nom: isCouple ? family.conjoint_nom.trim() : null,
-        p_email: isCouple ? family.conjoint_email.trim().toLowerCase() : null,
-        p_mobile: isCouple ? family.conjoint_mobile.trim() || null : null,
+        p_email: isCouple ? spouseEmail : null,
+        p_mobile: isCouple ? spouseMobile || null : null,
       });
       if (familyError) throw familyError;
 
@@ -258,8 +269,10 @@ export default function ClientRecueilJourneyPage() {
               <div><p className="text-sm font-semibold text-slate-700">Civilité *</p><div className="mt-2 grid grid-cols-2 gap-2">{['Mr', 'Mme'].map((item) => <button key={item} type="button" onClick={() => setFamily((state) => ({ ...state, conjoint_civilite: item }))} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${family.conjoint_civilite === item ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{item}</button>)}</div></div>
               <label className="text-sm font-semibold text-slate-700">Prénom *<input value={family.conjoint_prenom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_prenom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
               <label className="text-sm font-semibold text-slate-700">Nom *<input value={family.conjoint_nom} onChange={(event) => setFamily((state) => ({ ...state, conjoint_nom: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-              <label className="text-sm font-semibold text-slate-700">Email personnel *<input type="email" value={family.conjoint_email} onChange={(event) => setFamily((state) => ({ ...state, conjoint_email: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
-              <label className="text-sm font-semibold text-slate-700">Mobile<input value={family.conjoint_mobile} onChange={(event) => setFamily((state) => ({ ...state, conjoint_mobile: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
+              <label className="sm:col-span-2 flex cursor-pointer items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900"><input type="checkbox" checked={family.sharedContacts} onChange={(event) => setFamily((state) => ({ ...state, sharedContacts: event.target.checked }))} /> Coordonnées communes au couple (un email et un téléphone)</label>
+              <label className="text-sm font-semibold text-slate-700">Email {family.sharedContacts ? "du foyer" : "personnel"} *<input type="email" disabled={family.sharedContacts} value={family.sharedContacts ? primaryContact.email : family.conjoint_email} onChange={(event) => setFamily((state) => ({ ...state, conjoint_email: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 disabled:bg-slate-100" /></label>
+              <label className="text-sm font-semibold text-slate-700">Mobile<input disabled={family.sharedContacts} value={family.sharedContacts ? primaryContact.mobile : family.conjoint_mobile} onChange={(event) => setFamily((state) => ({ ...state, conjoint_mobile: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 disabled:bg-slate-100" /></label>
+              {family.sharedContacts && <p className="sm:col-span-2 text-xs leading-5 text-amber-800">Cette adresse ne permet pas au deuxième investisseur de se connecter séparément. Le cabinet organisera sa validation individuelle.</p>}
               {legalDetailsRequired && <>
                 <label className="text-sm font-semibold text-slate-700">Date du mariage / PACS *<input type="month" value={family.date_evenement ? family.date_evenement.slice(0, 7) : ''} onChange={(event) => setFamily((state) => ({ ...state, date_evenement: event.target.value ? `${event.target.value}-01` : '' }))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3" /></label>
                 <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Régime / convention *<select value={family.regime_convention} onChange={(event) => setFamily((state) => ({ ...state, regime_convention: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><option value="">Sélectionner</option>{regimes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
