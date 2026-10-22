@@ -30,7 +30,7 @@
     "test:adequation-documents": "node scripts/test-adequation-document-pipeline.mjs",
     "test:source-documents": "node scripts/test-source-document-enrichment.mjs",
     "lint:portal": "eslint src/lib src/portal src/pages/portal src/App.tsx scripts",
-    "test:deploy-gate": "npm run test:recueil-100 && npm run test:couple-shared && npm run typecheck:portal && npm run lint:portal"
+    "test:deploy-gate": "npm run test:recueil-100 && npm run test:couple-shared && npm run test:couple-policy && npm run test:final-journey && npm run test:validation-ux && npm run test:preflight-clients && npm run test:portal-safety && npm run typecheck:portal && npm run lint:portal"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
