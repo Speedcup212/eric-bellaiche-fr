@@ -11,6 +11,8 @@ assert(!shared.includes('disabled={nextDisabled || busy}'), 'WizardFooter must n
 assert(documentsJourney.includes('Êtes-vous concerné(e) par un avis d’imposition ?'), 'The tax notice question must use clear wording.');
 assert(documentsJourney.includes('Un avis commun au couple peut être déposé une seule fois dans le dossier.'), 'The document step must explain that a shared notice is uploaded once.');
 assert(documentsJourney.includes('Oui, un avis personnel ou commun avec mon conjoint / ma conjointe'), 'The positive tax notice option must clearly cover a joint household notice.');
+assert(documentsJourney.includes('2072-S/2072-C si la SCI est à l’IR ; 2065 et comptes annuels si elle est à l’IS'), 'SCI document guidance must distinguish IR and IS filing evidence.');
+assert(documentsJourney.includes('Déposez les justificatifs des immeubles dans « Patrimoine immobilier».') , 'SCI property evidence must point to the separate real-estate category.');
 assert.match(recueilJourney, /MAX_RECUEIL_OBJECTIVES = 5/, 'The recueil objective selector must respect the database maximum priority.');
 assert.match(recueilJourney, /form\.items\.length > MAX_RECUEIL_OBJECTIVES/, 'Objective submissions must be checked before they reach the database.');
 assert.match(recueilJourney, /disabled=\{limitReached\}/, 'The objective picker must prevent selecting a sixth priority.');
