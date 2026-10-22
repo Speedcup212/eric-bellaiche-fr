@@ -590,6 +590,12 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         navigate('/cabinet/questionnaires?vue=qpi');
         return;
       }
+      if (progress.role_dossier === 'investisseur_2' && !householdReviewComplete) {
+        setStep(0);
+        throw new Error(householdReview.length === 0
+          ? 'Les informations communes du foyer (dont les crédits) doivent d’abord être renseignées par l’Identifiant 1. Vous pourrez ensuite les confirmer dans « Informations communes du foyer », en haut du recueil.'
+          : 'Avant de valider, vérifiez et confirmez les informations communes du foyer (dont les crédits) dans l’encadré « Informations communes du foyer », en haut du recueil. Vous n’avez pas à les ressaisir.');
+      }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
       const refreshed = await fetchPortalProgress();
