@@ -391,11 +391,12 @@ export default function ClientDocumentsPage() {
           </div>
           {isStudent && <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900"><strong>Vous avez indiqué être étudiant.</strong> Si vous êtes rattaché au foyer fiscal de vos parents, vous n’avez pas besoin d’un avis d’imposition personnel. Vous pouvez l’indiquer ci-dessous.</div>}
           <div className={`document-question-card mt-6 rounded-2xl border p-5 transition ${contextValidationAttempted && currentContext?.tax_status == null ? 'border-2 border-red-400 bg-red-50/70 ring-2 ring-red-100' : 'border-slate-200 bg-white'}`}>
-            <p className="text-sm font-semibold text-slate-900">Quelle est votre situation concernant l’avis d’imposition ? *</p>
+            <p className="text-sm font-semibold text-slate-900">Êtes-vous concerné(e) par un avis d’imposition ? *</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Un avis commun au couple peut être déposé une seule fois dans le dossier.</p>
             {contextValidationAttempted && currentContext?.tax_status == null && <p className="mt-1 text-xs font-semibold text-red-700">Réponse obligatoire.</p>}
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {[
-                ['personal_notice', 'J’ai un avis personnel ou commun'],
+                ['personal_notice', 'Oui, un avis personnel ou commun avec mon conjoint / ma conjointe'],
                 ['attached_parents', 'Je suis rattaché au foyer fiscal de mes parents'],
                 ['no_personal_notice', 'Je ne dispose pas encore d’avis d’imposition'],
               ].map(([value, label]) => <button key={value} type="button" disabled={contextBusy} onClick={() => void saveContext({ tax_status: value as DocumentContext['tax_status'] })} className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${currentContext?.tax_status === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{label}</button>)}
