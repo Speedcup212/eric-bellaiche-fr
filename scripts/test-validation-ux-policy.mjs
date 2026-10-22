@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 
 const shared = fs.readFileSync('src/portal/FintechJourney.tsx', 'utf8');
 const recueilJourney = fs.readFileSync('src/pages/portal/ClientRecueilJourneyBase.tsx', 'utf8');
+const mfaJourney = fs.readFileSync('src/portal/MandatoryMfa.tsx', 'utf8');
 const documentsJourney = fs.readFileSync('src/pages/portal/ClientDocumentsPage.tsx', 'utf8');
 const sharedCreditValidation = fs.readFileSync('supabase/migrations/20261022100000_allow_confirmed_household_credits_for_secondary_validation.sql', 'utf8');
 assert(shared.includes("disabled={busy} aria-invalid={nextDisabled || undefined}"), 'WizardFooter must stay clickable for validation errors and disable only while busy.');
@@ -13,6 +14,9 @@ assert(documentsJourney.includes('Un avis commun au couple peut être déposé u
 assert(documentsJourney.includes('Oui, un avis personnel ou commun avec mon conjoint / ma conjointe'), 'The positive tax notice option must clearly cover a joint household notice.');
 assert(documentsJourney.includes('2072-S/2072-C si la SCI est à l’IR ; 2065 et comptes annuels si elle est à l’IS'), 'SCI document guidance must distinguish IR and IS filing evidence.');
 assert(documentsJourney.includes('Déposez les justificatifs des immeubles dans « Patrimoine immobilier ».') , 'SCI property evidence must point to the separate real-estate category.');
+assert(mfaJourney.includes('Première activation : suivez ces 3 étapes'), 'MFA first-time setup must expose clear ordered steps.');
+assert(mfaJourney.includes('La clé manuelle sert uniquement à configurer votre application. Gardez-la pour vous et ne l’envoyez à personne.'), 'MFA setup must state the manual key is confidential and only entered in the authenticator app.');
+assert(mfaJourney.includes('Je ne peux pas scanner le QR code : afficher la clé à saisir dans l’application'), 'The manual-key fallback must explain where the key is used.');
 assert.match(recueilJourney, /MAX_RECUEIL_OBJECTIVES = 5/, 'The recueil objective selector must respect the database maximum priority.');
 assert.match(recueilJourney, /form\.items\.length > MAX_RECUEIL_OBJECTIVES/, 'Objective submissions must be checked before they reach the database.');
 assert.match(recueilJourney, /disabled=\{limitReached\}/, 'The objective picker must prevent selecting a sixth priority.');
