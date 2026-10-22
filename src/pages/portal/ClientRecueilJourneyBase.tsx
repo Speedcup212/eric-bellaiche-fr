@@ -600,7 +600,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
           setStep(0);
           throw new Error(fresh.length === 0
           ? 'Les informations communes du foyer (dont les crédits) doivent d’abord être renseignées par l’Identifiant 1. Vous pourrez ensuite les confirmer dans « Informations communes du foyer », en haut du recueil.'
-          : `Avant de valider, vérifiez et confirmez : ${missing.map((code) => householdSectionLabels[code]).join(', ')}. Utilisez l’encadré « Informations communes du foyer » en haut du recueil. Les informations ne sont pas à ressaisir.`);
+          : `Avant de valider, vérifiez et confirmez : ${missing.map((code) => householdSectionLabels[code as keyof typeof householdSectionLabels]).join(', ')}. Utilisez l’encadré « Informations communes du foyer » en haut du recueil. Les informations ne sont pas à ressaisir.`);
         }
       }
       const { data: completeness, error: completenessError } = await supabase.rpc('get_recueil_completeness', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id });
