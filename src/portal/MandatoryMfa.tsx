@@ -283,17 +283,17 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
         </div>
 
         <p className="mt-6 text-xs font-bold uppercase tracking-[.18em] text-[#3B82F6]">Sécurité renforcée</p>
-        <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">Double authentification obligatoire</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">{mode === 'challenge' ? 'Vérifiez votre accès au cabinet' : 'Sécurisez votre accès au cabinet'}</h1>
         <p className="mt-3 text-sm leading-6 text-[#52627A]">
           {mode === 'challenge'
-            ? 'Ouvrez votre application d’authentification et saisissez le code temporaire à 6 chiffres affiché.'
-            : 'Pour protéger vos données personnelles et patrimoniales, une seconde vérification est nécessaire après votre mot de passe.'}
+            ? 'Ouvrez votre application d’authentification et recopiez ici le code à 6 chiffres affiché.'
+            : 'Après votre mot de passe, une application sur votre téléphone générera un code à 6 chiffres pour confirmer que c’est bien vous.'}
         </p>
 
         <div className="mt-3 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] px-4 py-3 text-xs leading-5 text-[#52627A]">
-          <p className="font-semibold text-[#0F172A]">Application d’authentification compatible TOTP</p>
+          <p className="font-semibold text-[#0F172A]">Application d’authentification</p>
           <p className="mt-1">
-            Vous pouvez utiliser notamment <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Authy</strong> ou <strong className="font-semibold text-[#0F172A]">1Password</strong>.
+            Installez ou ouvrez l’une de ces applications : <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong>, <strong className="font-semibold text-[#0F172A]">Authy</strong> ou <strong className="font-semibold text-[#0F172A]">1Password</strong>.
           </p>
         </div>
 
@@ -311,21 +311,23 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
 
         {qrCode && (
           <div className="mt-6 rounded-2xl border border-[#D9E5F5] bg-[#F8FBFF] p-4">
-            <p className="text-sm font-semibold text-[#0F172A]">Première activation</p>
-            <p className="mt-1 text-xs leading-5 text-[#64748B]">
-              Si vous n’avez pas encore d’application d’authentification, vous pouvez installer gratuitement <strong className="font-semibold text-[#0F172A]">Google Authenticator</strong> ou <strong className="font-semibold text-[#0F172A]">Microsoft Authenticator</strong> sur votre téléphone.
-            </p>
-            <p className="mt-2 text-xs leading-5 text-[#64748B]">
-              Ajoutez ensuite votre compte en scannant le QR code ou en saisissant la clé manuellement, puis saisissez le code à 6 chiffres généré.
-            </p>
+            <p className="text-sm font-semibold text-[#0F172A]">Première activation : suivez ces 3 étapes</p>
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs leading-5 text-[#64748B]">
+              <li>Sur votre téléphone, installez ou ouvrez une application d’authentification.</li>
+              <li>Dans l’application, touchez « + », choisissez « Scanner un QR code » et scannez le code ci-dessous. Si vous ne pouvez pas le scanner, saisissez à la place la clé manuelle dans l’application.</li>
+              <li>Recopiez ici le code à 6 chiffres affiché par l’application, puis cliquez sur « Activer et continuer ».</li>
+            </ol>
             <img
               src={qrCode}
               alt="QR code pour activer la double authentification"
               className="mx-auto mt-4 h-48 w-48 rounded-xl bg-white p-2"
             />
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+              La clé manuelle sert uniquement à configurer votre application. Gardez-la pour vous et ne l’envoyez à personne.
+            </p>
             {secret && (
               <details className="mt-3 text-xs text-[#64748B]">
-                <summary className="cursor-pointer font-semibold">Afficher la clé manuelle</summary>
+                <summary className="cursor-pointer font-semibold">Je ne peux pas scanner le QR code : afficher la clé à saisir dans l’application</summary>
                 <code className="mt-2 block break-all rounded-lg bg-white p-2">{secret}</code>
               </details>
             )}
@@ -386,9 +388,9 @@ export default function MandatoryMfa({ onVerified }: { onVerified: () => void })
               </p>
             </div>
             <div>
-              <p className="font-semibold text-[#0F172A]">Mon appareil photo ne fonctionne pas.</p>
+              <p className="font-semibold text-[#0F172A]">Je ne peux pas scanner le QR code.</p>
               <p className="mt-1">
-                Cliquez sur <strong className="font-semibold text-[#0F172A]">Afficher la clé manuelle</strong>, puis choisissez dans votre application l’option permettant de saisir une clé de configuration.
+                Ouvrez « Je ne peux pas scanner le QR code », puis saisissez la clé affichée dans votre application d’authentification. Ne communiquez cette clé à personne.
               </p>
             </div>
             <div>
