@@ -8,9 +8,9 @@ const documentsJourney = fs.readFileSync('src/pages/portal/ClientDocumentsPage.t
 const sharedCreditValidation = fs.readFileSync('supabase/migrations/20261022100000_allow_confirmed_household_credits_for_secondary_validation.sql', 'utf8');
 assert(shared.includes("disabled={busy} aria-invalid={nextDisabled || undefined}"), 'WizardFooter must stay clickable for validation errors and disable only while busy.');
 assert(!shared.includes('disabled={nextDisabled || busy}'), 'WizardFooter must never be physically disabled by validation incompleteness.');
-assert.match(documentsJourney, /Êtes-vous concerné\\(e\\) par un avis d’imposition \\?/u, 'The tax notice question must use clear wording.');
-assert.match(documentsJourney, /Un avis commun au couple peut être déposé une seule fois dans le dossier\\./u, 'The document step must explain that a shared notice is uploaded once.');
-assert.match(documentsJourney, /Oui, un avis personnel ou commun avec mon conjoint \\/ ma conjointe/u, 'The positive tax notice option must clearly cover a joint household notice.');
+assert(documentsJourney.includes('Êtes-vous concerné(e) par un avis d’imposition ?'), 'The tax notice question must use clear wording.');
+assert(documentsJourney.includes('Un avis commun au couple peut être déposé une seule fois dans le dossier.'), 'The document step must explain that a shared notice is uploaded once.');
+assert(documentsJourney.includes('Oui, un avis personnel ou commun avec mon conjoint / ma conjointe'), 'The positive tax notice option must clearly cover a joint household notice.');
 assert.match(recueilJourney, /MAX_RECUEIL_OBJECTIVES = 5/, 'The recueil objective selector must respect the database maximum priority.');
 assert.match(recueilJourney, /form\.items\.length > MAX_RECUEIL_OBJECTIVES/, 'Objective submissions must be checked before they reach the database.');
 assert.match(recueilJourney, /disabled=\{limitReached\}/, 'The objective picker must prevent selecting a sixth priority.');
