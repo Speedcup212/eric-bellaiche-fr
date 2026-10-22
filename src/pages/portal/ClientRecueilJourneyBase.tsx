@@ -9,6 +9,7 @@ type AnyPayload = Record<string, any>;
 type SectionCode = 'identity' | 'family' | 'professional' | 'objectives' | 'capacity' | 'tax' | 'regulatory' | 'patrimony' | 'financial' | 'credits';
 
 const SHARED_HOUSEHOLD_SECTIONS: SectionCode[] = ['family', 'patrimony', 'credits'];
+const MAX_RECUEIL_OBJECTIVES = 5;
 
 type HouseholdReviewRow = {
   section_code: 'family' | 'patrimony' | 'credits';
@@ -478,6 +479,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
     }
     if (current.code === 'objectives') {
       if (!Array.isArray(form.items) || form.items.length === 0) throw new Error('Sélectionnez au moins un objectif.');
+      if (form.items.length > MAX_RECUEIL_OBJECTIVES) throw new Error(`Sélectionnez au maximum ${MAX_RECUEIL_OBJECTIVES} objectifs, classés par ordre de priorité.`);
       for (const item of form.items) {
         if (isBlank(item.horizon_annees) || Number(item.horizon_annees) < 0) throw new Error('Indiquez un horizon pour chaque objectif.');
         if (item.code_objectif === 'autre' && isBlank(item.libelle_autre)) throw new Error('Précisez votre autre objectif.');
@@ -664,6 +666,10 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
   ];
   const toggleObjective = (code: string, label: string) => {
     const exists = objectiveItems.some((item) => item.code_objectif === code);
+    if (!exists && objectiveItems.length >= MAX_RECUEIL_OBJECTIVES) {
+      setErrorMessage(`Vous pouvez sélectionner au maximum ${MAX_RECUEIL_OBJECTIVES} objectifs.`);
+      return;
+    }
     const nextItems = exists
       ? objectiveItems.filter((item) => item.code_objectif !== code)
       : [...objectiveItems, { code_objectif: code, libelle_autre: '', horizon_annees: '', commentaire: '', label }];
@@ -900,15 +906,16 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 id="available-objectives-title" className="text-lg font-semibold text-[#F1F5F9]">Quels sont vos objectifs ?</h3>
-                <p className="mt-1 text-sm leading-5 text-[#CBD5E1]">Cliquez dans l’ordre de vos priorités. Vous pourrez modifier cet ordre ensuite.</p>
+                <p className="mt-1 text-sm leading-5 text-[#CBD5E1]">Cliquez dans l’ordre de vos priorités (5 au maximum). Vous pourrez modifier cet ordre ensuite.</p>
               </div>
-              {objectiveItems.length > 0 && <span className="rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-semibold text-white">{objectiveItems.length} sélectionné{objectiveItems.length > 1 ? 's' : ''}</span>}
+              {objectiveItems.length > 0 && <span className="rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-semibold text-white">{objectiveItems.length}/{MAX_RECUEIL_OBJECTIVES} sélectionné{objectiveItems.length > 1 ? 's' : ''}</span>}
             </div>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{objectiveOptions.map(([code, label]) => {
               const selectedIndex = objectiveItems.findIndex((item) => item.code_objectif === code);
               const selected = selectedIndex >= 0;
-              return <button type="button" key={code} aria-pressed={selected} onClick={() => toggleObjective(code, label)} className={`relative min-h-12 rounded-xl border px-3 py-2.5 pr-10 text-left text-[13px] font-semibold leading-4 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 ${selected ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-800 hover:border-[#3B82F6] hover:shadow-sm'}`}>
+              const limitReached = !selected && objectiveItems.length >= MAX_RECUEIL_OBJECTIVES;
+              return <button type="button" key={code} aria-pressed={selected} disabled={limitReached} title={limitReached ? `Maximum ${MAX_RECUEIL_OBJECTIVES} objectifs` : undefined} onClick={() => toggleObjective(code, label)} className={`relative min-h-12 rounded-xl border px-3 py-2.5 pr-10 text-left text-[13px] font-semibold leading-4 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50 ${selected ? 'border-[#3B82F6] bg-[#3B82F6] text-white shadow-sm shadow-blue-950/20' : 'border-[#E2E8F0] bg-white text-slate-800 hover:border-[#3B82F6] hover:shadow-sm'}`}>
                 {label}
                 {selected && <span className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#2563EB]" aria-label={`Priorité ${selectedIndex + 1}`}>{selectedIndex + 1}</span>}
               </button>;
