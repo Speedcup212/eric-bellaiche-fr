@@ -344,7 +344,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
   const form = forms[current.code];
   const householdConfirmedCount = householdReview.filter((item) => item.confirmation_status === 'confirmed' && !item.confirmation_stale).length;
   const householdReviewTotal = householdReview.length;
-  const householdReviewComplete = householdReviewTotal > 0 && householdConfirmedCount === householdReviewTotal;
+  const householdReviewComplete = SHARED_HOUSEHOLD_SECTIONS.every((code) => householdReview.some((item) => item.section_code === code && item.completed_at && item.confirmation_status === 'confirmed' && !item.confirmation_stale));
   const identityNeedsBirthName = String(forms.identity.civilite ?? '').trim().toLowerCase() === 'mme';
   const familySituation = String(forms.family.situation ?? '').toLowerCase();
   const familyNeedsConvention = familySituation.includes('mari') || familySituation.includes('pacs');
@@ -590,11 +590,28 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         navigate('/cabinet/questionnaires?vue=qpi');
         return;
       }
-      if (progress.role_dossier === 'investisseur_2' && !householdReviewComplete) {
-        setStep(0);
-        throw new Error(householdReview.length === 0
+      if (progress.role_dossier === 'investisseur_2') {
+        const { data: freshReview, error: reviewError } = await supabase.rpc('get_my_household_review', { p_dossier_id: progress.dossier_id });
+        if (reviewError) throw reviewError;
+        const fresh = (freshReview ?? []) as HouseholdReviewRow[];
+        setHouseholdReview(fresh);
+        const missing = SHARED_HOUSEHOLD_SECTIONS.filter((code) => !fresh.some((item) => item.section_code === code && item.completed_at && item.confirmation_status === 'confirmed' && !item.confirmation_stale));
+        if (missing.length > 0) {
+          setStep(0);
+          throw new Error(fresh.length === 0
           ? 'Les informations communes du foyer (dont les crédits) doivent d’abord être renseignées par l’Identifiant 1. Vous pourrez ensuite les confirmer dans « Informations communes du foyer », en haut du recueil.'
-          : 'Avant de valider, vérifiez et confirmez les informations communes du foyer (dont les crédits) dans l’encadré « Informations communes du foyer », en haut du recueil. Vous n’avez pas à les ressaisir.');
+          : `Avant de valider, vérifiez et confirmez : ${missing.map((code) => householdSectionLabels[code]).join(', ')}. Utilisez l’encadré « Informations communes du foyer » en haut du recueil. Les informations ne sont pas à ressaisir.`);
+        }
+      }
+      const { data: completeness, error: completenessError } = await supabase.rpc('get_recueil_completeness', { p_dossier_id: progress.dossier_id, p_investisseur_id: progress.investisseur_id });
+      if (completenessError) throw completenessError;
+      if (completeness?.complete === false) {
+        const incomplete = (completeness.sections ?? []).filter((item: { complete: boolean }) => !item.complete);
+        const labels = incomplete.map((item: { section_code: SectionCode }) => sections.find((section) => section.code === item.section_code)?.label ?? item.section_code);
+        const firstVisible = visibleSections.findIndex((section) => incomplete.some((item: { section_code: string }) => item.section_code === section.code));
+        if (firstVisible >= 0) setStep(firstVisible);
+        else setStep(0);
+        throw new Error(`Recueil incomplet : ${labels.join(', ')}. Corrigez les rubriques indiquées${incomplete.some((item: { section_code: string }) => SHARED_HOUSEHOLD_SECTIONS.includes(item.section_code as SectionCode)) && progress.role_dossier === 'investisseur_2' ? ' ou confirmez les informations communes du foyer en haut du recueil' : ''}.`);
       }
       const { error } = await supabase.rpc('validate_my_recueil', { p_dossier_id: progress.dossier_id });
       if (error) throw error;
@@ -1083,7 +1100,7 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
         {errorMessage && <div id="recueil-validation-alert" role="alert" tabIndex={-1} className="scroll-mt-28 rounded-2xl border border-amber-400/60 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950 shadow-sm"><p className="font-semibold">À compléter avant de continuer</p><p className="mt-1">{errorMessage}</p></div>}
         
       </div>
-      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === visibleSections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === sections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
+      <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-white/10 bg-[#111C31]/95 px-6 py-5 shadow-[0_-10px_30px_rgba(2,8,23,0.18)] backdrop-blur sm:px-9"><button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-[#3B82F6] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"><ChevronLeft className="h-4 w-4" /> Précédent</button><button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:translate-y-0 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === visibleSections.length - 1 ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{step === visibleSections.length - 1 ? 'Valider le recueil' : 'Enregistrer et continuer'}</button></div>
     </WizardCard>
   </div>;
 }
