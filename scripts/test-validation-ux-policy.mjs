@@ -3,8 +3,15 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 
 const shared = fs.readFileSync('src/portal/FintechJourney.tsx', 'utf8');
+const recueilJourney = fs.readFileSync('src/pages/portal/ClientRecueilJourneyBase.tsx', 'utf8');
+const sharedCreditValidation = fs.readFileSync('supabase/migrations/20261022100000_allow_confirmed_household_credits_for_secondary_validation.sql', 'utf8');
 assert(shared.includes("disabled={busy} aria-invalid={nextDisabled || undefined}"), 'WizardFooter must stay clickable for validation errors and disable only while busy.');
 assert(!shared.includes('disabled={nextDisabled || busy}'), 'WizardFooter must never be physically disabled by validation incompleteness.');
+assert.match(recueilJourney, /MAX_RECUEIL_OBJECTIVES = 5/, 'The recueil objective selector must respect the database maximum priority.');
+assert.match(recueilJourney, /form\.items\.length > MAX_RECUEIL_OBJECTIVES/, 'Objective submissions must be checked before they reach the database.');
+assert.match(recueilJourney, /disabled=\{limitReached\}/, 'The objective picker must prevent selecting a sixth priority.');
+assert.match(sharedCreditValidation, /new\.role_dossier = 'investisseur_2'/, 'Secondary investors must use the shared-household credit validation path.');
+assert.match(sharedCreditValidation, /hc\.confirmer_investisseur_id = new\.investisseur_id[\s\S]*hc\.status = 'confirmed'[\s\S]*hc\.source_updated_at >= rs\.updated_at/, 'The shared credit confirmation must belong to investor 2 and be current.');
 
 const root = 'src/pages/portal';
 const files = fs.readdirSync(root).filter((name) => name.endsWith('.tsx'));
