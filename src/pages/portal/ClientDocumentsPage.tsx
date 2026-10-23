@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, Download, FileCheck2, FileUp, Loader2, Trash2, UploadCloud, UsersRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, SecureNote, WizardCard, WizardFooter } from '../../portal/FintechJourney';
+import FollowUpBooking from '../../portal/FollowUpBooking';
 import { REGULATORY_DOCUMENTS_BUCKET, SOURCE_DOCUMENTS_BUCKET, supabase } from '../../lib/supabase';
 import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, type PortalProgress } from '../../portal/portalHelpers';
 
@@ -482,7 +483,7 @@ export default function ClientDocumentsPage() {
           </div>
         </div>}
 
-        {transmitted && <div className="px-6 py-7 sm:px-9 sm:py-9"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Dossier déjà transmis</p><p className="mt-1 text-sm leading-6">Les justificatifs sont désormais figés afin de préserver la traçabilité de la transmission.</p></div></div>}
+        {transmitted && <div className="space-y-5 px-6 py-7 sm:px-9 sm:py-9"><div className="rounded-2xl bg-emerald-50 p-5 text-emerald-800"><p className="font-semibold">Dossier déjà transmis</p><p className="mt-1 text-sm leading-6">Les justificatifs sont désormais figés afin de préserver la traçabilité de la transmission.</p></div><FollowUpBooking /></div>}
 
         {activeDocumentView === 'uploads' && <div className="document-summary border-t border-slate-100 bg-slate-50/60 px-6 py-6 sm:px-9">
           <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-slate-950">Documents du dossier</h3><p className="mt-1 text-sm text-slate-500">{sources.length === 0 ? 'Aucun document transmis pour le moment.' : `${sources.length} document${sources.length > 1 ? 's' : ''} enregistré${sources.length > 1 ? 's' : ''} dans le dossier commun.`}</p></div>{sources.length > 0 && <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><FileCheck2 className="h-5 w-5" /></div>}</div>

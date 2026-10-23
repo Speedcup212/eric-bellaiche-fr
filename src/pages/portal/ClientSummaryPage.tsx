@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Send, ShieldCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { JourneyProgress, PageIntro, WizardCard } from '../../portal/FintechJourney';
+import FollowUpBooking from '../../portal/FollowUpBooking';
 import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, selectedProgress, stepLabel, type PortalProgress } from '../../portal/portalHelpers';
 
 export default function ClientSummaryPage() {
@@ -36,7 +37,7 @@ export default function ClientSummaryPage() {
           </div>
         </div>
 
-        {allDone && <div className="border-t border-slate-100 px-6 py-7 sm:px-9"><div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-5"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" /><div><p className="font-semibold text-slate-800">Aucune autre action immédiate</p><p className="mt-1 text-sm leading-6 text-slate-500">Le cabinet vous recontactera si une précision ou un justificatif complémentaire est nécessaire. Les documents réglementaires ou contrats à signer seront transmis séparément au moment approprié.</p></div></div><button type="button" onClick={() => navigate(dossierHref('/espace-client', progress.dossier_id))} className="mt-6 text-sm font-semibold text-slate-600 hover:text-slate-950">Retour à mon dossier</button></div>}
+        {allDone && <div className="space-y-5 border-t border-slate-100 px-6 py-7 sm:px-9"><FollowUpBooking /><div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-5"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" /><div><p className="font-semibold text-slate-800">La suite de votre accompagnement</p><p className="mt-1 text-sm leading-6 text-slate-500">Le cabinet vous recontactera si une précision ou un justificatif complémentaire est nécessaire. Les documents réglementaires ou contrats à signer seront transmis séparément au moment approprié.</p></div></div><button type="button" onClick={() => navigate(dossierHref('/espace-client', progress.dossier_id))} className="text-sm font-semibold text-slate-600 hover:text-slate-950">Retour à mon dossier</button></div>}
       </WizardCard>
       {errorMessage && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
     </div>

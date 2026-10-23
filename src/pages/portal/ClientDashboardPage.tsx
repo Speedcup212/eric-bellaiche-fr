@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Check, CheckCircle2, ChevronDown, FileCheck2, ShieldCheck, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { JourneyProgress, WizardCard } from '../../portal/FintechJourney';
+import FollowUpBooking from '../../portal/FollowUpBooking';
 import { supabase } from '../../lib/supabase';
 import { dossierHref, fetchPortalProgress, messageFromError, nextStepHref, type PortalProgress } from '../../portal/portalHelpers';
 
@@ -113,6 +114,8 @@ export default function ClientDashboardPage() {
             </WizardCard>
 
             <JourneyProgress current={stage} esgEnabled={esgRequired || row.esg_opt_in === null} />
+
+            {allDone && <FollowUpBooking />}
 
             {row.is_couple && !row.dossier_ready_for_documents && !allDone && (
               <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm sm:px-6">
