@@ -1392,9 +1392,20 @@ Deno.serve(async (req) => {
       }
       if(autoMode){
         if(!previewId){
+          const reason='Lecture insuffisante ou discordance des contrôles';
+          await admin.from('documents_sources').update({
+            metadata:{...(doc.metadata??{}),auto_crd:{
+              status:'exception',reason,parser:'credit_schedule_dual_v5',
+              inspected_at:new Date().toISOString(),
+              pdf_rows:readers.pdf_native?.rows??null,
+              native_status:readers.pdf_native?.status??'indisponible',
+              ocr_status:readers.ocr?.status??'indisponible',
+            }},
+            updated_at:new Date().toISOString(),
+          }).eq('id',documentId);
           return new Response(JSON.stringify({
             ok:true,automated:true,document_id:documentId,
-            auto_crd:{status:'exception',reason:'Lecture insuffisante ou discordance des contrôles',summary:parsed.summary},
+            auto_crd:{status:'exception',reason,summary:parsed.summary},
             theoretical_balance:balanced?amount:null,
             theoretical_balance_date:validDate?date:null,
           }),{headers});
@@ -1403,6 +1414,16 @@ Deno.serve(async (req) => {
           p_preview_id:previewId,
         });
         if(autoError){
+          await admin.from('documents_sources').update({
+            metadata:{...(doc.metadata??{}),auto_crd:{
+              status:'exception',reason:autoError.message,parser:'credit_schedule_dual_v5',
+              inspected_at:new Date().toISOString(),
+              pdf_rows:readers.pdf_native?.rows??null,
+              native_status:readers.pdf_native?.status??'indisponible',
+              ocr_status:readers.ocr?.status??'indisponible',
+            }},
+            updated_at:new Date().toISOString(),
+          }).eq('id',documentId);
           return new Response(JSON.stringify({
             ok:true,automated:true,document_id:documentId,
             auto_crd:{status:'exception',reason:autoError.message,summary:parsed.summary},
