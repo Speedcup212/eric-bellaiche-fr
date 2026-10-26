@@ -347,6 +347,10 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const capacity = byCode('capacity'); const tax = byCode('tax'); const financial = byCode('financial'); const credits = byCode('credits'); const family = byCode('family'); const regulatory = byCode('regulatory'); const objectives = byCode('objectives');
   const annualIncome = sumMatching(capacity, /(revenu.*annuel|revenus.*annuels|salaire.*annuel|net.*annuel|revenu_net|income)/i, /(conjoint|foyer_total)/i);
   const annualCharges = sumMatching(capacity, /(charges?.*annuell|depenses?.*annuell)/i);
+  // Do not subtract loan instalments twice when the reported annual charges
+  // might already contain debt service. Only an explicitly net-of-loans charge
+  // breakdown permits calculation of a reliable estimated remainder.
+  const chargesHorsCredit = sumMatching(capacity, /(charges?|depenses?).*(hors[_ .-]*(credits?|emprunts?))/i);
   const savingsCapacityMonthly = sumMatching(capacity, /(capacite.*epargne|epargne.*mensuell|effort.*epargne)/i);
   const liquidAssets = sumMatching(financial, /(disponible.*compte|comptes?.*courant|liquidit|epargne.*bancaire|livret.*montant|solde.*bancaire|montant.*disponible)/i, /(categorie|type|nombre)/i);
   const financialAssets = sumMatching(financial, /(montant|valorisation|encours|valeur)/i, /(disponible.*compte|compte.*courant|liquidit|mensualite|versement)/i);
@@ -377,7 +381,7 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const debtRatio = monthlyIncome !== null && monthlyDebt.found ? (monthlyDebt.value / monthlyIncome) * 100 : null;
   // A theoretical 35% debt-service margin, not cash available in a bank account.
   const bankAvailableMonthly = monthlyIncome !== null && monthlyDebt.found ? monthlyIncome * 0.35 - monthlyDebt.value : null;
-  const remainingMonthly = monthlyIncome !== null && monthlyDebt.found && annualCharges.found ? monthlyIncome - monthlyDebt.value - (annualCharges.value / 12) : null;
+  const remainingMonthly = monthlyIncome !== null && monthlyDebt.found && chargesHorsCredit.found ? monthlyIncome - monthlyDebt.value - (chargesHorsCredit.value / 12) : null;
   // Source-level financial details and loan/property attribution are consolidated
   // by buildPatrimonialOverview. Never add liquid assets twice or clamp equity to zero.
   const netRealEstate = debtOutstanding.found ? householdRealEstate - debtOutstanding.value : null;
@@ -391,7 +395,7 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   if (!debtOutstanding.found) missing.push('capital restant dû');
   if (!financialAssets.found) missing.push('valorisation des actifs financiers');
   if (!tmi.found) missing.push('TMI');
-  return { annualIncome, annualCharges, savingsCapacityMonthly, liquidAssets, financialAssets, monthlyDebt, debtOutstanding, tmi, taxableIncome, rfr, incomeTax, perCeiling, ifi, landDeficit, familyStatus, matrimonialRegime, children, notary, transmissionClause, debtRatio, bankAvailableMonthly, remainingMonthly, netRealEstate, patrimonyNet, goals, transmissionGoals, missing };
+  return { annualIncome, annualCharges, chargesHorsCreditKnown:chargesHorsCredit.found, savingsCapacityMonthly, liquidAssets, financialAssets, monthlyDebt, debtOutstanding, tmi, taxableIncome, rfr, incomeTax, perCeiling, ifi, landDeficit, familyStatus, matrimonialRegime, children, notary, transmissionClause, debtRatio, bankAvailableMonthly, remainingMonthly, netRealEstate, patrimonyNet, goals, transmissionGoals, missing };
 }
 function formatValue(value: unknown, key = ''): string {
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
@@ -1045,11 +1049,13 @@ export default function CifDossierSummaryPage() {
         detail:`${patrimonialOverview.unlinkedPropertyDebts} crédit(s) immobilier(s) non rapproché(s) d’un bien.`,level:'review'});
     if(!snapshot.annualCharges.found)
       alerts.push({label:'Charges du foyer absentes',detail:'Reste à vivre mensuel non calculable.',level:'review'});
+    else if(!snapshot.chargesHorsCreditKnown)
+      alerts.push({label:'Charges non ventilées',detail:'Les charges annuelles ne précisent pas si les mensualités sont déjà incluses : reste à vivre suspendu pour éviter un double comptage.',level:'review'});
     if(patrimonialOverview.theoreticalDebts>0)
       alerts.push({label:'Dette à valeur théorique',
         detail:'CRD calculé depuis l’échéancier, distinct d’un solde bancaire attesté.',level:'review'});
     return alerts;
-  },[patrimonialOverview,snapshot.annualCharges.found]);
+  },[patrimonialOverview,snapshot.annualCharges.found,snapshot.chargesHorsCreditKnown]);
 
   const taxSourcePeriod=useMemo(()=>{
     const labels=sourceDocuments.filter((doc)=>doc.categorie==='avis_imposition')
@@ -1986,9 +1992,9 @@ export default function CifDossierSummaryPage() {
         <WorkBlock title="Revenus & capacité" subtitle="Flux du foyer et effort financier">
           <WorkLine label="Revenus annuels déclarés" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'Non renseignés'} attention={!snapshot.annualIncome.found}/>
           <WorkLine label="Moyenne mensuelle déclarée" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value / 12) : 'Non calculable'} attention={!snapshot.annualIncome.found}/>
-          <WorkLine label="Charges annuelles hors crédit" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseignées'} attention={!snapshot.annualCharges.found}/>
+          <WorkLine label="Charges annuelles déclarées" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseignées'} attention={!snapshot.annualCharges.found}/>
           <WorkLine label="Capacité d’épargne déclarée" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'Non renseignée'} attention={!snapshot.savingsCapacityMonthly.found}/>
-          <WorkLine label="Reste à vivre estimé" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null}/>
+          <WorkLine label="Reste à vivre (charges hors crédit)" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null}/>
         </WorkBlock>
         <WorkBlock title="Fiscal" subtitle="Données déclaratives à rapprocher de l’année de l’avis">
           <WorkLine label="Référence fiscale" value={taxSourcePeriod} attention={taxSourcePeriod.includes('préciser')||taxSourcePeriod.includes('rapprocher')}/>
