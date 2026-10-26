@@ -28,7 +28,8 @@ function yearOf(row:FiscalSection):number|null{
  return n!==null&&Number.isInteger(n)&&n>=2000&&n<=2100?n:null;
 }
 function noticeYear(s:FiscalSource):number|null{
- const m=s.nom_fichier.match(/\b(20\d{2})\b/);
+ // Filenames often delimit the year with underscores, which are word characters.
+ const m=s.nom_fichier.match(/(?:^|[^0-9])(20\d{2})(?=[^0-9]|$)/);
  return m?Number(m[1]):null;
 }
 export function consolidateFiscalNotice(
