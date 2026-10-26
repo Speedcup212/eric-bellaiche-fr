@@ -1986,6 +1986,7 @@ export default function CifDossierSummaryPage() {
           <WorkLine label="Encours avec justificatif daté" value={euro(patrimonialOverview.financialVerified)}/>
           <WorkLine label="Encours déclarés à justifier" value={euro(patrimonialOverview.financialDeclared)} attention={patrimonialOverview.financialDeclared>0}/>
           <WorkLine label="Total financier indicatif" value={euro(patrimonialOverview.financialKnown)}/>
+          <WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c)=>financialCategoryLabel[c]??c).join(' · ') : 'Non précisées'} attention={!household.financialCategories.length}/>
           <WorkLine label="Encours inconnus" value={`${patrimonialOverview.financialUnknown} ligne(s)`} attention={patrimonialOverview.financialUnknown>0}/>
           <WorkLine label="Dates / doublons à rapprocher" value={`${patrimonialOverview.dateWarnings} date(s), ${patrimonialOverview.overlapWarnings} doublon(s)`} attention={patrimonialOverview.dateWarnings>0||patrimonialOverview.overlapWarnings>0}/>
           <WorkLine label="Patrimoine net indicatif du foyer" value={patrimonialOverview.householdNet !== null ? euro(patrimonialOverview.householdNet) : 'Non calculable'} attention/>
