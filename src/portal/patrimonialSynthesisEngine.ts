@@ -14,6 +14,9 @@ export type OverviewAsset = {
   possibleOverlap:boolean;
   sourceRejected:boolean;
   sourceDocumentId?:string;
+  valuationDate?:string;
+  amountEnteredManually?:boolean;
+  automaticFieldsApplied?:number;
 };
 export type OverviewDebt = {
   outstanding:number|null;
@@ -27,7 +30,11 @@ export type OverviewProperty = { value:number|null };
 export type QualityOverview = {
   financialKnown:number;
   financialVerified:number;
+  financialStatementLinked:number;
   financialDeclared:number;
+  financialOtherProvisional:number;
+  clientDeclaredPositions:number;
+  staleStatements:number;
   financialUnknown:number;
   provisionalAssets:number;
   debtKnown:number;
@@ -49,9 +56,13 @@ export function buildPatrimonialOverview(input:{
   debts:OverviewDebt[];
   properties:OverviewProperty[];
   expectedPropertyCount?:number;
+  asOfDate?:string;
 }):QualityOverview {
-  let financialKnown=0,financialVerified=0,financialDeclared=0,financialUnknown=0;
+  let financialKnown=0,financialVerified=0,financialStatementLinked=0,financialDeclared=0,financialOtherProvisional=0,financialUnknown=0;
+  let clientDeclaredPositions=0,staleStatements=0;
   let dateWarnings=0,rejectedSources=0,overlapWarnings=0;
+  const asOf=input.asOfDate ?? new Date().toISOString().slice(0,10);
+  const asOfTime=Date.parse(asOf+'T00:00:00Z');
   const rejectedDocumentIds=new Set<string>();
   for(const asset of input.assets){
     if(asset.sourceRejected){
@@ -68,14 +79,28 @@ export function buildPatrimonialOverview(input:{
       continue;
     }
     financialKnown+=asset.amount;
-    // "Documented" is evidence quality, not regulatory certification.
-    // A validated source, dated encours, and no overlap are all required.
-    if(asset.sourceStatus==='validated' && !asset.sourceRejected &&
-       asset.sourceKind!=='declaration_docx_conseiller' &&
-       !asset.needsDateReview && asset.hasValuationDate &&
-       !asset.possibleOverlap){
-      financialVerified+=asset.amount;
-    }else financialDeclared+=asset.amount;
+    if(asset.sourceKind==='declaration_docx_conseiller'){
+      clientDeclaredPositions++;
+      financialDeclared+=asset.amount;
+      continue;
+    }
+    // A manually entered amount linked to a validated PDF is not a
+    // machine-extracted, cross-checked value. Keep it in its own category.
+    const attachedToStatement=['validated','extracted'].includes(asset.sourceStatus) &&
+      !asset.sourceRejected && asset.hasValuationDate;
+    if(attachedToStatement){
+      const recordedDate=asset.valuationDate ?? '';
+      const recordedTime=/^\\d{4}-\\d{2}-\\d{2}$/.test(recordedDate)
+        ? Date.parse(recordedDate+'T00:00:00Z'):NaN;
+      const maxAgeDays=/livret|compte|bancaire|ldd/i.test(asset.type)?90:180;
+      const aged=Number.isFinite(recordedTime) && Number.isFinite(asOfTime) &&
+        asOfTime>recordedTime+maxAgeDays*86400000;
+      if(aged)staleStatements++;
+      if((asset.automaticFieldsApplied ?? 0)>0 && asset.amountEnteredManually===false &&
+        !asset.possibleOverlap && !asset.needsDateReview && !aged){
+        financialVerified+=asset.amount;
+      }else financialStatementLinked+=asset.amount;
+    }else financialOtherProvisional+=asset.amount;
   }
   const propertyValue=input.properties.reduce((sum,p)=>sum+(p.value??0),0);
   const unknownPropertyValues=input.properties.filter(p=>p.value===null||!Number.isFinite(p.value)||p.value<0).length;
@@ -95,7 +120,8 @@ export function buildPatrimonialOverview(input:{
   const householdNet=netComplete?propertyValue+financialKnown-debtKnown:null;
   const asOfDates=[...new Set(input.debts.map(d=>d.outstandingDate).filter(Boolean))].sort();
   return {
-    financialKnown,financialVerified,financialDeclared,financialUnknown,
+    financialKnown,financialVerified,financialStatementLinked,financialDeclared,
+    financialOtherProvisional,financialUnknown,clientDeclaredPositions,staleStatements,
     provisionalAssets:propertyValue+financialKnown,debtKnown,allDebtKnown,
     realEstateNet,householdNet,netComplete,dateWarnings,rejectedSources,
     overlapWarnings,unknownPropertyValues,unlinkedPropertyDebts,

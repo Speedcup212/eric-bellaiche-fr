@@ -11,17 +11,21 @@ assert.equal(typeof calc,'function');
 const asset=(amount,overrides={})=>({
   amount,type:'Livret A',owner:'Mr',institution:'Banque',sourceStatus:'validated',
   sourceKind:'releve_bancaire',needsDateReview:false,
-  hasValuationDate:true,possibleOverlap:false,sourceRejected:false,...overrides,
+  hasValuationDate:true,valuationDate:'2026-10-01',automaticFieldsApplied:1,
+  amountEnteredManually:false,possibleOverlap:false,sourceRejected:false,...overrides,
 });
 const base=calc({
   properties:[{value:515000},{value:265000}],
   debts:[{outstanding:242712.83,type:'credit immobilier locatif',linkedProperty:true,isTheoreticalBalance:true,outstandingDate:'2026-10-05'}],
   assets:[asset(69702),asset(279500,{sourceStatus:'rejected',sourceKind:'declaration_docx_conseiller',needsDateReview:true,hasValuationDate:false,sourceRejected:true})],
   expectedPropertyCount:2,
+  asOfDate:'2026-10-26',
 });
 assert.equal(base.financialKnown,349202);
 assert.equal(base.financialVerified,69702);
 assert.equal(base.financialDeclared,279500);
+assert.equal(base.financialStatementLinked,0);
+assert.equal(base.clientDeclaredPositions,1);
 assert.equal(base.realEstateNet,537287.17);
 assert.ok(Math.abs(base.householdNet-886489.17)<1e-5,'Household net includes asset exactly once');
 assert.equal(base.theoreticalDebts,1);
@@ -60,8 +64,23 @@ const multiClientWord=calc({
 });
 assert.equal(multiClientWord.financialDeclared,3000,'Keep both client-declared positions');
 assert.equal(multiClientWord.rejectedSources,1,'One technically rejected client document is one incident, not two falsified investments');
+const manuallyLinked=calc({properties:[],debts:[],asOfDate:'2026-10-26',assets:[asset(69702,{
+  valuationDate:'2026-04-04',amountEnteredManually:true,automaticFieldsApplied:0,
+  sourceStatus:'validated',sourceDocumentId:'aep-file',type:'Assurance-vie / capitalisation',
+})]});
+assert.equal(manuallyLinked.financialVerified,0,'Manual PDF linking must not become automatic certification');
+assert.equal(manuallyLinked.financialStatementLinked,69702);
+assert.equal(manuallyLinked.staleStatements,1,'Historical valuation of life policy must be flagged');
+assert.equal(manuallyLinked.financialKnown,69702);
+const documentError=calc({properties:[],debts:[],assets:[asset(1500,{
+ sourceKind:'declaration_docx_conseiller',sourceRejected:true,sourceStatus:'rejected',
+ hasValuationDate:false,sourceDocumentId:'word-1'}),asset(2000,{
+ sourceKind:'declaration_docx_conseiller',sourceRejected:true,sourceStatus:'rejected',
+ hasValuationDate:false,sourceDocumentId:'word-1'})]});
+assert.equal(documentError.financialDeclared,3500);
+assert.equal(documentError.rejectedSources,1,'Technical document rejection counted only once');
 const ui=readFileSync('src/pages/portal/CifDossierSummaryPage.tsx','utf8');
-for(const phrase of ['buildPatrimonialOverview','Patrimoine net indicatif','Encours déclarés par le client (à rapprocher)','Marge de mensualité théorique à 35 %','Contrôles utiles avant préconisation','Équité immobilière indicative']){
+for(const phrase of ['buildPatrimonialOverview','Patrimoine net indicatif','Encours déclarés par le client (à rapprocher)','Encours saisis depuis un relevé','Co-souscription à rapprocher','Marge de mensualité théorique à 35 %','Contrôles utiles avant préconisation','Équité immobilière indicative']){
  assert.ok(ui.includes(phrase),'Missing synthesis UI requirement: '+phrase);
 }
 assert.ok(!ui.includes('label="Disponible bancaire"'));

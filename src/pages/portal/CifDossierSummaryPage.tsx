@@ -104,6 +104,8 @@ type ProfessionalFinancialAsset = {
   sourceStatus:string;
   sourceKind:string;
   hasValuationDate:boolean;
+  amountEnteredManually:boolean;
+  automaticFieldsApplied:number;
 };
 type ProfessionalCredit = {
   id:string;
@@ -843,6 +845,7 @@ export default function CifDossierSummaryPage() {
     ]));
     const sourceNameById = new Map(sourceDocuments.map((document) => [document.id, document.nom_fichier]));
     const sourceStatusById = new Map(sourceDocuments.map((document) => [document.id, document.statut_analyse]));
+    const sourceMetaById = new Map(sourceDocuments.map((document)=>[document.id,document.metadata]));
     const ownerLabel = (value: unknown, investorId: string) => {
       const raw = professionalText(value, investorNameById.get(investorId) || 'À préciser');
       const normalized = normalizedSearch(raw);
@@ -984,6 +987,8 @@ export default function CifDossierSummaryPage() {
           sourceStatus:sourceStatusById.get(sourceId) ?? 'unknown',
           sourceKind:professionalText(item.source_type,''),
           hasValuationDate:/^\d{4}-\d{2}-\d{2}$/.test(professionalText(item.date_valorisation,'')),
+          amountEnteredManually:((sourceMetaById.get(sourceId)?.manual_review as Record<string,unknown>|undefined)?.amount_entered_manually===true),
+          automaticFieldsApplied:Number(sourceMetaById.get(sourceId)?.fields_applied ?? 0),
         });
       });
     }
@@ -1027,6 +1032,9 @@ export default function CifDossierSummaryPage() {
       possibleOverlap:Boolean(asset.possibleOverlap),
       sourceRejected:asset.sourceRejected,
       sourceDocumentId:asset.sourceDocumentId,
+      valuationDate:asset.valuationDate,
+      amountEnteredManually:asset.amountEnteredManually,
+      automaticFieldsApplied:asset.automaticFieldsApplied,
     })),
     debts:professionalPatrimony.credits.map((debt)=>({
       outstanding:debt.outstanding,type:debt.type,
@@ -1036,16 +1044,34 @@ export default function CifDossierSummaryPage() {
     })),
     properties:professionalPatrimony.properties.map((p)=>({value:p.value})),
     expectedPropertyCount:household.realEstate.count,
+    asOfDate:new Date().toISOString().slice(0,10),
   }),[professionalPatrimony,household.realEstate.count]);
+
+  const coInsuranceDeclarations=useMemo(()=>sourceDocuments.flatMap((doc)=>{
+    const meta=doc.metadata?.manual_reconciliation;
+    if(!meta || typeof meta!=='object' || Array.isArray(meta))return [];
+    const details=meta as Record<string,unknown>;
+    const wordAmount=professionalNumber(details.joint_word_amount);
+    const linkedAmount=professionalNumber(details.joint_existing_amount);
+    if(details.joint_duplicate_not_created!==true || wordAmount===null || linkedAmount===null ||
+      Math.abs(wordAmount-linkedAmount)>Math.max(2,linkedAmount*0.0001))return [];
+    return [{source:doc.nom_fichier,declared:wordAmount,attached:linkedAmount}];
+  }),[sourceDocuments]);
 
   const synthesisAlerts=useMemo(()=>{
     const alerts:{label:string;detail:string;level:'blocking'|'review'}[]=[];
     for(const issue of snapshot.fiscal.warnings){
       if(issue.includes('Contradiction') || issue.includes('non rapprochées')) alerts.push({label:'Fiscalité : anomalie de source',detail:issue,level:'blocking'});
     }
+    if(coInsuranceDeclarations.length>0)
+      alerts.push({label:'Co-souscription à rapprocher',detail:`Le Word client déclare une assurance-vie en co-souscription proche d’un encours attaché à une fiche individuelle. Aucun doublon n’est créé ; contrôler la propriété du contrat avant toute réaffectation.`,level:'review'});
     if(patrimonialOverview.financialDeclared>0||patrimonialOverview.rejectedSources>0)
       alerts.push({label:'Encours financiers à justifier',
         detail:`${euro(patrimonialOverview.financialDeclared)} déclarés par le client sans relevés individuels datés ; ${patrimonialOverview.rejectedSources} document(s) avec anomalie technique de traitement.`,level:'review'});
+    if(patrimonialOverview.staleStatements>0)
+      alerts.push({label:'Relevé financier à actualiser',detail:`${patrimonialOverview.staleStatements} encours daté(s) au-delà du délai de fraîcheur applicable au produit.`,level:'review'});
+    if(patrimonialOverview.financialStatementLinked>0)
+      alerts.push({label:'Montant lié à un relevé sans extraction vérifiée',detail:`${euro(patrimonialOverview.financialStatementLinked)} proviennent d’un montant saisi / rapproché depuis une pièce, sans preuve de lecture chiffrée automatisée.`,level:'review'});
     if(patrimonialOverview.financialUnknown>0)
       alerts.push({label:'Valorisations absentes',
         detail:`${patrimonialOverview.financialUnknown} placement(s) sans encours exploitable.`,level:'blocking'});
@@ -1065,7 +1091,7 @@ export default function CifDossierSummaryPage() {
       alerts.push({label:'Dette à valeur théorique',
         detail:'CRD calculé depuis l’échéancier, distinct d’un solde bancaire attesté.',level:'review'});
     return alerts;
-  },[patrimonialOverview,snapshot.annualCharges.found,snapshot.chargesHorsCreditKnown,snapshot.fiscal.warnings]);
+  },[patrimonialOverview,snapshot.annualCharges.found,snapshot.chargesHorsCreditKnown,snapshot.fiscal.warnings,coInsuranceDeclarations]);
 
   const taxSourcePeriod=useMemo(()=>{
     const labels=sourceDocuments.filter((doc)=>doc.categorie==='avis_imposition')
@@ -2022,12 +2048,15 @@ export default function CifDossierSummaryPage() {
           <WorkLine label="Déficit foncier reportable" value={snapshot.landDeficit.found ? euro(snapshot.landDeficit.value) : 'Non renseigné'}/>
         </WorkBlock>
         <WorkBlock title="Placements & liquidités" subtitle="Montants connus, preuves et dates de valeur">
-          <WorkLine label="Encours avec justificatif daté" value={euro(patrimonialOverview.financialVerified)}/>
+          <WorkLine label="Encours extraits et contrôlés" value={euro(patrimonialOverview.financialVerified)}/>
+          <WorkLine label="Encours saisis depuis un relevé" value={euro(patrimonialOverview.financialStatementLinked)} attention={patrimonialOverview.financialStatementLinked>0}/>
           <WorkLine label="Encours déclarés par le client (à rapprocher)" value={euro(patrimonialOverview.financialDeclared)} attention={patrimonialOverview.financialDeclared>0}/>
+          <WorkLine label="Autres encours provisoires" value={euro(patrimonialOverview.financialOtherProvisional)} attention={patrimonialOverview.financialOtherProvisional>0}/>
           <WorkLine label="Total financier indicatif" value={euro(patrimonialOverview.financialKnown)}/>
           <WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c)=>financialCategoryLabel[c]??c).join(' · ') : 'Non précisées'} attention={!household.financialCategories.length}/>
           <WorkLine label="Encours inconnus" value={`${patrimonialOverview.financialUnknown} ligne(s)`} attention={patrimonialOverview.financialUnknown>0}/>
-          <WorkLine label="Dates / doublons à rapprocher" value={`${patrimonialOverview.dateWarnings} date(s), ${patrimonialOverview.overlapWarnings} doublon(s)`} attention={patrimonialOverview.dateWarnings>0||patrimonialOverview.overlapWarnings>0}/>
+          <WorkLine label="Dates / doublons à rapprocher" value={`${patrimonialOverview.dateWarnings} date(s), ${patrimonialOverview.overlapWarnings} doublon(s) potentiel(s)`} attention={patrimonialOverview.dateWarnings>0||patrimonialOverview.overlapWarnings>0}/>
+          <WorkLine label="Relevés à actualiser" value={`${patrimonialOverview.staleStatements} ligne(s)`} attention={patrimonialOverview.staleStatements>0}/>
           <WorkLine label="Patrimoine net indicatif du foyer" value={patrimonialOverview.householdNet !== null ? euro(patrimonialOverview.householdNet) : 'Non calculable'} attention/>
         </WorkBlock>
         <WorkBlock title="Immobilier" subtitle="Valorisation et dette immobilière rapprochée">
