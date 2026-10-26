@@ -1854,7 +1854,7 @@ export default function CifDossierSummaryPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">Points à confirmer</p>
         <div className="mt-2 space-y-1 text-sm leading-6 text-amber-100">
           {household.warnings.map((warning) => <p key={warning}>• {warning}</p>)}
-          {professionalPatrimony.properties.filter((property) => property.outstanding === null && /locatif|residence|résidence/i.test(property.usage)).map((property) => <p key={'credit-warning-' + property.id}>• {property.title} : aucun crédit n’est rattaché de façon certaine ; le CRD n’est donc pas supposé nul.</p>)}
+          {professionalPatrimony.properties.filter((property) => property.outstanding === null && /locatif|residence|résidence/i.test(property.usage)).map((property) => <p key={'credit-warning-' + property.id}>• {property.title} : {property.linkedCreditId ? 'crédit identifié et associé au bien, mais capital restant dû non déterminé à partir du tableau d’amortissement ; valeur nette indisponible.' : 'aucun crédit identifié pour ce bien ; vérifier s’il est financé avant de conclure à une dette nulle.'}</p>)}
         </div>
       </div>}
     </section>}
