@@ -93,6 +93,10 @@ type ProfessionalFinancialAsset = {
   taxTreatment:string;
   liquidity:string;
   sourceFile:string;
+  valuationDate:string;
+  needsDateReview:boolean;
+  possibleOverlap:string;
+  heldJointly:boolean;
 };
 type ProfessionalCredit = {
   id:string;
@@ -672,7 +676,8 @@ export default function CifDossierSummaryPage() {
         && Number(summary.schedule_rows_read ?? 0) === 0;
     };
     const pending = sourceDocuments.filter((doc) => (
-      doc.statut_analyse === 'uploaded' || needsLegacyCreditRefresh(doc)
+      doc.statut_analyse === 'uploaded' || needsLegacyCreditRefresh(doc) ||
+      (doc.statut_analyse === 'to_review' && doc.nom_fichier.toLowerCase().endsWith('.docx') && String(doc.metadata?.analysis_error ?? '').includes('Invalid file signature'))
     ) && !analysisAttemptedRef.current.has(doc.id));
     if (!pending.length) return;
     pending.forEach((doc) => analysisAttemptedRef.current.add(doc.id));
@@ -824,18 +829,23 @@ export default function CifDossierSummaryPage() {
           taxTreatment:treatment.taxTreatment,
           liquidity:treatment.liquidity,
           sourceFile:professionalText(item.source_file,'') || sourceNameById.get(sourceId) || '',
+          valuationDate:professionalText(item.date_valorisation,''),
+          needsDateReview:item.source_date_status === 'absente_du_document' || item.validation_status === 'a_verifier',
+          possibleOverlap:professionalText(item.possible_overlap_to_review,''),
+          heldJointly:professionalText(item.proprietaire,'') === 'Identifiant 1 et 2',
         });
       });
     }
 
     const realEstateGross = properties.reduce((sum,item) => sum + (item.value ?? 0),0);
     const documentedDebt = credits.reduce((sum,item) => sum + (item.outstanding ?? 0),0);
+    const allDebtValued = credits.every((item) => item.outstanding !== null);
     const documentedFinancial = financialAssets.reduce((sum,item) => sum + (item.amount ?? 0),0);
     const documentedLiquidity = financialAssets
       .filter((item) => /immediate/i.test(normalizedSearch(item.liquidity)))
       .reduce((sum,item) => sum + (item.amount ?? 0),0);
     const grossDocumented = realEstateGross + documentedFinancial;
-    const netDocumented = grossDocumented - documentedDebt;
+    const netDocumented = allDebtValued ? grossDocumented - documentedDebt : null;
     const annualRent = properties.reduce((sum,item) => sum + (item.annualRent ?? 0),0);
     const currentMonthlyDebt = credits.reduce((sum,item) => sum + (item.currentPayment ?? 0),0);
     const futureMonthlyDebt = credits.reduce((sum,item) => sum + (item.futurePayment ?? item.currentPayment ?? 0),0);
@@ -1584,7 +1594,7 @@ export default function CifDossierSummaryPage() {
                     <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
-                      {(doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
+                      {(doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
                       {doc.statut_analyse === 'to_review' && <button type="button" disabled={busy} onClick={() => setReviewingSourceDocumentId((current) => current === doc.id ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-amber-500 disabled:opacity-50"><FileCheck2 className="h-3.5 w-3.5" /> Contrôler</button>}
                     </div>
                   </div>
@@ -1717,7 +1727,7 @@ export default function CifDossierSummaryPage() {
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
         <WorkBlock title="Revenus & capacité" subtitle="Flux, charges et marge de manœuvre"><WorkLine label="Revenus annuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'Non renseigné'} attention={!snapshot.annualIncome.found} /><WorkLine label="Revenus mensuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value / 12) : 'Non calculable'} attention={!snapshot.annualIncome.found} /><WorkLine label="Charges annuelles" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseigné'} attention={!snapshot.annualCharges.found} /><WorkLine label="Capacité d’épargne" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'Non renseigné'} attention={!snapshot.savingsCapacityMonthly.found} /><WorkLine label="Reste disponible mensuel" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null} /></WorkBlock>
         <WorkBlock title="Fiscal" subtitle="Fiscalité personnelle et leviers disponibles"><WorkLine label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} attention={!snapshot.tmi.found} /><WorkLine label="Revenu imposable" value={snapshot.taxableIncome.found ? euro(snapshot.taxableIncome.value) : 'Non renseigné'} attention={!snapshot.taxableIncome.found} /><WorkLine label="RFR" value={snapshot.rfr.found ? euro(snapshot.rfr.value) : 'Non renseigné'} attention={!snapshot.rfr.found} /><WorkLine label="IR net" value={snapshot.incomeTax.found ? euro(snapshot.incomeTax.value) : 'Non renseigné'} attention={!snapshot.incomeTax.found} /><WorkLine label="Plafond PER disponible" value={snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'Non renseigné'} attention={!snapshot.perCeiling.found} /><WorkLine label="IFI" value={snapshot.ifi.found ? euro(snapshot.ifi.value) : 'Non concerné / non renseigné'} /><WorkLine label="Déficit foncier reportable" value={snapshot.landDeficit.found ? euro(snapshot.landDeficit.value) : 'Non renseigné'} /></WorkBlock>
-        <WorkBlock title="Placements & liquidités" subtitle="Actifs financiers mobilisables et encours"><WorkLine label="Actifs financiers" value={snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'Non valorisés'} attention={!snapshot.financialAssets.found} /><WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c) => financialCategoryLabel[c] ?? c).join(', ') : 'Aucun placement identifié'} attention={!household.financialCategories.length} /><WorkLine label="Patrimoine net estimé" value={snapshot.patrimonyNet !== null ? euro(snapshot.patrimonyNet) : 'Non calculable'} attention={snapshot.patrimonyNet === null} /></WorkBlock>
+        <WorkBlock title="Placements & liquidités" subtitle="Actifs financiers mobilisables et encours">{professionalPatrimony.financialAssets.some((item) => item.needsDateReview || item.possibleOverlap) && <WorkLine label="Qualité des encours" value="Montants déclarés — dates / doublons à vérifier" attention />}<WorkLine label="Actifs financiers" value={snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'Non valorisés'} attention={!snapshot.financialAssets.found} /><WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c) => financialCategoryLabel[c] ?? c).join(', ') : 'Aucun placement identifié'} attention={!household.financialCategories.length} /><WorkLine label="Patrimoine net estimé" value={snapshot.patrimonyNet !== null ? euro(snapshot.patrimonyNet) : 'Non calculable'} attention={snapshot.patrimonyNet === null} /></WorkBlock>
         <WorkBlock title="Immobilier" subtitle="Valeur, détention et patrimoine net"><WorkLine label="Nombre de biens" value={`${household.realEstate.count}`} /><WorkLine label="Immobilier brut" value={euro(household.realEstate.totalValue)} /><WorkLine label="Biens communs" value={euro(household.realEstate.jointValue)} /><WorkLine label="Immobilier net estimé" value={snapshot.netRealEstate !== null ? euro(snapshot.netRealEstate) : 'Non calculable'} attention={snapshot.netRealEstate === null} /><WorkLine label="Ressaisies neutralisées" value={`${household.realEstate.duplicatesIgnored}`} /></WorkBlock>
         <WorkBlock title="Crédits & endettement" subtitle="Poids de la dette et solvabilité">{sourceDocuments.some((doc) => doc.categorie === 'tableau_amortissement' && (doc.statut_analyse === 'to_review' || analyzingSourceIds.has(doc.id))) && <WorkLine label="Tableau d’amortissement" value={sourceDocuments.some((doc) => analyzingSourceIds.has(doc.id) && doc.categorie === 'tableau_amortissement') ? 'Retraitement en cours' : 'Pièce à contrôler — montants non validés'} attention />}<WorkLine label="Mensualités crédits" value={snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) : 'Non renseigné'} attention={!snapshot.monthlyDebt.found} /><WorkLine label="Capital restant dû" value={snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) : 'Non renseigné'} attention={!snapshot.debtOutstanding.found} /><WorkLine label="Taux d’endettement" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} attention={snapshot.debtRatio === null} /><WorkLine label="Disponible bancaire" value={snapshot.bankAvailableMonthly !== null ? `${euro(snapshot.bankAvailableMonthly)} / mois` : 'Non calculable'} attention={snapshot.bankAvailableMonthly === null} /></WorkBlock>
         <WorkBlock title="Succession / transmission" subtitle="Organisation familiale et transmission patrimoniale"><WorkLine label="Situation familiale" value={snapshot.familyStatus.found ? snapshot.familyStatus.value : 'Non renseignée'} attention={!snapshot.familyStatus.found} /><WorkLine label="Régime / convention" value={snapshot.matrimonialRegime.found ? snapshot.matrimonialRegime.value : 'Non renseigné'} attention={!snapshot.matrimonialRegime.found} /><WorkLine label="Enfants" value={snapshot.children.found ? new Intl.NumberFormat('fr-FR').format(snapshot.children.value) : 'Non renseigné'} attention={!snapshot.children.found} /><WorkLine label="Notaire" value={snapshot.notary.found ? snapshot.notary.value : 'Non renseigné'} /><WorkLine label="Clause / avantage identifié" value={snapshot.transmissionClause.found ? snapshot.transmissionClause.value : 'Aucun élément identifié'} /><WorkLine label="Objectif transmission" value={snapshot.transmissionGoals.length ? snapshot.transmissionGoals.join(' · ') : 'Aucun objectif spécifique identifié'} /></WorkBlock>
@@ -1738,11 +1748,14 @@ export default function CifDossierSummaryPage() {
         <span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-100">Données documentées</span>
       </div>
 
+      {professionalPatrimony.financialAssets.some((item) => item.needsDateReview || item.possibleOverlap) && <div role="status" className="mt-5 rounded-xl border border-amber-500/45 bg-amber-950/20 px-4 py-3 text-sm leading-6 text-amber-100">
+        <strong>Rapprochement financier provisoire :</strong> des avoirs proviennent d'un inventaire client non daté. Le contrat commun n'est compté qu'une fois ; les avoirs des enfants sont exclus. Vérifier les dates de valorisation et le rapprochement du contrat Millevie Essentielle avec le contrat AEF d'Éric avant de certifier l'audit.
+      </div>}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         {[
           ['Patrimoine brut documenté', euro(professionalPatrimony.totals.grossDocumented)],
-          ['Dettes documentées', euro(professionalPatrimony.totals.documentedDebt)],
-          ['Patrimoine net indicatif', euro(professionalPatrimony.totals.netDocumented)],
+          ['Dettes documentées', professionalPatrimony.credits.every((item) => item.outstanding !== null) ? euro(professionalPatrimony.totals.documentedDebt) : 'CRD incomplet'],
+          ['Patrimoine net indicatif', professionalPatrimony.totals.netDocumented !== null ? euro(professionalPatrimony.totals.netDocumented) : 'Non calculable — CRD manquant'],
           ['Immobilier', euro(professionalPatrimony.totals.realEstateGross)],
           ['Financier documenté', euro(professionalPatrimony.totals.documentedFinancial)],
           ['Liquidités identifiées', euro(professionalPatrimony.totals.documentedLiquidity)],
@@ -1795,14 +1808,14 @@ export default function CifDossierSummaryPage() {
 
       <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#25405F] px-5 py-4">
-          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">Patrimoine financier</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.financialAssets.length} ligne{professionalPatrimony.financialAssets.length > 1 ? 's' : ''} documentée{professionalPatrimony.financialAssets.length > 1 ? 's' : ''}</h3></div>
-          <p className="text-xs text-slate-400">Les montants non documentés ne sont pas inventés.</p>
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">Patrimoine financier</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.financialAssets.length} ligne{professionalPatrimony.financialAssets.length > 1 ? 's' : ''} identifiée{professionalPatrimony.financialAssets.length > 1 ? 's' : ''}</h3></div>
+          <p className="text-xs text-slate-400">Montants déclarés : dates et rapprochements à confirmer avant recommandation.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[900px] w-full text-left text-sm">
             <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-emerald-200"><tr><th className="px-4 py-3">Titulaire</th><th className="px-4 py-3">Enveloppe / support</th><th className="px-4 py-3">Établissement</th><th className="px-4 py-3 text-right">Montant</th><th className="px-4 py-3">Fiscalité</th><th className="px-4 py-3">Liquidité</th><th className="px-4 py-3">Traçabilité</th></tr></thead>
             <tbody className="divide-y divide-[#203954]">
-              {professionalPatrimony.financialAssets.map((asset) => <tr key={asset.id} className="bg-[#071425] hover:bg-[#0C1E34]"><td className="px-4 py-3 font-medium text-slate-200">{asset.owner}</td><td className="px-4 py-3 font-semibold text-white">{asset.type}</td><td className="px-4 py-3 text-slate-300">{asset.institution}</td><td className="px-4 py-3 text-right font-semibold text-white">{asset.amount !== null ? euro(asset.amount) : 'À préciser'}</td><td className="px-4 py-3 text-slate-300">{asset.taxTreatment}</td><td className="px-4 py-3 text-slate-300">{asset.liquidity}</td><td className="px-4 py-3 text-xs text-slate-500">{asset.sourceFile || 'Déclaratif / synthèse'}</td></tr>)}
+              {professionalPatrimony.financialAssets.map((asset) => <tr key={asset.id} className="bg-[#071425] hover:bg-[#0C1E34]"><td className="px-4 py-3 font-medium text-slate-200">{asset.owner}</td><td className="px-4 py-3 font-semibold text-white">{asset.type}</td><td className="px-4 py-3 text-slate-300">{asset.institution}</td><td className="px-4 py-3 text-right font-semibold text-white">{asset.amount !== null ? euro(asset.amount) : 'À préciser'}{asset.needsDateReview && <p className="mt-1 text-[10px] font-medium text-amber-300">Date absente · à contrôler</p>}{asset.possibleOverlap && <p className="mt-1 text-[10px] font-medium text-amber-300">Doublon potentiel à rapprocher</p>}{asset.heldJointly && <p className="mt-1 text-[10px] text-emerald-200">Co-souscription du couple</p>}</td><td className="px-4 py-3 text-slate-300">{asset.taxTreatment}</td><td className="px-4 py-3 text-slate-300">{asset.liquidity}</td><td className="px-4 py-3 text-xs text-slate-500">{asset.sourceFile || 'Déclaratif / synthèse'}</td></tr>)}
               {!professionalPatrimony.financialAssets.length && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Aucune ligne financière documentée. Les catégories déclarées restent disponibles dans le recueil.</td></tr>}
             </tbody>
           </table>
