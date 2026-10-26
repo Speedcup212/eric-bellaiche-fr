@@ -1338,15 +1338,24 @@ Deno.serve(async (req) => {
       if(doc.statut_analyse!=='validated'){
         return new Response(JSON.stringify({error:'Valide d’abord le document et son rattachement au crédit.'}),{status:409,headers});
       }
-      const {data:identity,error:identityError}=await userClient.auth.getUser();
+      const {data:identity,error:identityError}=await userClient.auth.getUser(bearerToken);
       if(identityError||!identity?.user?.id){
         return new Response(JSON.stringify({error:'Session conseiller invalide'}),{status:401,headers});
       }
+      // Auth has verified this exact bearer token against the Auth server.
+      // Only after that verification do we trust its MFA assurance claim.
+      let aal='';
+      let subject='';
+      try{
+        const payload=bearerToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+        const claims=JSON.parse(atob(payload));
+        aal=String(claims.aal??'');
+        subject=String(claims.sub??'');
+      }catch{aal='';subject='';}
       const {data:staff,error:staffError}=await admin.from('app_users')
         .select('role,actif').eq('auth_user_id',identity.user.id).maybeSingle();
-      const {data:assurance,error:assuranceError}=await userClient.auth.mfa.getAuthenticatorAssuranceLevel();
       if(staffError||!staff?.actif||!['cif','admin'].includes(staff.role)||
-         assuranceError||assurance?.currentLevel!=='aal2'){
+         aal!=='aal2'||subject!==identity.user.id){
         return new Response(JSON.stringify({error:'Analyse automatique réservée à une session cabinet authentifiée à deux facteurs'}),{status:403,headers});
       }
       const loanFact=parsed?.patches?.[0]?.fields?.__merge_credit_items?.[0]??{};
