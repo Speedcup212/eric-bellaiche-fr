@@ -499,16 +499,47 @@ export default function CifDossierSummaryPage() {
     setRecueilCompleteness(((completenessRes.data ?? []) as unknown as RecueilCompletenessRow[]).filter((row) => row.dossier_id === dossierId));
   };
 
+  const runStagedCreditAnalysis = async (documentId:string) => {
+    const invoke = async (body:Record<string,unknown>) => {
+      const {data,error}=await supabase.functions.invoke('extract-source-document',{body});
+      if(error){
+        let details=messageFromError(error);
+        const context=(error as {context?:Response})?.context;
+        if(context && typeof context.clone==='function'){
+          try {
+            const json=await context.clone().json();
+            details=String(json?.error??details);
+          } catch {/* Keep default error */}
+        }
+        throw new Error(details);
+      }
+      if(!data?.ok)throw new Error(String(data?.error??'Analyse du tableau d’amortissement impossible.'));
+      return data;
+    };
+    const prepared=await invoke({document_id:documentId,credit_phase:'prepare'});
+    const count=Number(prepared.page_count);
+    if(!Number.isInteger(count)||count<1||count>120)throw new Error('Nombre de pages incohérent.');
+    for(let pageNumber=1;pageNumber<=count;pageNumber++){
+      await invoke({document_id:documentId,credit_phase:'page',page_number:pageNumber});
+    }
+    return await invoke({document_id:documentId,credit_phase:'finish'});
+  };
+
   const analyzeSourceDocument = async (doc: SourceDocumentRow) => {
     setAnalyzingSourceIds((current) => new Set([...current, doc.id]));
     setSourceAnalysisMessage('');
     try {
       const autoMode=doc.categorie==='tableau_amortissement' && doc.statut_analyse==='validated';
-      const { data, error } = await supabase.functions.invoke('extract-source-document', {
-        body: { document_id: doc.id, auto_mode: autoMode },
-      });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || 'Analyse documentaire impossible.');
+      const data=autoMode
+        ? await runStagedCreditAnalysis(doc.id)
+        : await (async()=>{
+            const {data,error}=await supabase.functions.invoke('extract-source-document',{
+              body:{document_id:doc.id},
+            });
+            if(error)throw error;
+            if(!data?.ok)throw new Error(data?.error || 'Analyse documentaire impossible.');
+            return data;
+          })();
       if(autoMode){
         const check=(data.auto_crd ?? {}) as Record<string,unknown>;
         const summary=(check.summary ?? {}) as Record<string,unknown>;
@@ -729,10 +760,25 @@ export default function CifDossierSummaryPage() {
         if (cancelled) return;
         const autoMode=needsAutoCRD(doc);
         setAnalyzingSourceIds((current) => new Set([...current, doc.id]));
-        const {data,error} = await supabase.functions.invoke('extract-source-document', {
-          body:{document_id:doc.id,auto_mode:autoMode},
-        });
+        let data:any=null;
+        let error:Error|null=null;
+        try{
+          if(autoMode)data=await runStagedCreditAnalysis(doc.id);
+          else {
+            const result=await supabase.functions.invoke('extract-source-document',{
+              body:{document_id:doc.id},
+            });
+            data=result.data;
+            if(result.error)throw result.error;
+          }
+        }catch(err){
+          error=err instanceof Error?err:new Error(String(err));
+        }
         if(error && !cancelled){
+          setAutoCreditChecks((previous)=>({...previous,[doc.id]:{
+            status:'exception',reason:messageFromError(error),balance:null,date:null,pdfRows:null,
+            pdfStatus:'Erreur technique',ocrStatus:'non exécuté',
+          }}));
           setSourceAnalysisMessage(`Lecture différée pour ${doc.nom_fichier} : ${messageFromError(error)}`);
         }else if(autoMode && !cancelled){
           const check=(data?.auto_crd??{}) as Record<string,unknown>;
@@ -1669,7 +1715,7 @@ export default function CifDossierSummaryPage() {
                     <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
-                      {((doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) || (doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' && doc.nom_fichier.toLowerCase().endsWith('.pdf'))) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' ? 'Relancer le contrôle automatique' : doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
+                      {((doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) || (doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' && doc.nom_fichier.toLowerCase().endsWith('.pdf'))) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' ? 'Relancer la lecture par pages' : doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
                       {doc.statut_analyse === 'to_review' && <button type="button" disabled={busy} onClick={() => setReviewingSourceDocumentId((current) => current === doc.id ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-amber-500 disabled:opacity-50"><FileCheck2 className="h-3.5 w-3.5" /> Contrôler</button>}
                     </div>
                   </div>
