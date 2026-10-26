@@ -760,7 +760,7 @@ export default function CifDossierSummaryPage() {
         if (cancelled) return;
         const autoMode=needsAutoCRD(doc);
         setAnalyzingSourceIds((current) => new Set([...current, doc.id]));
-        let data:any=null;
+        let data:{auto_crd?:Record<string,unknown>}|null=null;
         let error:Error|null=null;
         try{
           if(autoMode)data=await runStagedCreditAnalysis(doc.id);
