@@ -7,6 +7,7 @@ import { summarizeAdvisorDossier, type ChecklistItemInput, type SectionInput } f
 import { consolidateHousehold } from '../../portal/householdConsolidationEngine';
 import type { DataStatusInput } from '../../portal/dataStatusEngine';
 import { messageFromError } from '../../portal/portalHelpers';
+import { buildPatrimonialOverview } from '../../portal/patrimonialSynthesisEngine';
 
 type DossierRow = { id: string; reference: string | null; libelle: string | null; recueil_status: string; statut: string };
 type InvestorRow = { investisseur_id: string; role_dossier: string; recueil_status: string; qpi_status: string; esg_opt_in: boolean | null; esg_status: string; documents_status: string; transmitted_at: string | null; investisseurs: { prenom: string; nom: string; email: string | null } | null };
@@ -98,6 +99,9 @@ type ProfessionalFinancialAsset = {
   possibleOverlap:string;
   heldJointly:boolean;
   sourceRejected:boolean;
+  sourceStatus:string;
+  sourceKind:string;
+  hasValuationDate:boolean;
 };
 type ProfessionalCredit = {
   id:string;
@@ -371,10 +375,13 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const transmissionClause = firstMatchingText(family, /(avantage.*matrimonial|clause|donation|testament|beneficiaire|bénéficiaire)/i);
   const monthlyIncome = annualIncome.found ? annualIncome.value / 12 : null;
   const debtRatio = monthlyIncome !== null && monthlyDebt.found ? (monthlyDebt.value / monthlyIncome) * 100 : null;
-  const bankAvailableMonthly = monthlyIncome !== null && monthlyDebt.found ? Math.max(0, monthlyIncome * 0.35 - monthlyDebt.value) : null;
+  // A theoretical 35% debt-service margin, not cash available in a bank account.
+  const bankAvailableMonthly = monthlyIncome !== null && monthlyDebt.found ? monthlyIncome * 0.35 - monthlyDebt.value : null;
   const remainingMonthly = monthlyIncome !== null && monthlyDebt.found && annualCharges.found ? monthlyIncome - monthlyDebt.value - (annualCharges.value / 12) : null;
-  const netRealEstate = debtOutstanding.found ? Math.max(0, householdRealEstate - debtOutstanding.value) : null;
-  const patrimonyNet = netRealEstate !== null && financialAssets.found && liquidAssets.found ? netRealEstate + financialAssets.value + liquidAssets.value : null;
+  // Source-level financial details and loan/property attribution are consolidated
+  // by buildPatrimonialOverview. Never add liquid assets twice or clamp equity to zero.
+  const netRealEstate = debtOutstanding.found ? householdRealEstate - debtOutstanding.value : null;
+  const patrimonyNet = debtOutstanding.found && financialAssets.found ? householdRealEstate - debtOutstanding.value + financialAssets.value : null;
   const goals = objectiveSummary(objectives);
   const transmissionGoals = goals.filter((goal) => /(transmission|conjoint|proche|enfant|succession|donation)/i.test(goal));
   const missing: string[] = [];
@@ -940,7 +947,13 @@ export default function CifDossierSummaryPage() {
         const owner = ownerLabel(item.proprietaire, section.investisseur_id);
         const institution = professionalText(item.organisme ?? item.etablissement,'À préciser');
         const sourceId = professionalText(item.source_document_id,'');
-        const key = [normalizedSearch(type),normalizedSearch(owner),normalizedSearch(institution),amount ?? '',sourceId].join('|');
+        const shared = professionalText(item.proprietaire,'') === 'Identifiant 1 et 2';
+        const contractId = professionalText(item.numero_contrat ?? item.reference_contrat ?? item.identifiant_contrat,'');
+        // Only de-duplicate a proven shared contract or a matching contract ID.
+        // Separate products with identical provider/type/amount are NOT duplicates.
+        const key = contractId ? 'contract:'+normalizedSearch(contractId)
+          : shared ? ['joint',normalizedSearch(type),normalizedSearch(institution),amount ?? '',sourceId].join('|')
+          : [section.investisseur_id,index,sourceId].join('|');
         if (financialSeen.has(key)) return;
         financialSeen.add(key);
         const treatment = financialTreatment(type);
@@ -958,6 +971,9 @@ export default function CifDossierSummaryPage() {
           possibleOverlap:professionalText(item.possible_overlap_to_review,''),
           heldJointly:professionalText(item.proprietaire,'') === 'Identifiant 1 et 2',
           sourceRejected:sourceStatusById.get(sourceId) === 'rejected',
+          sourceStatus:sourceStatusById.get(sourceId) ?? 'unknown',
+          sourceKind:professionalText(item.source_type,''),
+          hasValuationDate:/^\d{4}-\d{2}-\d{2}$/.test(professionalText(item.date_valorisation,'')),
         });
       });
     }
@@ -992,6 +1008,49 @@ export default function CifDossierSummaryPage() {
       },
     };
   }, [sections, investors, sourceDocuments]);
+  const patrimonialOverview=useMemo(()=>buildPatrimonialOverview({
+    assets:professionalPatrimony.financialAssets.map((asset)=>({
+      amount:asset.amount,type:asset.type,owner:asset.owner,
+      institution:asset.institution,sourceStatus:asset.sourceStatus,
+      sourceKind:asset.sourceKind,needsDateReview:asset.needsDateReview,
+      hasValuationDate:asset.hasValuationDate,
+      possibleOverlap:Boolean(asset.possibleOverlap),
+      sourceRejected:asset.sourceRejected,
+    })),
+    debts:professionalPatrimony.credits.map((debt)=>({
+      outstanding:debt.outstanding,type:debt.type,
+      linkedProperty:professionalPatrimony.properties.some((p)=>p.linkedCreditId===debt.id),
+      isTheoreticalBalance:debt.isTheoreticalBalance,
+      outstandingDate:debt.outstandingDate,
+    })),
+    properties:professionalPatrimony.properties.map((p)=>({value:p.value})),
+    expectedPropertyCount:household.realEstate.count,
+  }),[professionalPatrimony,household.realEstate.count]);
+
+  const synthesisAlerts=useMemo(()=>{
+    const alerts:{label:string;detail:string;level:'blocking'|'review'}[]=[];
+    if(patrimonialOverview.financialDeclared>0||patrimonialOverview.rejectedSources>0)
+      alerts.push({label:'Encours financiers à justifier',
+        detail:`${euro(patrimonialOverview.financialDeclared)} de valeurs non documentées à une date fiable ; ${patrimonialOverview.rejectedSources} source(s) rejetée(s).`,level:'review'});
+    if(patrimonialOverview.financialUnknown>0)
+      alerts.push({label:'Valorisations absentes',
+        detail:`${patrimonialOverview.financialUnknown} placement(s) sans encours exploitable.`,level:'blocking'});
+    if(patrimonialOverview.overlapWarnings>0)
+      alerts.push({label:'Risque de doublon financier',
+        detail:`${patrimonialOverview.overlapWarnings} rapprochement(s) à résoudre avant consolidation définitive.`,level:'review'});
+    if(!patrimonialOverview.allDebtKnown)
+      alerts.push({label:'Dette incomplète',detail:'Une ou plusieurs dettes ne possèdent pas de CRD fiable.',level:'blocking'});
+    if(patrimonialOverview.unlinkedPropertyDebts>0)
+      alerts.push({label:'Crédit immobilier à rattacher',
+        detail:`${patrimonialOverview.unlinkedPropertyDebts} crédit(s) immobilier(s) non rapproché(s) d’un bien.`,level:'review'});
+    if(!snapshot.annualCharges.found)
+      alerts.push({label:'Charges du foyer absentes',detail:'Reste à vivre mensuel non calculable.',level:'review'});
+    if(patrimonialOverview.theoreticalDebts>0)
+      alerts.push({label:'Dette à valeur théorique',
+        detail:'CRD calculé depuis l’échéancier, distinct d’un solde bancaire attesté.',level:'review'});
+    return alerts;
+  },[patrimonialOverview,snapshot.annualCharges.found]);
+
   const investorSummaries = useMemo(() => investors.map((investor) => { const investorSections = sections.filter((r) => r.investisseur_id === investor.investisseur_id); const payloadByCode = Object.fromEntries(investorSections.map((r) => [r.section_code, r.payload ?? {}])); const spouse = investors.find((r) => r.investisseur_id !== investor.investisseur_id)?.investisseurs ?? null; const context = contexts.find((r) => r.investisseur_id === investor.investisseur_id) ?? {}; const consistencySnapshot: ConsistencySnapshot = { identity: payloadByCode.identity ?? {}, family: payloadByCode.family ?? {}, professional: payloadByCode.professional ?? {}, capacity: payloadByCode.capacity ?? {}, patrimony: payloadByCode.patrimony ?? {}, financial: payloadByCode.financial ?? {}, credits: payloadByCode.credits ?? {}, regulatory: payloadByCode.regulatory ?? {}, documents: context, spouse }; const issues = evaluateConsistency(consistencySnapshot); const investorProvenance = provenance.filter((r) => !r.investisseur_id || r.investisseur_id === investor.investisseur_id); const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier }); const sessionIds = qpiSessions.filter((row) => row.investisseur_id === investor.investisseur_id).map((row) => row.id); const unresolvedQpiControls = qpiControls.filter((control) => sessionIds.includes(control.session_id) && control.alerte && !control.traite); const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id); const needsRecueilReview = completeness ? !completeness.complete : true; const effectiveReadiness = (unresolvedQpiControls.length > 0 || needsRecueilReview) && summary.readiness === 'ready' ? 'review' as const : summary.readiness; return { investor, investorSections, issues, summary, unresolvedQpiControls, effectiveReadiness, completeness }; }), [investors, sections, contexts, provenance, checklist, qpiSessions, qpiControls, recueilCompleteness]);
   const isCoupleDossier = investors.length > 1;
   const householdRecueilState = useMemo(() => {
