@@ -1636,7 +1636,7 @@ export default function CifDossierSummaryPage() {
                     <p>OCR des images PDF : {creditReaderPreviews[doc.id].ocrMode} ; {creditReaderPreviews[doc.id].ocrImages} image(s) analysée(s) ; statut : {creditReaderPreviews[doc.id].ocrStatus}.</p>
                     <p>Lecteur retenu : {creditReaderPreviews[doc.id].selected}.</p>
                     <p className="mt-2 font-semibold text-white">CRD théorique : {creditReaderPreviews[doc.id].balance !== null
-                      ? euro(creditReaderPreviews[doc.id].balance) + (creditReaderPreviews[doc.id].date ? ' au '+professionalDate(creditReaderPreviews[doc.id].date) : '')
+                      ? euro(creditReaderPreviews[doc.id].balance) + (creditReaderPreviews[doc.id].date ? ' au '+professionalDate(creditReaderPreviews[doc.id].date ?? '') : '')
                       : 'Non fiable — à contrôler'}.</p>
                     {creditReaderPreviews[doc.id].divergent && <p className="font-semibold text-amber-300">Divergence PDF/OCR : aucune valeur ne doit être validée sans rapprochement bancaire.</p>}
                     <p className="mt-1 text-xs text-amber-300">Ce calcul issu de l’échéancier ne constitue pas un solde bancaire certifié. Aucun champ client n’a été modifié.</p>
@@ -1662,7 +1662,7 @@ export default function CifDossierSummaryPage() {
                           <summary className="cursor-pointer text-xs font-semibold text-slate-300">Détail technique de l’analyse</summary>
                           <div className="mt-2 text-xs leading-5 text-slate-500">
                             <p>Parser : {professionalText(summary.parser,'non précisé')}</p>
-                            {doc.categorie === 'tableau_amortissement' && (summary.readers && typeof summary.readers === 'object') && (() => {
+                            {doc.categorie === 'tableau_amortissement' && typeof summary.readers === 'object' && summary.readers !== null && (() => {
                               const readers=summary.readers as Record<string,unknown>;
                               const native=(readers.pdf_native ?? {}) as Record<string,unknown>;
                               const ocr=(readers.ocr ?? {}) as Record<string,unknown>;
