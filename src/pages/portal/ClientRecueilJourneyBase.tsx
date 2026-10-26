@@ -1039,6 +1039,9 @@ export default function ClientRecueilJourneyPage({ cabinetPreview = false }: { c
           <section>
             <h3 className="text-sm font-semibold text-slate-700">Quels placements détenez-vous ? *</h3>
             <p className="mt-1.5 text-xs leading-5 text-[#94A3B8]">Plusieurs réponses sont possibles.</p>
+            <p className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-900">
+              Cette déclaration donne une vue globale de vos placements : elle ne remplace pas l’inventaire détaillé. Après le questionnaire, transmettez vos relevés récents ou votre tableau récapitulatif en précisant, si possible, le titulaire de chaque contrat et la date des soldes. Le cabinet procédera au rapprochement avant l’audit.
+            </p>
             {progress.is_couple && <p className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">{progress.role_dossier === 'investisseur_1' ? 'Indiquez vos placements personnels ainsi que les placements joints ou communs. Ils ne devront pas être déclarés une seconde fois par l’Identifiant 2.' : 'Indiquez uniquement vos placements personnels. Les placements joints ou communs sont déclarés par l’Identifiant 1.'}</p>}
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{financialCategoryOptions.map(([code, label]) => {
               const categories: string[] = Array.isArray(form.categories) ? form.categories : [];
