@@ -578,7 +578,67 @@ async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fil
   };
 }
 
-function parseCredit(
+
+type CreditScheduleRow = { n:number; date:string; payment:number; fees:number; interest:number; capital:number; crd:number; unpaid:number; balanceReliable:boolean };
+function creditDate(raw:string) {
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return raw;
+  const fr = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+  return fr ? fr[3]+'-'+fr[2]+'-'+fr[1] : null;
+}
+function parseCreditScheduleLines(lines:string[]): CreditScheduleRow[] {
+  const rows: CreditScheduleRow[] = [];
+  const moneyRe = /-?(?:\d{1,3}(?:[ .\u00a0\u202f]\d{3})+|\d+)(?:,\d{2}|\.\d{2})/g;
+  for (const original of lines) {
+    const line = original.replace(/[\u00a0\u202f]/g,' ').replace(/\s+/g,' ').trim();
+    const head = line.match(/^(\d{1,4})\s+(\d{2}[./-]\d{2}[./-]\d{4}|\d{4}-\d{2}-\d{2})\s+(.+)$/);
+    if (!head) continue;
+    const date=creditDate(head[2]);
+    if (!date) continue;
+    const values = [...head[3].matchAll(moneyRe)].map((m)=>parseFrenchNumber(m[0]));
+    if (values.length < 4 || values.length > 7 || values.some((v)=>v === null)) continue;
+    const v = values as number[];
+    if (v[0] < 0 || v[0] > 200000 || v.some((number)=>Math.abs(number)>10000000)) continue;
+    const six = v.length === 6;
+    const four = v.length === 4;
+    rows.push({
+      n:Number(head[1]), date, payment:v[0],
+      fees:six ? v[1] : 0,
+      interest:six ? v[2] : v[1],
+      capital:six ? v[3] : v[2],
+      crd:v[3+(six?1:0)],
+      unpaid:six ? v[5] : v.length === 5 ? v[4] : 0,
+      balanceReliable:six || four,
+    });
+  }
+  const byKey = new Map<string,CreditScheduleRow>();
+  for (const row of rows) byKey.set(row.n+'|'+row.date,row);
+  return [...byKey.values()].sort((a,b)=>a.date.localeCompare(b.date) || a.n-b.n);
+}
+async function creditLayoutLines(pdf:any):Promise<string[]> {
+  const lines:string[] = [];
+  for (let pageNo=1;pageNo<=pdf.numPages;pageNo++) {
+    const page=await pdf.getPage(pageNo);
+    const data=await page.getTextContent();
+    const tokens=(data.items??[]).filter((item:any)=>typeof item?.str==='string' && item.str.trim())
+      .map((item:any)=>({text:String(item.str).trim(),x:Number(item.transform?.[4]??0),y:Number(item.transform?.[5]??0)}))
+      .filter((item:any)=>Number.isFinite(item.x)&&Number.isFinite(item.y))
+      .sort((a:any,b:any)=>b.y-a.y||a.x-b.x);
+    const groups:Array<Array<{text:string;x:number;y:number}>>=[];
+    for(const token of tokens){
+      const group=groups.find((g)=>Math.abs(g[0].y-token.y)<=2.2);
+      if(group)group.push(token);else groups.push([token]);
+    }
+    for(const group of groups){
+      group.sort((a,b)=>a.x-b.x);
+      lines.push(group.map((x)=>x.text).join(' '));
+    }
+  }
+  return lines;
+}
+
+async function parseCredit(
+  pdf: any,
   pages: string[],
   documentId: string,
   fileName: string,
@@ -587,14 +647,16 @@ function parseCredit(
   members: Member[],
 ) {
   const all = pages.join('\n');
-  const rate = findLineNumber(pages, /(?:taux (?:actuel du pr[êe]t|nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
-  const taeg = findLineNumber(pages, /(?:TAEG|taux annuel effectif global)/i, { min: 0, max: 30, percent: true });
-  const outstanding = findLineNumber(pages, /(?:capital restant d[uû]|capital restant|CRD)/i, { min: 0, max: 10000000 });
-  const initial = findLineNumber(pages, /(?:capital emprunt[ée]|montant (?:initial )?du pr[êe]t|montant emprunt[ée])/i, { min: 100, max: 10000000, preferLast: false });
-  const totalCreditCost = findLineNumber(pages, /co[uû]t total (?:du )?cr[ée]dit/i, { min: 0, max: 10000000 });
-  const totalInsuranceCost = findLineNumber(pages, /co[uû]t total (?:de l['’])?assurance/i, { min: 0, max: 10000000 });
-  const insuranceRate = findLineNumber(pages, /taux (?:annuel )?(?:de l['’])?assurance/i, { min: 0, max: 20, percent: true });
-  const insurancePayment = findLineNumber(pages, /(?:cotisation|prime) (?:mensuelle )?(?:de l['’])?assurance/i, { min: 0, max: 10000 });
+  const layoutLines=await creditLayoutLines(pdf);
+  const creditPages=[...pages, layoutLines.join('\n')];
+  const rate = findLineNumber(creditPages, /(?:taux (?:actuel du pr[êe]t|nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
+  const taeg = findLineNumber(creditPages, /(?:TAEG|taux annuel effectif global)/i, { min: 0, max: 30, percent: true });
+  const outstanding = findLineNumber(creditPages, /(?:capital restant d[uû]|capital restant|CRD)/i, { min: 0, max: 10000000 });
+  const initial = findLineNumber(creditPages, /(?:capital emprunt[ée]|montant (?:initial )?du pr[êe]t|montant emprunt[ée])/i, { min: 100, max: 10000000, preferLast: false });
+  const totalCreditCost = findLineNumber(creditPages, /co[uû]t total (?:du )?cr[ée]dit/i, { min: 0, max: 10000000 });
+  const totalInsuranceCost = findLineNumber(creditPages, /co[uû]t total (?:de l['’])?assurance/i, { min: 0, max: 10000000 });
+  const insuranceRate = findLineNumber(creditPages, /taux (?:annuel )?(?:de l['’])?assurance/i, { min: 0, max: 20, percent: true });
+  const insurancePayment = findLineNumber(creditPages, /(?:cotisation|prime) (?:mensuelle )?(?:de l['’])?assurance/i, { min: 0, max: 10000 });
 
   const institution = institutionFromText(fileName, all);
   const contractMatch = all.match(/Contrat\s*:\s*([^\n]+)/i);
@@ -621,19 +683,15 @@ function parseCredit(
     return null;
   };
 
-  const scheduleRows: Array<{ n:number; date:string; payment:number; fees:number; interest:number; capital:number; crd:number; unpaid:number }> = [];
-  for (const page of pages) {
-    for (const line of page.split('\n')) {
-      const m = line.trim().match(/^(\d{1,4})\s+(\d{2}\.\d{2}\.\d{4})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})$/);
-      if (!m) continue;
-      const vals = m.slice(3).map((raw) => parseFrenchNumber(raw) ?? 0);
-      scheduleRows.push({
-        n:Number(m[1]), date:toIso(m[2].replace(/\./g,'/')) ?? m[2],
-        payment:vals[0], fees:vals[1], interest:vals[2], capital:vals[3], crd:vals[4], unpaid:vals[5],
-      });
-    }
-  }
-  scheduleRows.sort((a,b)=>a.n-b.n);
+  const scheduleRows=parseCreditScheduleLines([...pages.flatMap((p)=>p.split('\n')), ...layoutLines]);
+  const today=new Date().toISOString().slice(0,10);
+  const lastPaid=scheduleRows.filter((row)=>row.date<=today).at(-1)??null;
+  const nextDue=scheduleRows.find((row)=>row.date>today)??null;
+  const currentBalance=lastPaid&&nextDue&&lastPaid.balanceReliable&&
+    lastPaid.crd>=0&&lastPaid.crd<=10000000 ? lastPaid : null;
+  const currentPayment=nextDue&&
+    (Date.parse(nextDue.date+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))<=45*86400000
+    ? nextDue : null;
   const firstRow = scheduleRows[0] ?? null;
   const lastRow = scheduleRows.at(-1) ?? null;
   const changedPayment = firstRow
@@ -645,9 +703,12 @@ function parseCredit(
   if (institution) { fact.organisme = institution; fact.banque = institution; }
   if (contractMatch?.[1]) fact.contrat = contractMatch[1].trim();
   if (referenceMatch?.[1]) fact.reference_pret = referenceMatch[1].trim().replace(/\s+\/.*$/,'');
-  if (rate) { fact.taux_credit = rate.value; sourcePages.__merge_credit_items = String(rate.page); }
+  const effectiveRate=rate??await findPdfRowNumber(pdf,/taux (?:nominal|actuel du pr[êe]t|du cr[ée]dit|d['’]int[ée]r[êe]t)/i,{min:0,max:20,percent:true});
+  if (effectiveRate) { fact.taux_credit = effectiveRate.value; sourcePages.__merge_credit_items = String(effectiveRate.page); }
   if (taeg) fact.taeg = taeg.value;
-  if (outstanding) { fact.capital_restant_du = Math.round(outstanding.value * 100) / 100; sourcePages.__merge_credit_items ??= String(outstanding.page); }
+  // Historical outstanding figures are not used as the current debt balance.
+  if (outstanding) fact.solde_historique_reference= Math.round(outstanding.value*100)/100;
+  if (currentBalance) { fact.capital_restant_du=Math.round(currentBalance.crd*100)/100; fact.capital_restant_du_date=currentBalance.date; }
   if (initial) { fact.montant_initial = Math.round(initial.value * 100) / 100; sourcePages.__merge_credit_items ??= String(initial.page); }
   if (loanDateMatch?.[1]) { const d=toIso(loanDateMatch[1]); if (d) { fact.date_pret=d; fact.date_ouverture=d; } }
   if (taDateMatch?.[1]) { const d=toIso(taDateMatch[1]); if (d) fact.date_constitution_tableau=d; }
@@ -658,11 +719,9 @@ function parseCredit(
   if (paymentDayMatch?.[1]) fact.jour_echeance=Number(paymentDayMatch[1]);
   if (/taux d['’]int[ée]r[êe]t fixe|taux actuel du pr[êe]t/i.test(all)) fact.taux_type='Fixe';
   if (/hors assurance/i.test(all)) fact.taux_hors_assurance=true;
-  if (firstRow) {
-    fact.date_premiere_echeance_tableau=firstRow.date;
-    fact.mensualite_actuelle=Math.round(firstRow.payment*100)/100;
-    fact.frais_inclus_dont_assurance_tableau=Math.round(firstRow.fees*100)/100;
-  }
+  if (firstRow) fact.date_premiere_echeance_tableau=firstRow.date;
+  if (currentPayment) fact.mensualite_actuelle=Math.round(currentPayment.payment*100)/100;
+  if (firstRow && firstRow.fees>0 && firstRow.balanceReliable) fact.frais_tableau=Math.round(firstRow.fees*100)/100;
   if (changedPayment) {
     fact.mensualite_future=Math.round(changedPayment.payment*100)/100;
     fact.mensualite_future_date=changedPayment.date;
@@ -715,6 +774,10 @@ function parseCredit(
       extracted_field_count: extractedFields.length,
       borrower_matches: borrowerMembers.map((member)=>member.investisseur_id),
       schedule_rows_read: scheduleRows.length,
+      layout_lines_read: layoutLines.length,
+      current_balance_found: Boolean(currentBalance),
+      current_payment_found: Boolean(currentPayment),
+      balance_date: currentBalance?.date ?? null,
       source_document_id: documentId,
       safe_crd_rule: 'same-line-label-only',
       insurance_cost_documented: fact.assurance_cout_documente ?? null,
@@ -961,7 +1024,7 @@ Deno.serve(async (req) => {
       parsed = await parseTaxNotice(pdf, pages, documentId, doc.nom_fichier, concernedIds, members);
     } else if (doc.categorie === 'tableau_amortissement') {
       const creditTargetIds = primaryId ? [primaryId] : concernedIds.slice(0, 1);
-      parsed = parseCredit(pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
+      parsed = await parseCredit(pdf, pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
     } else if (doc.categorie === 'patrimoine_financier') {
       parsed = parseFinancial(pages, documentId, doc.nom_fichier, concernedIds);
     } else if (doc.categorie === 'identite') {
