@@ -1125,6 +1125,7 @@ Deno.serve(async (req) => {
 
   let admin: any = null;
   let documentId = '';
+  let previewOnly = false;
 
   try {
     const auth = req.headers.get('Authorization') ?? '';
@@ -1137,7 +1138,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     documentId = typeof body?.document_id === 'string' ? body.document_id : '';
-    const previewOnly=body?.preview_only===true;
+    previewOnly=body?.preview_only===true;
     if (!/^[0-9a-f-]{36}$/i.test(documentId)) return new Response(JSON.stringify({ error: 'Document invalide' }), { status: 400, headers });
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -1349,7 +1350,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ ok: true, document_id: documentId, result: applied }), { headers });
   } catch (error) {
-    if (admin && documentId) {
+    if (admin && documentId && !previewOnly) {
       const message = error instanceof Error ? error.message : String(error);
       const { data: current } = await admin.from('documents_sources').select('metadata').eq('id', documentId).maybeSingle();
       await admin.from('documents_sources').update({
