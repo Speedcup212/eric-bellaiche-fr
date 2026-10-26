@@ -339,8 +339,17 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const savingsCapacityMonthly = sumMatching(capacity, /(capacite.*epargne|epargne.*mensuell|effort.*epargne)/i);
   const liquidAssets = sumMatching(financial, /(disponible.*compte|comptes?.*courant|liquidit|epargne.*bancaire|livret.*montant|solde.*bancaire|montant.*disponible)/i, /(categorie|type|nombre)/i);
   const financialAssets = sumMatching(financial, /(montant|valorisation|encours|valeur)/i, /(disponible.*compte|compte.*courant|liquidit|mensualite|versement)/i);
-  const monthlyDebt = sumMatching(credits, /(mensualite|mensualité|echeance.*mensuell|échéance.*mensuell)/i);
-  const debtOutstanding = sumMatching(credits, /(^|\.)(crd|capital_restant|capital.*restant|encours.*credit|encours.*crédit|reste.*rembourser)/i);
+  // Each loan contributes at most one instalment and one dated outstanding balance.
+  // An incomplete loan blocks aggregate ratios instead of understating indebtedness.
+  const creditItems = credits.flatMap((section) => Array.isArray(section?.items) ? section.items as Record<string,unknown>[] : []);
+  const instalments = creditItems.map((item) => numberValue(item.mensualite_actuelle ?? item.mensualite ?? item.echeance_mensuelle));
+  const balances = creditItems.map((item) => numberValue(item.capital_restant_du ?? item.crd ?? item.encours_credit));
+  const monthlyDebt = creditItems.length
+    ? { value: instalments.reduce<number>((total,value) => total+(value ?? 0),0), found: instalments.every((value) => value !== null) }
+    : sumMatching(credits, /(^|\.)(mensualite|mensualite_actuelle|echeance_mensuelle)$/i);
+  const debtOutstanding = creditItems.length
+    ? { value: balances.reduce<number>((total,value) => total+(value ?? 0),0), found: balances.every((value) => value !== null) }
+    : sumMatching(credits, /(^|\.)(crd|capital_restant_du|encours_credit)$/i);
   const tmi = firstMatchingNumber([...tax, ...regulatory, ...capacity], /(^|\.)(tmi|tranche.*marginale|taux.*marginal)/i);
   const taxableIncome = sumMatching(tax, /(revenu_imposable|revenu.*imposable)/i);
   const rfr = sumMatching(tax, /(revenu_fiscal_reference|revenu.*fiscal.*reference|rfr)/i);
@@ -591,7 +600,7 @@ export default function CifDossierSummaryPage() {
       });
       setSourceAnalysisMessage(decision === 'validated'
         ? target
-          ? 'Pièce validée et rattachée à « ' + target.label + ' ».'
+          ? 'Pièce validée et rattachée à « ' + target.label + ' ». Les valeurs fiables reconnues ont été reportées dans le recueil.'
           : fieldsApplied > 0
             ? 'Pièce contrôlée et validée. Les données déjà intégrées sont conservées.'
             : 'Pièce contrôlée et validée sans intégration de donnée.'
@@ -1460,7 +1469,14 @@ export default function CifDossierSummaryPage() {
                   : doc.categorie === 'patrimoine_financier'
                     ? professionalPatrimony.financialAssets.map((item) => ({ value:'financial|' + item.id, kind:'financial', key:item.id, label:item.type + ' · ' + item.owner + (item.institution !== 'À préciser' ? ' · ' + item.institution : '') }))
                     : doc.categorie === 'tableau_amortissement'
-                      ? professionalPatrimony.credits.map((item) => ({ value:'credit|' + item.id, kind:'credit', key:item.id, label:item.attachedTo + ' · ' + item.bank }))
+                      ? sections.filter((section) => section.section_code === 'credits').flatMap((section) => {
+                          const items = Array.isArray(section.payload?.items) ? section.payload.items as Record<string,unknown>[] : [];
+                          return items.map((item,index) => ({
+                            value:'credit|' + section.investisseur_id + ':' + index,
+                            kind:'credit', key:section.investisseur_id + ':' + index,
+                            label:professionalText(item.credit_rattache_a,professionalText(item.type_credit,'Crédit')) + ' · Taux ' + professionalText(item.taux_credit,'non renseigné') + ' %',
+                          }));
+                        })
                       : [];
                 const selectedTarget = targetOptions.find((item) => item.value === (sourceReviewTargets[doc.id] ?? '')) ?? null;
                 const reviewBusy = sourceReviewBusyId === doc.id;
@@ -1475,7 +1491,7 @@ export default function CifDossierSummaryPage() {
                     <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
-                      {doc.statut_analyse === 'uploaded' && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Analyser</button>}
+                      {(doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && doc.nom_fichier.toLowerCase().endsWith('.pdf') && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
                       {doc.statut_analyse === 'to_review' && <button type="button" disabled={busy} onClick={() => setReviewingSourceDocumentId((current) => current === doc.id ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-amber-500 disabled:opacity-50"><FileCheck2 className="h-3.5 w-3.5" /> Contrôler</button>}
                     </div>
                   </div>
@@ -1510,6 +1526,7 @@ export default function CifDossierSummaryPage() {
                       <div className="rounded-2xl border border-[#315173] bg-[#071425] p-4">
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">Décision conseiller</p>
                         <p className="mt-1 text-sm font-semibold text-white">Contrôler puis clôturer la pièce</p>
+                        {doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && <p className="mt-2 text-xs leading-5 text-amber-200">Rattache le crédit correspondant puis valide les montants extraits. Une pièce validée sans données de crédit ne complète pas la synthèse.</p>}
                         {targetOptions.length > 0 && <label className="mt-4 block text-xs font-semibold text-slate-300">Rattachement métier facultatif
                           <select value={sourceReviewTargets[doc.id] ?? ''} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
                             <option value="">Aucun rattachement</option>
@@ -1520,7 +1537,7 @@ export default function CifDossierSummaryPage() {
                           <textarea value={sourceReviewNotes[doc.id] ?? ''} onChange={(event) => setSourceReviewNotes((current) => ({ ...current, [doc.id]:event.target.value }))} rows={3} placeholder="Ex. Plaquette LMNP conservée comme justificatif ; aucun chiffre réinjecté automatiquement." className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-blue-400" />
                         </label>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
+                          <button type="button" disabled={reviewBusy || (doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && !selectedTarget)} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
                           <button type="button" disabled={reviewBusy || busy} onClick={() => void analyzeSourceDocument(doc)} className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-500/20 disabled:opacity-50">Relancer l’analyse</button>
                           <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'rejected', null)} className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50">Rejeter la pièce</button>
                         </div>
