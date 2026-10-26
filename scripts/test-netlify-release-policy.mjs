@@ -27,5 +27,7 @@ assert.match(config,/ignore\s*=\s*"node \.\/scripts\/netlify-build-policy\.mjs"/
 const verified=readFileSync('.github/workflows/verified-netlify-deploy.yml','utf8');
 assert.match(verified,/npm run test:release-gate/);
 assert.match(verified,/git rev-parse HEAD/);
+assert.match(verified,/Require complete Portal CI success/);
+assert.match(verified,/Portal CI did not pass/);
 assert.match(verified,/\[netlify-verified\]/);
 console.log('Netlify production release policy:',cases.length,'scenarios passed.');

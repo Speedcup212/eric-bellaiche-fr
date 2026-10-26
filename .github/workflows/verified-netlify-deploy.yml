@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: verified-netlify-main
@@ -16,7 +17,7 @@ jobs:
   verify-and-release:
     if: ${{ !contains(github.event.head_commit.message, '[netlify-verified]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -41,6 +42,31 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Require complete Portal CI success
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 65); do
+            response=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/portal-ci.yml/runs?head_sha=${SOURCE_SHA}&event=push&per_page=5")
+            state=$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha)] | .[0].status // "missing"' <<< "$response")
+            result=$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha)] | .[0].conclusion // "pending"' <<< "$response")
+            echo "Portal CI for ${SOURCE_SHA}: ${state}/${result} (check ${attempt}/65)"
+            if [ "$state" = "completed" ]; then
+              if [ "$result" = "success" ]; then
+                echo "All Portal CI jobs passed."
+                exit 0
+              fi
+              echo "::error::Portal CI did not pass. Production release refused."
+              exit 1
+            fi
+            sleep 12
+          done
+          echo "::error::Portal CI was not successful before the release deadline."
+          exit 1
 
       - name: Create verified release commit
         env:
