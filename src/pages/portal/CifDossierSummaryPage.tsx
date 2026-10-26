@@ -580,12 +580,12 @@ export default function CifDossierSummaryPage() {
       if (doc.categorie === 'patrimoine_financier' && decision === 'validated') {
         const isExisting = target?.kind === 'financial';
         const newPlacement = financialNewPlacement[doc.id];
-        const match = isExisting ? /^([0-9a-f-]{36}):(\\d+)$/.exec(target.key) : null;
+        const match = isExisting ? /^([0-9a-f-]{36}):(\d+)$/.exec(target.key) : null;
         if (isExisting && !match) throw new Error('Sélection du placement invalide.');
         if (!isExisting && (!newPlacement?.investor_id || !newPlacement.type_placement || !newPlacement.organisme.trim())) {
           throw new Error('Renseigne le titulaire, le type et l’organisme du placement.');
         }
-        const amountText = newPlacement?.montant.trim().replace(/\\s/g,'').replace(',','.') ?? '';
+        const amountText = newPlacement?.montant.trim().replace(/\s/g,'').replace(',','.') ?? '';
         const amount = amountText ? Number(amountText) : null;
         if (!isExisting && amountText && (amount === null || !Number.isFinite(amount) || amount < 0 || !newPlacement?.date_valeur)) {
           throw new Error('Pour saisir un montant, indique une valeur positive et une date de valorisation vérifiées.');
@@ -1594,7 +1594,7 @@ export default function CifDossierSummaryPage() {
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">Décision conseiller</p>
                         <p className="mt-1 text-sm font-semibold text-white">Contrôler puis clôturer la pièce</p>
                         {doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && <p className="mt-2 text-xs leading-5 text-amber-200">Rattache le crédit correspondant puis valide les montants extraits. Une pièce validée sans données de crédit ne complète pas la synthèse.</p>}
-                        {doc.categorie === 'patrimoine_financier' && <p className="mt-2 text-xs leading-5 text-amber-200">Ce justificatif doit être associé à un placement identifié. {Number((doc.metadata?.extraction as Record<string,unknown> | undefined)?.text_length ?? 0) === 0 ? 'Le PDF ne contient pas de texte exploitable automatiquement : vérifie visuellement le relevé et sa valorisation.' : 'Vérifie les données du relevé avant toute saisie.'{'}'}</p>}
+                        {doc.categorie === 'patrimoine_financier' && <p className="mt-2 text-xs leading-5 text-amber-200">Ce justificatif doit être associé à un placement identifié. {Number((doc.metadata?.extraction as Record<string,unknown> | undefined)?.text_length ?? 0) === 0 ? 'Le PDF ne contient pas de texte exploitable automatiquement : vérifie visuellement le relevé et sa valorisation.' : 'Vérifie les données du relevé avant toute saisie.'}</p>}
                         {doc.categorie === 'patrimoine_financier' && <label className="mt-4 block text-xs font-semibold text-slate-300">Placement à rattacher
                           <select value={sourceReviewTargets[doc.id] ?? (targetOptions.length === 0 ? '__new__' : '')} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
                             {targetOptions.length > 0 && <option value="">Choisir un placement existant</option>}
