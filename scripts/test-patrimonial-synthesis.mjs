@@ -51,8 +51,17 @@ assert.equal(missing.financialUnknown,1);
 const unmatched=calc({properties:[{value:25000}],debts:[{outstanding:5000,type:'pret immobilier',linkedProperty:false,isTheoreticalBalance:false,outstandingDate:''}],assets:[]});
 assert.equal(unmatched.realEstateNet,null,'No unsupported property debt attribution');
 assert.equal(unmatched.householdNet,20000,'All liabilities still contribute to overall net');
+const multiClientWord=calc({
+  properties:[],debts:[],
+  assets:[asset(1000,{sourceStatus:'rejected',sourceKind:'declaration_docx_conseiller',
+    sourceRejected:true,sourceDocumentId:'word123',needsDateReview:true,hasValuationDate:false}),
+    asset(2000,{sourceStatus:'rejected',sourceKind:'declaration_docx_conseiller',
+    sourceRejected:true,sourceDocumentId:'word123',needsDateReview:true,hasValuationDate:false})],
+});
+assert.equal(multiClientWord.financialDeclared,3000,'Keep both client-declared positions');
+assert.equal(multiClientWord.rejectedSources,1,'One technically rejected client document is one incident, not two falsified investments');
 const ui=readFileSync('src/pages/portal/CifDossierSummaryPage.tsx','utf8');
-for(const phrase of ['buildPatrimonialOverview','Patrimoine net indicatif','Encours déclarés à justifier','Marge de mensualité théorique à 35 %','Contrôles utiles avant préconisation','Équité immobilière indicative']){
+for(const phrase of ['buildPatrimonialOverview','Patrimoine net indicatif','Encours déclarés par le client (à rapprocher)','Marge de mensualité théorique à 35 %','Contrôles utiles avant préconisation','Équité immobilière indicative']){
  assert.ok(ui.includes(phrase),'Missing synthesis UI requirement: '+phrase);
 }
 assert.ok(!ui.includes('label="Disponible bancaire"'));

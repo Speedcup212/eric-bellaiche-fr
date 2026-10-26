@@ -100,6 +100,7 @@ type ProfessionalFinancialAsset = {
   possibleOverlap:string;
   heldJointly:boolean;
   sourceRejected:boolean;
+  sourceDocumentId:string;
   sourceStatus:string;
   sourceKind:string;
   hasValuationDate:boolean;
@@ -979,6 +980,7 @@ export default function CifDossierSummaryPage() {
           possibleOverlap:professionalText(item.possible_overlap_to_review,''),
           heldJointly:professionalText(item.proprietaire,'') === 'Identifiant 1 et 2',
           sourceRejected:sourceStatusById.get(sourceId) === 'rejected',
+          sourceDocumentId:sourceId,
           sourceStatus:sourceStatusById.get(sourceId) ?? 'unknown',
           sourceKind:professionalText(item.source_type,''),
           hasValuationDate:/^\d{4}-\d{2}-\d{2}$/.test(professionalText(item.date_valorisation,'')),
@@ -1024,6 +1026,7 @@ export default function CifDossierSummaryPage() {
       hasValuationDate:asset.hasValuationDate,
       possibleOverlap:Boolean(asset.possibleOverlap),
       sourceRejected:asset.sourceRejected,
+      sourceDocumentId:asset.sourceDocumentId,
     })),
     debts:professionalPatrimony.credits.map((debt)=>({
       outstanding:debt.outstanding,type:debt.type,

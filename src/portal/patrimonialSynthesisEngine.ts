@@ -13,6 +13,7 @@ export type OverviewAsset = {
   hasValuationDate:boolean;
   possibleOverlap:boolean;
   sourceRejected:boolean;
+  sourceDocumentId?:string;
 };
 export type OverviewDebt = {
   outstanding:number|null;
@@ -51,8 +52,15 @@ export function buildPatrimonialOverview(input:{
 }):QualityOverview {
   let financialKnown=0,financialVerified=0,financialDeclared=0,financialUnknown=0;
   let dateWarnings=0,rejectedSources=0,overlapWarnings=0;
+  const rejectedDocumentIds=new Set<string>();
   for(const asset of input.assets){
-    if(asset.sourceRejected) rejectedSources++;
+    if(asset.sourceRejected){
+      const documentId=asset.sourceDocumentId?.trim();
+      if(!documentId)rejectedSources++;
+      else if(!rejectedDocumentIds.has(documentId)){
+        rejectedDocumentIds.add(documentId);rejectedSources++;
+      }
+    }
     if(asset.needsDateReview||!asset.hasValuationDate) dateWarnings++;
     if(asset.possibleOverlap) overlapWarnings++;
     if(asset.amount===null||!Number.isFinite(asset.amount)||asset.amount<0){
