@@ -425,7 +425,7 @@ export default function CifDossierSummaryPage() {
   const [auditPromptLoadError, setAuditPromptLoadError] = useState('');
   const [auditPdfError, setAuditPdfError] = useState('');
   const [uploadingAuditPdf, setUploadingAuditPdf] = useState(false);
-  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [creditReaderPreviews,setCreditReaderPreviews] = useState<Record<string,{balance:number|null;date:string|null;pdfRows:number;pdfStatus:string;ocrMode:string;ocrImages:number;ocrStatus:string;selected:string;divergent:boolean}>>({}); const [sourceReviewErrors, setSourceReviewErrors] = useState<Record<string,string>>({}); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [financialNewPlacement, setFinancialNewPlacement] = useState<Record<string,{ investor_id:string; type_placement:string; organisme:string; montant:string; date_valeur:string }>>({}); const [financialOwnerConfirmed, setFinancialOwnerConfirmed] = useState<Record<string,boolean>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
+  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [creditReaderPreviews,setCreditReaderPreviews] = useState<Record<string,{balance:number|null;date:string|null;pdfRows:number;pdfStatus:string;ocrMode:string;ocrImages:number;ocrStatus:string;selected:string;divergent:boolean;previewId:string|null;canConfirm:boolean}>>({}); const [creditPreviewAcknowledged,setCreditPreviewAcknowledged] = useState<Record<string,boolean>>({}); const [sourceReviewErrors, setSourceReviewErrors] = useState<Record<string,string>>({}); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [financialNewPlacement, setFinancialNewPlacement] = useState<Record<string,{ investor_id:string; type_placement:string; organisme:string; montant:string; date_valeur:string }>>({}); const [financialOwnerConfirmed, setFinancialOwnerConfirmed] = useState<Record<string,boolean>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
     const results = await Promise.all([
@@ -497,6 +497,43 @@ export default function CifDossierSummaryPage() {
     setRecueilCompleteness(((completenessRes.data ?? []) as unknown as RecueilCompletenessRow[]).filter((row) => row.dossier_id === dossierId));
   };
 
+  const confirmCreditPreview = async (doc: SourceDocumentRow) => {
+    const preview=creditReaderPreviews[doc.id];
+    const manualReview=(doc.metadata?.manual_review ?? {}) as Record<string,unknown>;
+    const target=(manualReview.target ?? {}) as Record<string,unknown>;
+    const targetKey=typeof target.key==='string' ? target.key : '';
+    const targetParts=/^([0-9a-f-]{36}):(\d+)$/i.exec(targetKey);
+    if(!preview?.previewId || !preview.canConfirm || !creditPreviewAcknowledged[doc.id] || target.kind!=='credit' || !targetParts){
+      setSourceReviewErrors((previous)=>({...previous,[doc.id]:'Contrôle incomplet : relis le tableau, confirme la nature théorique et vérifie le crédit associé.'}));
+      return;
+    }
+    setSourceReviewBusyId(doc.id);
+    setSourceReviewErrors((previous)=>({...previous,[doc.id]:''}));
+    try {
+      const {data,error}=await supabase.rpc('confirm_credit_crd_preview',{
+        p_preview_id:preview.previewId,
+        p_target_investisseur_id:targetParts[1],
+        p_item_index:Number(targetParts[2]),
+        p_confirm_theoretical:true,
+        p_note:'Validation CIF du CRD théorique à date, issu de l’échéancier rapproché avec ce crédit. Solde bancaire à confirmer.',
+      });
+      if(error)throw error;
+      if(!data?.ok)throw new Error('La validation du CRD n’a pas été enregistrée.');
+      setCreditReaderPreviews((previous)=>{
+        const next={...previous};
+        delete next[doc.id];
+        return next;
+      });
+      setCreditPreviewAcknowledged((previous)=>({...previous,[doc.id]:false}));
+      await refreshSourceDocumentData();
+      setSourceAnalysisMessage('CRD théorique validé, horodaté et rattaché au crédit : synthèse mise à jour. Ce montant ne constitue pas une attestation bancaire.');
+    }catch(error){
+      setSourceReviewErrors((previous)=>({...previous,[doc.id]:messageFromError(error)}));
+    }finally{
+      setSourceReviewBusyId(null);
+    }
+  };
+
   const analyzeSourceDocument = async (doc: SourceDocumentRow) => {
     setAnalyzingSourceIds((current) => new Set([...current, doc.id]));
     setSourceAnalysisMessage('');
@@ -522,7 +559,10 @@ export default function CifDossierSummaryPage() {
           ocrStatus:String(ocr.status??'non exécuté'),
           selected:String(readers.selected??'—'),
           divergent:Boolean(readers.disagreement),
+          previewId:typeof data.confirmation_preview_id==='string'?data.confirmation_preview_id:null,
+          canConfirm:data.confirmation_available===true,
         }}));
+        setCreditPreviewAcknowledged((previous)=>({...previous,[doc.id]:false}));
         setSourceAnalysisMessage('Double lecture terminée en prévisualisation, sans aucune modification du dossier.');
         return;
       }
@@ -1640,6 +1680,19 @@ export default function CifDossierSummaryPage() {
                       : 'Non fiable — à contrôler'}.</p>
                     {creditReaderPreviews[doc.id].divergent && <p className="font-semibold text-amber-300">Divergence PDF/OCR : aucune valeur ne doit être validée sans rapprochement bancaire.</p>}
                     <p className="mt-1 text-xs text-amber-300">Ce calcul issu de l’échéancier ne constitue pas un solde bancaire certifié. Aucun champ client n’a été modifié.</p>
+                    {creditReaderPreviews[doc.id].previewId && creditReaderPreviews[doc.id].canConfirm ? <>
+                      <p className="mt-3 text-xs text-blue-200">Preuve de calcul conservée côté serveur pour 30 minutes, liée au document PDF et à ton compte CIF. Le montant ne peut pas être modifié dans le navigateur.</p>
+                      <label className="mt-3 flex items-start gap-2 text-xs text-slate-200">
+                        <input type="checkbox" className="mt-0.5 h-4 w-4" checked={!!creditPreviewAcknowledged[doc.id]} onChange={(event)=>setCreditPreviewAcknowledged((previous)=>({...previous,[doc.id]:event.target.checked}))} />
+                        <span>J’ai vérifié le document, le prêt auquel il est rattaché et la date du CRD. Je valide un <strong>CRD théorique issu de l’échéancier</strong>, distinct d'un solde attesté par la banque.</span>
+                      </label>
+                      <button type="button" disabled={!creditPreviewAcknowledged[doc.id] || sourceReviewBusyId===doc.id}
+                        onClick={()=>void confirmCreditPreview(doc)}
+                        className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40">
+                        {sourceReviewBusyId===doc.id?'Enregistrement en cours…':'Valider le CRD théorique et mettre à jour le patrimoine'}
+                      </button>
+                    </> : <p className="mt-3 font-semibold text-amber-300">Validation indisponible : colonnes ou échéances insuffisamment fiables, divergence entre lecteurs ou absence de solde daté. Aucun CRD ne sera écrit.</p>}
+                    {sourceReviewErrors[doc.id] && <p role="alert" className="mt-2 rounded-lg border border-rose-500/40 bg-rose-950/30 p-2 text-xs text-rose-100">{sourceReviewErrors[doc.id]}</p>}
                   </div>}
                   {reviewOpen && doc.statut_analyse === 'to_review' && <div className="border-t border-amber-500/25 bg-amber-950/10 px-4 py-5 md:px-5">
                     <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
