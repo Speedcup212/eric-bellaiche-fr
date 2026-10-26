@@ -90,7 +90,7 @@ export function buildPatrimonialOverview(input:{
       !asset.sourceRejected && asset.hasValuationDate;
     if(attachedToStatement){
       const recordedDate=asset.valuationDate ?? '';
-      const recordedTime=/^\\d{4}-\\d{2}-\\d{2}$/.test(recordedDate)
+      const recordedTime=/^\d{4}-\d{2}-\d{2}$/.test(recordedDate)
         ? Date.parse(recordedDate+'T00:00:00Z'):NaN;
       const maxAgeDays=/livret|compte|bancaire|ldd/i.test(asset.type)?90:180;
       const aged=Number.isFinite(recordedTime) && Number.isFinite(asOfTime) &&
