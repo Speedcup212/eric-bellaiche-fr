@@ -1603,7 +1603,7 @@ export default function CifDossierSummaryPage() {
                     <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
-                      {(doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
+                      {((doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) || (doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' && doc.nom_fichier.toLowerCase().endsWith('.pdf'))) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' ? 'Double lecture PDF/OCR' : doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
                       {doc.statut_analyse === 'to_review' && <button type="button" disabled={busy} onClick={() => setReviewingSourceDocumentId((current) => current === doc.id ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-amber-500 disabled:opacity-50"><FileCheck2 className="h-3.5 w-3.5" /> Contrôler</button>}
                     </div>
                   </div>
@@ -1629,6 +1629,17 @@ export default function CifDossierSummaryPage() {
                           <summary className="cursor-pointer text-xs font-semibold text-slate-300">Détail technique de l’analyse</summary>
                           <div className="mt-2 text-xs leading-5 text-slate-500">
                             <p>Parser : {professionalText(summary.parser,'non précisé')}</p>
+                            {doc.categorie === 'tableau_amortissement' && (summary.readers && typeof summary.readers === 'object') && (() => {
+                              const readers=summary.readers as Record<string,unknown>;
+                              const native=(readers.pdf_native ?? {}) as Record<string,unknown>;
+                              const ocr=(readers.ocr ?? {}) as Record<string,unknown>;
+                              return <div className="mt-2 space-y-1 rounded-lg border border-[#315173] p-2 text-slate-300">
+                                <p><strong>Lecteur PDF :</strong> {String(native.rows ?? '—')} échéances, validation {String(native.status ?? 'inconnue')}</p>
+                                <p><strong>OCR des images intégrées :</strong> {String(ocr.mode ?? '—')}, {String(ocr.images_scanned ?? 0)} image(s), validation {String(ocr.status ?? 'non exécutée')}</p>
+                                <p><strong>Résultat retenu :</strong> {String(readers.selected ?? '—')}{readers.disagreement ? ' — divergence, validation obligatoire' : ''}</p>
+                                {summary.current_balance_found === false && <p className="font-semibold text-amber-300">CRD non fiabilisé : aucune dette à zéro n’est déduite.</p>}
+                              </div>;
+                            })()}
                             <p>Portée : {doc.portee_document ?? 'auto'}</p>
                             <p>Données concernées : {doc.concerne_investisseur_ids?.length ?? 0} personne{(doc.concerne_investisseur_ids?.length ?? 0) > 1 ? 's' : ''}</p>
                           </div>
