@@ -1127,6 +1127,7 @@ Deno.serve(async (req) => {
   let admin: any = null;
   let documentId = '';
   let previewOnly = false;
+  let autoMode = false;
 
   try {
     const auth = req.headers.get('Authorization') ?? '';
@@ -1139,7 +1140,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     documentId = typeof body?.document_id === 'string' ? body.document_id : '';
-    previewOnly=body?.preview_only===true;
+    autoMode=body?.auto_mode===true;
+    previewOnly=body?.preview_only===true || autoMode;
     if (!/^[0-9a-f-]{36}$/i.test(documentId)) return new Response(JSON.stringify({ error: 'Document invalide' }), { status: 400, headers });
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -1370,6 +1372,9 @@ Deno.serve(async (req) => {
           reader_proof:proof,
           rows_read:summary.schedule_rows_read,
           document_reference:doc.nom_fichier,
+          monthly_payment:loanFact.mensualite_actuelle??null,
+          initial_amount:loanFact.montant_initial??null,
+          interest_rate:loanFact.taux_credit??null,
         };
         const {data:stored,error:storeError}=await admin.rpc('store_credit_crd_preview',{
           p_document_id:documentId,
@@ -1384,6 +1389,33 @@ Deno.serve(async (req) => {
         });
         if(storeError)throw storeError;
         previewId=stored as string;
+      }
+      if(autoMode){
+        if(!previewId){
+          return new Response(JSON.stringify({
+            ok:true,automated:true,document_id:documentId,
+            auto_crd:{status:'exception',reason:'Lecture insuffisante ou discordance des contrôles',summary:parsed.summary},
+            theoretical_balance:balanced?amount:null,
+            theoretical_balance_date:validDate?date:null,
+          }),{headers});
+        }
+        const {data:autoApplied,error:autoError}=await admin.rpc('auto_apply_verified_credit_crd',{
+          p_preview_id:previewId,
+        });
+        if(autoError){
+          return new Response(JSON.stringify({
+            ok:true,automated:true,document_id:documentId,
+            auto_crd:{status:'exception',reason:autoError.message,summary:parsed.summary},
+            theoretical_balance:balanced?amount:null,
+            theoretical_balance_date:validDate?date:null,
+          }),{headers});
+        }
+        return new Response(JSON.stringify({
+          ok:true,automated:true,document_id:documentId,
+          auto_crd:{status:autoApplied?.applied?'integrated_theoretical':'already_current',
+            balance:autoApplied?.balance??null,balance_date:autoApplied?.balance_date??null,
+            summary:parsed.summary},
+        }),{headers});
       }
       return new Response(JSON.stringify({
         ok:true,preview_only:true,document_id:documentId,
