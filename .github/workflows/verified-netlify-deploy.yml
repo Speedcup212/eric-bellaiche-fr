@@ -34,7 +34,10 @@ jobs:
         run: npm ci
 
       - name: Deploy gate
-        run: npm run test:deploy-gate
+        run: npm run test:release-gate
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=low
 
       - name: Production build
         run: npm run build
@@ -46,5 +49,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --ff-only origin main
+          if [ "$(git rev-parse HEAD)" != "$SOURCE_SHA" ]; then
+            echo "::error::Main moved after verification; refusing to sign untested changes."
+            exit 1
+          fi
           git commit --allow-empty -m "chore(deploy): verified ${SOURCE_SHA} [netlify-verified]"
           git push origin HEAD:main

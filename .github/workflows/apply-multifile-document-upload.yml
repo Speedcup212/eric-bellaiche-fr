@@ -1,10 +1,8 @@
 name: Apply multifile document upload
 
+# Kept only for explicit maintenance: no automatic rewriting of client document UI.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/apply-multifile-document-upload.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write

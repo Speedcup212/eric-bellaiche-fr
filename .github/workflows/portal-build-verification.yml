@@ -18,6 +18,6 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Test portal safety and typecheck
-        run: npm run test:deploy-gate
+        run: npm run test:release-gate
       - name: Compile production site
         run: npm run build

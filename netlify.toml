@@ -1,5 +1,6 @@
 # Verified release marker: household recueil 2026-09-21
 [build]
+  ignore = "node ./scripts/netlify-build-policy.mjs"
   command = "npm run test:deploy-gate && npm run build"
   publish = "dist"
 
