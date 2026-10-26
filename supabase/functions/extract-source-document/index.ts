@@ -1344,8 +1344,10 @@ Deno.serve(async (req) => {
       }
       const {data:staff,error:staffError}=await admin.from('app_users')
         .select('role,actif').eq('auth_user_id',identity.user.id).maybeSingle();
-      if(staffError||!staff?.actif||!['cif','admin'].includes(staff.role)){
-        return new Response(JSON.stringify({error:'Confirmation réservée au cabinet'}),{status:403,headers});
+      const {data:assurance,error:assuranceError}=await userClient.auth.mfa.getAuthenticatorAssuranceLevel();
+      if(staffError||!staff?.actif||!['cif','admin'].includes(staff.role)||
+         assuranceError||assurance?.currentLevel!=='aal2'){
+        return new Response(JSON.stringify({error:'Analyse automatique réservée à une session cabinet authentifiée à deux facteurs'}),{status:403,headers});
       }
       const loanFact=parsed?.patches?.[0]?.fields?.__merge_credit_items?.[0]??{};
       const summary=parsed.summary??{};
