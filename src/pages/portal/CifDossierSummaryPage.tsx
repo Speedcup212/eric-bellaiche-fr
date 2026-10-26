@@ -8,6 +8,7 @@ import { consolidateHousehold } from '../../portal/householdConsolidationEngine'
 import type { DataStatusInput } from '../../portal/dataStatusEngine';
 import { messageFromError } from '../../portal/portalHelpers';
 import { buildPatrimonialOverview } from '../../portal/patrimonialSynthesisEngine';
+import { consolidateFiscalNotice } from '../../portal/fiscalSourcePriorityEngine';
 
 type DossierRow = { id: string; reference: string | null; libelle: string | null; recueil_status: string; statut: string };
 type InvestorRow = { investisseur_id: string; role_dossier: string; recueil_status: string; qpi_status: string; esg_opt_in: boolean | null; esg_status: string; documents_status: string; transmitted_at: string | null; investisseurs: { prenom: string; nom: string; email: string | null } | null };
@@ -342,9 +343,10 @@ function objectiveSummary(payloads: Array<Record<string, unknown> | null>) {
     .filter((value, index, array) => array.indexOf(value) === index);
   return candidates.slice(0, 3);
 }
-function financialSnapshot(sections: SectionRow[], householdRealEstate: number) {
+function financialSnapshot(sections: SectionRow[], householdRealEstate: number, sourceDocuments: SourceDocumentRow[]) {
   const byCode = (code: string) => sections.filter((row) => row.section_code === code).map((row) => row.payload);
-  const capacity = byCode('capacity'); const tax = byCode('tax'); const financial = byCode('financial'); const credits = byCode('credits'); const family = byCode('family'); const regulatory = byCode('regulatory'); const objectives = byCode('objectives');
+  const capacity = byCode('capacity'); const financial = byCode('financial'); const credits = byCode('credits'); const family = byCode('family'); const regulatory = byCode('regulatory'); const objectives = byCode('objectives');
+  const fiscal = consolidateFiscalNotice(sections.filter((row)=>row.section_code==='tax'), sourceDocuments);
   const annualIncome = sumMatching(capacity, /(revenu.*annuel|revenus.*annuels|salaire.*annuel|net.*annuel|revenu_net|income)/i, /(conjoint|foyer_total)/i);
   const annualCharges = sumMatching(capacity, /(charges?.*annuell|depenses?.*annuell)/i);
   // Do not subtract loan instalments twice when the reported annual charges
@@ -365,13 +367,15 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   const debtOutstanding = creditItems.length
     ? { value: balances.reduce<number>((total,value) => total+(value ?? 0),0), found: balances.every((value) => value !== null) }
     : sumMatching(credits, /(^|\.)(crd|capital_restant_du|encours_credit)$/i);
-  const tmi = firstMatchingNumber([...tax, ...regulatory, ...capacity], /(^|\.)(tmi|tranche.*marginale|taux.*marginal)/i);
-  const taxableIncome = sumMatching(tax, /(revenu_imposable|revenu.*imposable)/i);
-  const rfr = sumMatching(tax, /(revenu_fiscal_reference|revenu.*fiscal.*reference|rfr)/i);
-  const incomeTax = sumMatching(tax, /(impot_revenu_net|impot.*revenu.*net|ir_net|impôt.*net)/i);
-  const perCeiling = sumMatching(tax, /(plafond.*epargne.*retraite|plafond.*per|plafond_disponible)/i);
-  const ifi = sumMatching(tax, /(ifi_net|ifi.*net.*payer|impot.*fortune.*immobiliere)/i);
-  const landDeficit = sumMatching(tax, /(deficit_foncier|déficit.*foncier)/i);
+  // A single joint income tax return is the primary source for fiscal fields.
+  // Never sum copies held in investor 1 and investor 2 profiles.
+  const tmi = fiscal.tmi.found ? fiscal.tmi : (fiscal.source === 'avis_foyer' ? fiscal.tmi : firstMatchingNumber([...regulatory,...capacity], /(^|\.)(tmi|tranche.*marginale|taux.*marginal)/i));
+  const taxableIncome = fiscal.taxableIncome;
+  const rfr = fiscal.rfr;
+  const incomeTax = fiscal.incomeTax;
+  const perCeiling = fiscal.perCeiling;
+  const ifi = fiscal.ifi;
+  const landDeficit = fiscal.landDeficit;
   const familyStatus = firstMatchingText(family, /(^|\.)(situation|situation_familiale|statut_familial)$/i);
   const matrimonialRegime = firstMatchingText(family, /(regime.*matrimonial|regime_convention|régime.*convention)/i);
   const children = firstMatchingNumber(family, /(nombre.*enfants|nb.*enfants|enfants.*nombre)/i);
@@ -395,7 +399,7 @@ function financialSnapshot(sections: SectionRow[], householdRealEstate: number) 
   if (!debtOutstanding.found) missing.push('capital restant dû');
   if (!financialAssets.found) missing.push('valorisation des actifs financiers');
   if (!tmi.found) missing.push('TMI');
-  return { annualIncome, annualCharges, chargesHorsCreditKnown:chargesHorsCredit.found, savingsCapacityMonthly, liquidAssets, financialAssets, monthlyDebt, debtOutstanding, tmi, taxableIncome, rfr, incomeTax, perCeiling, ifi, landDeficit, familyStatus, matrimonialRegime, children, notary, transmissionClause, debtRatio, bankAvailableMonthly, remainingMonthly, netRealEstate, patrimonyNet, goals, transmissionGoals, missing };
+  return { annualIncome, annualCharges, chargesHorsCreditKnown:chargesHorsCredit.found, savingsCapacityMonthly, liquidAssets, financialAssets, monthlyDebt, debtOutstanding, fiscal, tmi, taxableIncome, rfr, incomeTax, perCeiling, ifi, landDeficit, familyStatus, matrimonialRegime, children, notary, transmissionClause, debtRatio, bankAvailableMonthly, remainingMonthly, netRealEstate, patrimonyNet, goals, transmissionGoals, missing };
 }
 function formatValue(value: unknown, key = ''): string {
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
@@ -829,7 +833,7 @@ export default function CifDossierSummaryPage() {
       .filter(Boolean);
     return names.length ? names.join(' & ') : (dossier?.libelle || 'Dossier client');
   }, [investors, dossier?.libelle]);
-  const snapshot = useMemo(() => financialSnapshot(sections, household.realEstate.totalValue), [sections, household.realEstate.totalValue]);
+  const snapshot = useMemo(() => financialSnapshot(sections, household.realEstate.totalValue, sourceDocuments), [sections, household.realEstate.totalValue, sourceDocuments]);
 
   const professionalPatrimony = useMemo(() => {
     const investorNameById = new Map(investors.map((investor) => [
@@ -1033,9 +1037,12 @@ export default function CifDossierSummaryPage() {
 
   const synthesisAlerts=useMemo(()=>{
     const alerts:{label:string;detail:string;level:'blocking'|'review'}[]=[];
+    for(const issue of snapshot.fiscal.warnings){
+      if(issue.includes('Contradiction') || issue.includes('non rapprochées')) alerts.push({label:'Fiscalité : anomalie de source',detail:issue,level:'blocking'});
+    }
     if(patrimonialOverview.financialDeclared>0||patrimonialOverview.rejectedSources>0)
       alerts.push({label:'Encours financiers à justifier',
-        detail:`${euro(patrimonialOverview.financialDeclared)} de valeurs non documentées à une date fiable ; ${patrimonialOverview.rejectedSources} source(s) rejetée(s).`,level:'review'});
+        detail:`${euro(patrimonialOverview.financialDeclared)} déclarés par le client sans relevés individuels datés ; ${patrimonialOverview.rejectedSources} document(s) avec anomalie technique de traitement.`,level:'review'});
     if(patrimonialOverview.financialUnknown>0)
       alerts.push({label:'Valorisations absentes',
         detail:`${patrimonialOverview.financialUnknown} placement(s) sans encours exploitable.`,level:'blocking'});
@@ -1055,7 +1062,7 @@ export default function CifDossierSummaryPage() {
       alerts.push({label:'Dette à valeur théorique',
         detail:'CRD calculé depuis l’échéancier, distinct d’un solde bancaire attesté.',level:'review'});
     return alerts;
-  },[patrimonialOverview,snapshot.annualCharges.found,snapshot.chargesHorsCreditKnown]);
+  },[patrimonialOverview,snapshot.annualCharges.found,snapshot.chargesHorsCreditKnown,snapshot.fiscal.warnings]);
 
   const taxSourcePeriod=useMemo(()=>{
     const labels=sourceDocuments.filter((doc)=>doc.categorie==='avis_imposition')
@@ -1997,18 +2004,20 @@ export default function CifDossierSummaryPage() {
           <WorkLine label="Reste à vivre (charges hors crédit)" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null}/>
         </WorkBlock>
         <WorkBlock title="Fiscal" subtitle="Données déclaratives à rapprocher de l’année de l’avis">
-          <WorkLine label="Référence fiscale" value={taxSourcePeriod} attention={taxSourcePeriod.includes('préciser')||taxSourcePeriod.includes('rapprocher')}/>
+          <WorkLine label="Référence fiscale prioritaire" value={snapshot.fiscal.source === 'avis_foyer' ? taxSourcePeriod : 'Déclaration client · avis non fourni'} attention={snapshot.fiscal.source !== 'avis_foyer' || taxSourcePeriod.includes('préciser') || taxSourcePeriod.includes('rapprocher')}/>
           <WorkLine label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} attention={!snapshot.tmi.found}/>
           <WorkLine label="Revenu imposable (avis)" value={snapshot.taxableIncome.found ? euro(snapshot.taxableIncome.value) : 'Non renseigné'} attention={!snapshot.taxableIncome.found}/>
           <WorkLine label="RFR (avis)" value={snapshot.rfr.found ? euro(snapshot.rfr.value) : 'Non renseigné'} attention={!snapshot.rfr.found}/>
           <WorkLine label="IR net (avis)" value={snapshot.incomeTax.found ? euro(snapshot.incomeTax.value) : 'Non renseigné'} attention={!snapshot.incomeTax.found}/>
-          <WorkLine label="Plafond PER déclaré (à ventiler)" value={snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'Non renseigné'} attention={!snapshot.perCeiling.found}/>
+          <WorkLine label="Plafonds PER de l’avis (cumul indicatif)" value={snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'Non déterminables'} attention={!snapshot.perCeiling.found}/>
+          <WorkLine label="PER identifiant 1 · avis" value={snapshot.fiscal.perByInvestor[0].found ? euro(snapshot.fiscal.perByInvestor[0].value) : 'Non renseigné'}/>
+          <WorkLine label="PER identifiant 2 · avis" value={snapshot.fiscal.perByInvestor[1].found ? euro(snapshot.fiscal.perByInvestor[1].value) : 'Non renseigné'}/>
           <WorkLine label="IFI" value={snapshot.ifi.found ? euro(snapshot.ifi.value) : 'Non documenté'} attention={!snapshot.ifi.found}/>
           <WorkLine label="Déficit foncier reportable" value={snapshot.landDeficit.found ? euro(snapshot.landDeficit.value) : 'Non renseigné'}/>
         </WorkBlock>
         <WorkBlock title="Placements & liquidités" subtitle="Montants connus, preuves et dates de valeur">
           <WorkLine label="Encours avec justificatif daté" value={euro(patrimonialOverview.financialVerified)}/>
-          <WorkLine label="Encours déclarés à justifier" value={euro(patrimonialOverview.financialDeclared)} attention={patrimonialOverview.financialDeclared>0}/>
+          <WorkLine label="Encours déclarés par le client (à rapprocher)" value={euro(patrimonialOverview.financialDeclared)} attention={patrimonialOverview.financialDeclared>0}/>
           <WorkLine label="Total financier indicatif" value={euro(patrimonialOverview.financialKnown)}/>
           <WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c)=>financialCategoryLabel[c]??c).join(' · ') : 'Non précisées'} attention={!household.financialCategories.length}/>
           <WorkLine label="Encours inconnus" value={`${patrimonialOverview.financialUnknown} ligne(s)`} attention={patrimonialOverview.financialUnknown>0}/>
