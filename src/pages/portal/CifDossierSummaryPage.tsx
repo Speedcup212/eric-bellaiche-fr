@@ -1051,6 +1051,23 @@ export default function CifDossierSummaryPage() {
     return alerts;
   },[patrimonialOverview,snapshot.annualCharges.found]);
 
+  const taxSourcePeriod=useMemo(()=>{
+    const labels=sourceDocuments.filter((doc)=>doc.categorie==='avis_imposition')
+      .map((doc)=>{
+        const name=normalizedSearch(doc.nom_fichier).replace(/[_-]/g,' ');
+        const match=name.match(/(20\d{2}).*?revenus?\s+(20\d{2})/i);
+        if(match)return `Avis ${match[1]} · revenus ${match[2]}`;
+        const year=name.match(/\b20\d{2}\b/);
+        return year ? `Avis ${year[0]} · année des revenus à confirmer` : '';
+      }).filter(Boolean);
+    const unique=[...new Set(labels)];
+    return unique.length===1?unique[0]:unique.length>1?'Avis multiples · périodes à rapprocher':'Année de l’avis à préciser';
+  },[sourceDocuments]);
+  const creditSourceNames=useMemo(()=>{
+    const names=[...new Set(professionalPatrimony.credits.map((credit)=>credit.sourceFile).filter(Boolean))];
+    return names.length?names.join(' · '):'Document bancaire non identifié';
+  },[professionalPatrimony.credits]);
+
   const investorSummaries = useMemo(() => investors.map((investor) => { const investorSections = sections.filter((r) => r.investisseur_id === investor.investisseur_id); const payloadByCode = Object.fromEntries(investorSections.map((r) => [r.section_code, r.payload ?? {}])); const spouse = investors.find((r) => r.investisseur_id !== investor.investisseur_id)?.investisseurs ?? null; const context = contexts.find((r) => r.investisseur_id === investor.investisseur_id) ?? {}; const consistencySnapshot: ConsistencySnapshot = { identity: payloadByCode.identity ?? {}, family: payloadByCode.family ?? {}, professional: payloadByCode.professional ?? {}, capacity: payloadByCode.capacity ?? {}, patrimony: payloadByCode.patrimony ?? {}, financial: payloadByCode.financial ?? {}, credits: payloadByCode.credits ?? {}, regulatory: payloadByCode.regulatory ?? {}, documents: context, spouse }; const issues = evaluateConsistency(consistencySnapshot); const investorProvenance = provenance.filter((r) => !r.investisseur_id || r.investisseur_id === investor.investisseur_id); const summary = summarizeAdvisorDossier({ sections: investorSections, provenance: investorProvenance, checklist, issues, roleDossier: investor.role_dossier }); const sessionIds = qpiSessions.filter((row) => row.investisseur_id === investor.investisseur_id).map((row) => row.id); const unresolvedQpiControls = qpiControls.filter((control) => sessionIds.includes(control.session_id) && control.alerte && !control.traite); const completeness = recueilCompleteness.find((row) => row.investisseur_id === investor.investisseur_id); const needsRecueilReview = completeness ? !completeness.complete : true; const effectiveReadiness = (unresolvedQpiControls.length > 0 || needsRecueilReview) && summary.readiness === 'ready' ? 'review' as const : summary.readiness; return { investor, investorSections, issues, summary, unresolvedQpiControls, effectiveReadiness, completeness }; }), [investors, sections, contexts, provenance, checklist, qpiSessions, qpiControls, recueilCompleteness]);
   const isCoupleDossier = investors.length > 1;
   const householdRecueilState = useMemo(() => {
@@ -1974,6 +1991,7 @@ export default function CifDossierSummaryPage() {
           <WorkLine label="Reste à vivre estimé" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null}/>
         </WorkBlock>
         <WorkBlock title="Fiscal" subtitle="Données déclaratives à rapprocher de l’année de l’avis">
+          <WorkLine label="Référence fiscale" value={taxSourcePeriod} attention={taxSourcePeriod.includes('préciser')||taxSourcePeriod.includes('rapprocher')}/>
           <WorkLine label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} attention={!snapshot.tmi.found}/>
           <WorkLine label="Revenu imposable (avis)" value={snapshot.taxableIncome.found ? euro(snapshot.taxableIncome.value) : 'Non renseigné'} attention={!snapshot.taxableIncome.found}/>
           <WorkLine label="RFR (avis)" value={snapshot.rfr.found ? euro(snapshot.rfr.value) : 'Non renseigné'} attention={!snapshot.rfr.found}/>
@@ -2002,6 +2020,7 @@ export default function CifDossierSummaryPage() {
           <WorkLine label="Capital restant dû" value={patrimonialOverview.allDebtKnown ? euro(patrimonialOverview.debtKnown) : `${euro(patrimonialOverview.debtKnown)} (partiel)`} attention={!patrimonialOverview.allDebtKnown}/>
           {patrimonialOverview.theoreticalDebts>0 && <WorkLine label="Nature du CRD" value="Théorique selon échéancier" attention/>}
           {patrimonialOverview.asOfDates.length>0 && <WorkLine label="Date(s) des soldes" value={patrimonialOverview.asOfDates.map((date)=>professionalDate(date)).join(' · ')}/>}
+          <WorkLine label="Justificatif du crédit" value={creditSourceNames} attention={creditSourceNames==='Document bancaire non identifié'}/>
           <WorkLine label="Taux charges de crédit / revenus" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} attention={snapshot.debtRatio === null}/>
           <WorkLine label="Marge de mensualité théorique à 35 %" value={snapshot.bankAvailableMonthly !== null ? `${euro(snapshot.bankAvailableMonthly)} / mois` : 'Non calculable'} attention={snapshot.bankAvailableMonthly === null}/>
         </WorkBlock>
