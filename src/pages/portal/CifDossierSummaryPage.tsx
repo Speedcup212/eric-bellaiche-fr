@@ -1800,15 +1800,18 @@ export default function CifDossierSummaryPage() {
                     [doc.id]: { ...financialInputs, [field]:value },
                   }));
                 const reviewBusy = sourceReviewBusyId === doc.id;
+                const wordClientSourceWithTechnicalIssue = doc.categorie === 'patrimoine_financier' &&
+                  doc.statut_analyse === 'rejected' && doc.nom_fichier.toLowerCase().endsWith('.docx');
                 return <div key={doc.id} className="border-b border-[#203954] last:border-b-0">
                   <div className="grid gap-3 px-4 py-3.5 hover:bg-[#10243E]/80 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
                     <div className="min-w-0">
                       <p className="break-words text-xs font-bold text-white">{doc.nom_fichier}</p>
                       <p className="mt-1 text-[10px] text-slate-400">Reçu le {new Date(doc.created_at).toLocaleDateString('fr-FR')}{fieldsApplied > 0 ? ` · ${fieldsApplied} donnée${fieldsApplied > 1 ? 's' : ''} intégrée${fieldsApplied > 1 ? 's' : ''}` : ''}{conflicts > 0 ? ` · ${conflicts} écart${conflicts > 1 ? 's' : ''}` : ''}</p>
                       {analysisError && <p className="mt-1 text-[10px] font-medium text-amber-300">{analysisError}</p>}
+                      {wordClientSourceWithTechnicalIssue && <p className="mt-1 text-[10px] text-amber-200">Document transmis par le client. Les valeurs déclarées déjà reprises au recueil sont conservées ; seule la lecture automatisée du fichier a échoué.</p>}
                     </div>
                     <div><span className="text-[11px] font-semibold text-slate-200">{sourceDocumentCategoryLabel[doc.categorie] ?? humanize(doc.categorie)}</span></div>
-                    <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : status.label}</span></div>
+                    <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase ${status.cls}`}>{busy ? 'Analyse en cours' : wordClientSourceWithTechnicalIssue ? 'Lecture technique en échec' : status.label}</span></div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {doc.storage_path && <button type="button" onClick={() => void openSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#315173] bg-[#10243E] px-2.5 py-1.5 text-[10px] font-bold text-blue-100 hover:bg-[#17365E]"><Download className="h-3.5 w-3.5" /> Ouvrir</button>}
                       {((doc.statut_analyse === 'uploaded' || doc.statut_analyse === 'to_review') && /\.(pdf|docx)$/i.test(doc.nom_fichier) || (doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' && doc.nom_fichier.toLowerCase().endsWith('.pdf'))) && <button type="button" disabled={busy} onClick={() => void analyzeSourceDocument(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:opacity-50">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{doc.categorie === 'tableau_amortissement' && doc.statut_analyse === 'validated' ? 'Relancer la lecture par pages' : doc.statut_analyse === 'to_review' ? 'Ré-analyser' : 'Analyser'}</button>}
