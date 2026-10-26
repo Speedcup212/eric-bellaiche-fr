@@ -1864,6 +1864,68 @@ export default function CifDossierSummaryPage() {
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-300">Patrimoine financier</p><h3 className="mt-1 text-lg font-semibold text-white">{professionalPatrimony.financialAssets.length} ligne{professionalPatrimony.financialAssets.length > 1 ? 's' : ''} identifiée{professionalPatrimony.financialAssets.length > 1 ? 's' : ''}</h3></div>
           <p className="text-xs text-slate-400">Montants déclarés : dates et rapprochements à confirmer avant recommandation.</p>
         </div>
+        {(() => {
+          const owner1=investors.find((investor) => investor.role_dossier==='investisseur_1');
+          const owner2=investors.find((investor) => investor.role_dossier==='investisseur_2');
+          const monsieur=owner2?.investisseurs?.prenom ?? 'Identifiant 2';
+          const madame=owner1?.investisseurs?.prenom ?? 'Identifiant 1';
+          type Slot='madame'|'monsieur'|'commun';
+          type Group={ label:string;madame:number;monsieur:number;commun:number;unknown:number;count:number;pending:boolean };
+          const groups=new Map<string,Group>();
+          const productName=(name:string)=>{
+            const n=normalizedSearch(name);
+            if (/^(per|peri)\b|plan d.epargne retraite/.test(n)) return 'PER';
+            if (/assurance.vie|capitalisation|\bafer\b/.test(n)) return 'Assurance-vie / capitalisation';
+            if (/\\blivret a\\b/.test(n)) return 'Livret A';
+            if (/\\b(livret de developpement durable|ldd|ldds)\\b/.test(n)) return 'LDDS / LDD';
+            if (/\\b(livret epargne logement|lel)\\b/.test(n)) return 'LEL';
+            if (/\\b(pel|plan epargne logement)\\b/.test(n)) return 'PEL';
+            if (/\\bpee\\b|epargne salariale/.test(n)) return 'PEE / épargne salariale';
+            if (/\\blivret b\\b/.test(n)) return 'Livret B';
+            if (/parts sociales/.test(n)) return 'Parts sociales';
+            if (/\\bqu ad reto\\b|quadreto/.test(n)) return 'Quadreto';
+            if (/compte pro/.test(n)) return 'Compte professionnel';
+            return name;
+          };
+          for(const asset of professionalPatrimony.financialAssets){
+            const name=productName(asset.type);
+            const row=groups.get(name)??{label:name,madame:0,monsieur:0,commun:0,unknown:0,count:0,pending:false};
+            const slot:Slot=asset.heldJointly||normalizedSearch(asset.owner)==='couple'?'commun':
+              owner2&&normalizedSearch(asset.owner)===normalizedSearch([owner2.investisseurs?.prenom,owner2.investisseurs?.nom].filter(Boolean).join(' '))?'monsieur':'madame';
+            if(asset.amount===null)row.unknown++;
+            else row[slot]+=asset.amount;
+            row.count++;
+            row.pending ||= asset.needsDateReview || asset.sourceRejected || Boolean(asset.possibleOverlap);
+            groups.set(name,row);
+          }
+          const ordered=[...groups.values()].sort((a,b)=>a.label.localeCompare(b.label,'fr'));
+          const sum=ordered.reduce((out,row)=>({madame:out.madame+row.madame,monsieur:out.monsieur+row.monsieur,commun:out.commun+row.commun,unknown:out.unknown+row.unknown}),{madame:0,monsieur:0,commun:0,unknown:0});
+          return <div className="overflow-x-auto">
+            <table className="w-full min-w-[650px] text-left text-sm">
+              <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-emerald-200">
+                <tr><th className="px-4 py-3">Produit</th><th className="px-4 py-3 text-right">Mme {madame}</th><th className="px-4 py-3 text-right">Mr {monsieur}</th><th className="px-4 py-3 text-right">Commun</th><th className="px-4 py-3 text-right">Total connu</th></tr>
+              </thead>
+              <tbody className="divide-y divide-[#203954]">
+                {ordered.map((row)=><tr key={row.label} className="bg-[#071425]">
+                  <td className="px-4 py-3 font-semibold text-white">{row.label}<p className="mt-1 text-[10px] font-normal text-slate-400">{row.count} contrat{row.count>1?'s':''}{row.pending?' · à vérifier':''}{row.unknown?' · '+row.unknown+' encours manquant'+(row.unknown>1?'s':''):''}</p></td>
+                  <td className="px-4 py-3 text-right text-slate-200">{row.madame?euro(row.madame):'—'}</td>
+                  <td className="px-4 py-3 text-right text-slate-200">{row.monsieur?euro(row.monsieur):'—'}</td>
+                  <td className="px-4 py-3 text-right text-slate-200">{row.commun?euro(row.commun):'—'}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-white">{euro(row.madame+row.monsieur+row.commun)}{row.unknown>0&&<p className="text-[10px] font-normal text-amber-300">Partiel</p>}</td>
+                </tr>)}
+                <tr className="bg-[#10243E] font-bold text-white">
+                  <td className="px-4 py-3">Total hors encours inconnus</td>
+                  <td className="px-4 py-3 text-right">{euro(sum.madame)}</td>
+                  <td className="px-4 py-3 text-right">{euro(sum.monsieur)}</td>
+                  <td className="px-4 py-3 text-right">{euro(sum.commun)}</td>
+                  <td className="px-4 py-3 text-right">{euro(sum.madame+sum.monsieur+sum.commun)}{sum.unknown>0&&<p className="text-[10px] font-normal text-amber-300">{sum.unknown} encours à compléter</p>}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>;
+        })()}
+        <details className="border-t border-[#25405F]">
+          <summary className="cursor-pointer px-5 py-3 text-xs font-semibold text-blue-200">Voir les {professionalPatrimony.financialAssets.length} contrats, justificatifs et alertes détaillés</summary>
         <div className="overflow-x-auto">
           <table className="min-w-[900px] w-full text-left text-sm">
             <thead className="bg-[#10243E] text-[10px] uppercase tracking-[0.08em] text-emerald-200"><tr><th className="px-4 py-3">Titulaire</th><th className="px-4 py-3">Enveloppe / support</th><th className="px-4 py-3">Établissement</th><th className="px-4 py-3 text-right">Montant</th><th className="px-4 py-3">Fiscalité</th><th className="px-4 py-3">Liquidité</th><th className="px-4 py-3">Traçabilité</th></tr></thead>
@@ -1873,6 +1935,7 @@ export default function CifDossierSummaryPage() {
             </tbody>
           </table>
         </div>
+        </details>
       </div>
 
       <div className="mt-5 rounded-2xl border border-[#25405F] bg-[#0B1A2F]">
