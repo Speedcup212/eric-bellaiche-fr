@@ -624,9 +624,10 @@ function validateCreditSchedule(rawRows:CreditScheduleRow[],reader:'pdf_native'|
   for(const width of [4,5,6,7]){
     const ofWidth=rows.filter((row)=>row.rawValues.length===width);
     if(ofWidth.length<6)continue;
-    // A fifth numeric field can mean "outstanding" OR "unpaid"; never assume its role.
-    for(const balance of [width-1,width-2]){
-      if(balance<3)continue;
+    // Different banks put CRD before insurance and report columns.
+    // Evaluate every candidate numeric column rather than assuming it is last.
+    // The only accepted pair must prove: previous CRD - next CRD = principal amortized.
+    for(let balance=2;balance<width;balance++){
       for(let principal=1;principal<width;principal++){
         if(principal===balance)continue;
         let checked=0,valid=0,declining=0;
@@ -635,7 +636,10 @@ function validateCreditSchedule(rawRows:CreditScheduleRow[],reader:'pdf_native'|
           if(current.n!==previous.n+1||current.date<=previous.date)continue;
           const before=previous.rawValues[balance],after=current.rawValues[balance];
           const paidCapital=current.rawValues[principal];
-          if(before<0||after<0||before>10000000||after>10000000||after>before+0.15||paidCapital<0)continue;
+          // A CRD must materially exceed the monthly payment. Zero-valued
+          // interest carry / insurance-report columns must never be selected.
+          if(before<=current.payment*2||after<0||before>10000000||after>10000000
+              ||after>before+0.15||paidCapital<0||paidCapital>current.payment+0.15)continue;
           const difference=before-after;
           checked++;
           if(difference>0.15) declining++;
@@ -669,7 +673,7 @@ function validateCreditSchedule(rawRows:CreditScheduleRow[],reader:'pdf_native'|
     numeric_columns:top?.width??null,balance_column:top?.balance??null,
     principal_column:top?.principal??null,pairs_checked:top?.checked??0,
     pairs_valid:top?.valid??0,decreasing_pairs:top?.declining??0,
-    method:'adjacent CRD difference equals principal repaid on successive dated instalments',
+    method:'all numeric CRD columns tested; preceding balance minus current balance equals current capital amortized on successive dated instalments',
   }};
 }
 /** Only the embedded raster images of a scanned PDF can be OCRed here.
