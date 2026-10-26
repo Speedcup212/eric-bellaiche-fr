@@ -733,9 +733,9 @@ async function readPdfEmbeddedImageOcr(pdf:any, pageLimit=12){
   };
 }
 
-async function creditLayoutLines(pdf:any):Promise<string[]> {
+async function creditLayoutLines(pdf:any,startPage=1,endPage=pdf.numPages):Promise<string[]> {
   const lines:string[] = [];
-  for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
+  for(let pageNo=startPage;pageNo<=Math.min(endPage,pdf.numPages);pageNo++){
     const page=await pdf.getPage(pageNo);
     const data=await page.getTextContent();
     // Avoid the former O(number of tokens × number of rows) group.find loop.
@@ -777,12 +777,13 @@ async function parseCredit(
   targetIds: string[],
   detectedMembers: string[],
   members: Member[],
+  cachedLayoutLines?:string[],
 ) {
   const all = pages.join('\n');
   // Most source PDFs already have line breaks; skip a second all-page
   // getTextContent pass if the PDF extraction contains sufficient schedule rows.
   const nativeTextRows=parseCreditScheduleLines(pages.flatMap((p)=>p.split('\n')));
-  const layoutLines=nativeTextRows.length>=12 ? [] : await creditLayoutLines(pdf);
+  const layoutLines=cachedLayoutLines ?? (nativeTextRows.length>=12 ? [] : await creditLayoutLines(pdf));
   const creditPages=[...pages, layoutLines.join('\n')];
   const rate = findLineNumber(creditPages, /(?:taux (?:actuel du pr[êe]t|nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
   const taeg = findLineNumber(creditPages, /(?:TAEG|taux annuel effectif global)/i, { min: 0, max: 30, percent: true });
@@ -827,7 +828,7 @@ async function parseCredit(
   // For a text-native amortization schedule, an invalid column mapping is an
   // arithmetic ambiguity, not proof that raster OCR is required.
   // OCR only when no usable numeric PDF rows exist.
-  if(nativeEvidence.rows.length<8){
+  if(pdf && nativeEvidence.rows.length<8){
     ocrResult=await readPdfEmbeddedImageOcr(pdf,2);
     if(ocrResult.lines.length){
       ocrEvidence=validateCreditSchedule(parseCreditScheduleLines(ocrResult.lines,'ocr_embedded_image'),'ocr_embedded_image');
@@ -869,7 +870,7 @@ async function parseCredit(
   if (institution) { fact.organisme = institution; fact.banque = institution; }
   if (contractMatch?.[1]) fact.contrat = contractMatch[1].trim();
   if (referenceMatch?.[1]) fact.reference_pret = referenceMatch[1].trim().replace(/\s+\/.*$/,'');
-  const effectiveRate=rate??await findPdfRowNumber(pdf,/taux (?:nominal|actuel du pr[êe]t|du cr[ée]dit|d['’]int[ée]r[êe]t)/i,{min:0,max:20,percent:true});
+  const effectiveRate=rate??(pdf?await findPdfRowNumber(pdf,/taux (?:nominal|actuel du pr[êe]t|du cr[ée]dit|d['’]int[ée]r[êe]t)/i,{min:0,max:20,percent:true}):null);
   if (effectiveRate) { fact.taux_credit = effectiveRate.value; sourcePages.__merge_credit_items = String(effectiveRate.page); }
   if (taeg) fact.taeg = taeg.value;
   // Historical outstanding figures are not used as the current debt balance.
@@ -1160,7 +1161,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     documentId = typeof body?.document_id === 'string' ? body.document_id : '';
-    autoMode=body?.auto_mode===true;
+    const creditPhase=typeof body?.credit_phase==='string'&&['prepare','page','finish'].includes(body.credit_phase)?body.credit_phase:'';
+    autoMode=body?.auto_mode===true || Boolean(creditPhase);
     previewOnly=body?.preview_only===true || autoMode;
     if (!/^[0-9a-f-]{36}$/i.test(documentId)) return new Response(JSON.stringify({ error: 'Document invalide' }), { status: 400, headers });
 
@@ -1214,6 +1216,30 @@ Deno.serve(async (req) => {
     const lowerName = String(doc.nom_fichier ?? '').toLowerCase();
     const isPdf = blob.type === 'application/pdf' || lowerName.endsWith('.pdf');
     const isDocx = lowerName.endsWith('.docx');
+    if(creditPhase){
+      if(doc.categorie!=='tableau_amortissement'||doc.statut_analyse!=='validated'||!isPdf)
+        return new Response(JSON.stringify({error:'Seuls les tableaux d’amortissement PDF validés sont autorisés'}),{status:422,headers});
+      if(creditPhase==='prepare'||creditPhase==='page'){
+        const stagedPdf=await getDocumentProxy(bytes,{maxImageSize:16777216});
+        if(stagedPdf.numPages<1||stagedPdf.numPages>120)
+          return new Response(JSON.stringify({error:'Nombre de pages PDF invalide'}),{status:422,headers});
+        if(creditPhase==='prepare'){
+          return new Response(JSON.stringify({ok:true,credit_phase:'prepare',page_count:stagedPdf.numPages}),{headers});
+        }
+        const pageNumber=Number(body?.page_number);
+        if(!Number.isInteger(pageNumber)||pageNumber<1||pageNumber>stagedPdf.numPages)
+          return new Response(JSON.stringify({error:'Numéro de page incorrect'}),{status:400,headers});
+        const extractedLines=await creditLayoutLines(stagedPdf,pageNumber,pageNumber);
+        const {error:cacheError}=await admin.from('credit_pdf_page_cache').upsert({
+          document_id:documentId,page_number:pageNumber,page_count:stagedPdf.numPages,
+          source_sha256:fileHash,lines:extractedLines,
+          created_at:new Date().toISOString(),
+        },{onConflict:'document_id,page_number'});
+        if(cacheError)throw cacheError;
+        return new Response(JSON.stringify({ok:true,credit_phase:'page',page_number:pageNumber,
+          page_count:stagedPdf.numPages,lines_read:extractedLines.length}),{headers});
+      }
+    }
     if(isDocx) {
       const parsedDocx=parseDocxContents(bytes);
       const scopeIds=doc.portee_document==='foyer'
@@ -1284,13 +1310,34 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, document_id: documentId, result: applied }), { headers });
     }
 
-    const pdf = await getDocumentProxy(bytes, { maxImageSize: 16_777_216 });
-    if (pdf.numPages > 120) throw new Error('Document de plus de 120 pages : contrôle manuel requis');
-
-    const extracted: any = await extractText(pdf, { mergePages: false });
-    const rawText = extracted?.text;
-    const pages = (Array.isArray(rawText) ? rawText : [rawText ?? '']).map((x) => normalizeText(String(x ?? '')));
-    const allText = pages.join('\n');
+    let pdf:any=null;
+    let pages:string[]=[];
+    let stagedLayoutLines:string[]|undefined;
+    let effectivePageCount=0;
+    if(creditPhase==='finish'){
+      const {data:partRows,error:partError}=await admin.from('credit_pdf_page_cache')
+        .select('page_number,page_count,source_sha256,lines,created_at')
+        .eq('document_id',documentId).eq('source_sha256',fileHash).order('page_number');
+      if(partError)throw partError;
+      if(!Array.isArray(partRows)||!partRows.length)throw new Error('Pages PDF non préparées');
+      effectivePageCount=Number(partRows[0].page_count);
+      if(effectivePageCount<1||effectivePageCount>120||partRows.length!==effectivePageCount
+         ||partRows.some((row:any,index:number)=>row.page_number!==index+1 || row.page_count!==effectivePageCount
+           || !Array.isArray(row.lines))){
+        throw new Error('Lecture incomplète des pages : le traitement doit être relancé');
+      }
+      // Each page was read independently from the same authenticated document.
+      pages=partRows.map((row:any)=>row.lines.join('\n'));
+      stagedLayoutLines=partRows.flatMap((row:any)=>row.lines);
+    }else{
+      pdf=await getDocumentProxy(bytes,{maxImageSize:16777216});
+      if(pdf.numPages>120)throw new Error('Document de plus de 120 pages : contrôle manuel requis');
+      effectivePageCount=pdf.numPages;
+      const extracted:any=await extractText(pdf,{mergePages:false});
+      const rawText=extracted?.text;
+      pages=(Array.isArray(rawText)?rawText:[rawText??'']).map((x)=>normalizeText(String(x??'')));
+    }
+    const allText=pages.join('\n');
 
     const explicitIds = uniqueIds((doc.concerne_investisseur_ids ?? []).map(String));
     const detected = detectMembers(allText, members);
@@ -1316,7 +1363,7 @@ Deno.serve(async (req) => {
       parsed = await parseTaxNotice(pdf, pages, documentId, doc.nom_fichier, concernedIds, members);
     } else if (doc.categorie === 'tableau_amortissement') {
       const creditTargetIds = primaryId ? [primaryId] : concernedIds.slice(0, 1);
-      parsed = await parseCredit(pdf, pages, documentId, doc.nom_fichier, creditTargetIds, detected, members);
+      parsed = await parseCredit(pdf, pages, documentId, doc.nom_fichier, creditTargetIds, detected, members, stagedLayoutLines);
     } else if (doc.categorie === 'patrimoine_financier') {
       parsed = parseFinancial(pages, documentId, doc.nom_fichier, concernedIds);
     } else if (doc.categorie === 'identite') {
@@ -1339,7 +1386,7 @@ Deno.serve(async (req) => {
     const extraction = {
       parser_version: 'source-doc-v3',
       category: doc.categorie,
-      page_count: pdf.numPages,
+      page_count: effectivePageCount,
       text_length: pages.reduce((sum, page) => sum + page.length, 0),
       scope_detection: {
         configured_scope: doc.portee_document,
