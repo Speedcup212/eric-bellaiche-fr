@@ -753,8 +753,14 @@ export default function CifDossierSummaryPage() {
           rate:professionalNumber(item.taux_credit ?? item.taux),
           rateType:professionalText(item.taux_type,'—'),
           currentPayment:professionalNumber(item.mensualite_actuelle ?? item.mensualite),
-          futurePayment:professionalNumber(item.mensualite_future),
-          futurePaymentDate:professionalText(item.mensualite_future_date,''),
+          futurePayment:typeof item.mensualite_future_date === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(item.mensualite_future_date) &&
+            item.mensualite_future_date > new Date().toISOString().slice(0,10)
+              ? professionalNumber(item.mensualite_future) : null,
+          futurePaymentDate:typeof item.mensualite_future_date === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(item.mensualite_future_date) &&
+            item.mensualite_future_date > new Date().toISOString().slice(0,10)
+              ? item.mensualite_future_date : '',
           openingDate:professionalText(item.date_ouverture ?? item.date_pret,''),
           endDate:professionalText(item.date_fin,''),
           remainingMonths:professionalNumber(item.duree_actualisee_restante_mois ?? item.duree_mois),
