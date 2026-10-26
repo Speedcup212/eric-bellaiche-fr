@@ -10,6 +10,7 @@ const documents = fs.readFileSync('src/pages/portal/ClientDocumentsPage.tsx', 'u
 const recueil = fs.readFileSync('src/pages/portal/ClientRecueilJourneyBase.tsx', 'utf8');
 const summary = fs.readFileSync('src/pages/portal/CifDossierSummaryPage.tsx', 'utf8');
 const admin = fs.readFileSync('src/pages/portal/CifAdminPage.tsx', 'utf8');
+const autoCrDMigration = fs.readFileSync('supabase/migrations/20261026114000_auto_apply_verified_credit_crd.sql', 'utf8');
 
 const checks = [
   ['edge requires authenticated document access', edge.includes("from('documents_sources')") && edge.includes('Authorization: auth')],
@@ -26,6 +27,11 @@ const checks = [
   ['credit parser merges into real credit items', edge.includes('__merge_credit_items') && mergeMigration.includes("v_field='__merge_credit_items'") && mergeMigration.includes("'{items}'")],
   ['parallel documented loan facts are no longer generated', !edge.includes('documented_loan_facts')],
   ['credit CRD is guarded by dated consecutive-instalment arithmetic checks', edge.includes("safe_crd_rule: 'date_scoped_consecutive_instalments_arithmetic_validation_not_bank_confirmed'") && edge.includes('validateCreditSchedule') && edge.includes('Math.abs(difference-paidCapital)') && edge.includes('valid/checked<0.94') && edge.includes('!pdfOcrMismatch') && edge.includes("'verified'")],
+  ['validated loan documents are automatically analyzed without manual confirmation', summary.includes('needsAutoCRD') && summary.includes('auto_mode:autoMode') && !summary.includes('confirmCreditPreview')],
+  ['OCR/PDF runs cross checks before autonomous debt commit', edge.includes('auto_apply_verified_credit_crd') && edge.includes('proof.status') && edge.includes('proof.pairs_checked') && edge.includes('monthly_payment:loanFact.mensualite_actuelle')],
+  ['automated debt integration is service-only with client session MFA', autoCrDMigration.includes('revoke all on function public.auto_apply_verified_credit_crd(uuid) from public,anon,authenticated') && autoCrDMigration.includes('grant execute on function public.auto_apply_verified_credit_crd(uuid) to service_role') && edge.includes("aal!=='aal2'")],
+  ['automated CRD is labeled theoretical, independently audited, and refuses mismatched payments', autoCrDMigration.includes("'theorique_echeancier'") && autoCrDMigration.includes("Mensualités incohérentes") && autoCrDMigration.includes("'calcul_systeme','verifie'") && autoCrDMigration.includes("public.audit_log")],
+  ['ambiguous PDF/ OCR yields a logged exception rather than a fabricated CRD', edge.includes("status:'exception'") && edge.includes("metadata:{...(doc.metadata??{}),auto_crd:") && summary.includes("Le système n’a enregistré aucun CRD non fiable")],
   ['initial credit amount is read before duration on mixed lines', edge.includes("montant emprunt") && edge.includes("max: 10000000, preferLast: false")],
   ['credit parser extracts detailed loan metadata with dual readers', edge.includes("credit_schedule_dual_v5") && edge.includes("reference_pret") && edge.includes("duree_actualisee_restante_mois") && edge.includes("date_constitution_tableau") && edge.includes("assurance_mode") && edge.includes('readPdfEmbeddedImageOcr') && edge.includes('previewOnly')],
   ['credit parser reads amortization schedule rows', edge.includes("schedule_rows_read") && edge.includes("mensualite_future_date") && edge.includes("nombre_echeances_tableau") && edge.includes("montant_derniere_echeance")],
