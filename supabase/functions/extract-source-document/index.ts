@@ -768,7 +768,7 @@ async function parseCredit(
       source_pages: sourcePages,
     }] : [],
     summary: {
-      parser: 'credit_schedule_fr_v3',
+      parser: 'credit_schedule_fr_v4',
       file_name: fileName,
       extracted_fields: extractedFields,
       extracted_field_count: extractedFields.length,
@@ -782,7 +782,9 @@ async function parseCredit(
       safe_crd_rule: 'same-line-label-only',
       insurance_cost_documented: fact.assurance_cout_documente ?? null,
     },
-    status: extractedFields.length ? 'extracted' : 'to_review',
+    // A partial amortization analysis is not a completed loan reconciliation.
+    status: extractedFields.length && scheduleRows.length > 0 && Boolean(currentPayment)
+      ? 'extracted' : 'to_review',
   };
 }
 
