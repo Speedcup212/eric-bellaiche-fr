@@ -506,10 +506,14 @@ export default function CifDossierSummaryPage() {
         let details=messageFromError(error);
         const context=(error as {context?:Response})?.context;
         if(context && typeof context.clone==='function'){
-          try {
-            const json=await context.clone().json();
-            details=String(json?.error??details);
-          } catch {/* Keep default error */}
+          if(context.status===546)details='Limite processeur Supabase dépassée lors de la lecture : page non traitée. Le système conserve le crédit inchangé.';
+          else {
+            try {
+              const json=await context.clone().json();
+              details=typeof json?.error==='string'?json.error:
+                typeof json?.message==='string'?json.message:details;
+            } catch {/* Keep default error */}
+          }
         }
         throw new Error(details);
       }
