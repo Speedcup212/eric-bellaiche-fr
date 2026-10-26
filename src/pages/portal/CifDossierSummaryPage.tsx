@@ -420,7 +420,7 @@ export default function CifDossierSummaryPage() {
   const [auditPromptLoadError, setAuditPromptLoadError] = useState('');
   const [auditPdfError, setAuditPdfError] = useState('');
   const [uploadingAuditPdf, setUploadingAuditPdf] = useState(false);
-  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [financialNewPlacement, setFinancialNewPlacement] = useState<Record<string,{ investor_id:string; type_placement:string; organisme:string; montant:string; date_valeur:string }>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
+  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [financialNewPlacement, setFinancialNewPlacement] = useState<Record<string,{ investor_id:string; type_placement:string; organisme:string; montant:string; date_valeur:string }>>({}); const [financialOwnerConfirmed, setFinancialOwnerConfirmed] = useState<Record<string,boolean>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
     const results = await Promise.all([
@@ -580,6 +580,11 @@ export default function CifDossierSummaryPage() {
       if (doc.categorie === 'patrimoine_financier' && decision === 'validated') {
         const isExisting = target?.kind === 'financial';
         const newPlacement = financialNewPlacement[doc.id];
+        const requestedHolderId = isExisting ? target?.key.split(':')[0] ?? '' : newPlacement?.investor_id ?? '';
+        const holderDiffersFromUpload = doc.portee_document === 'investisseur' && !!requestedHolderId && requestedHolderId !== doc.investisseur_id && !(doc.concerne_investisseur_ids ?? []).includes(requestedHolderId);
+        if (holderDiffersFromUpload && !financialOwnerConfirmed[doc.id]) {
+          throw new Error('Confirme après lecture du document que ce placement appartient à l’autre titulaire du couple.');
+        }
         const match = isExisting ? /^([0-9a-f-]{36}):(\d+)$/.exec(target?.key ?? '') : null;
         if (isExisting && !match) throw new Error('Sélection du placement invalide.');
         if (!isExisting && (!newPlacement?.investor_id || !newPlacement.type_placement || !newPlacement.organisme.trim())) {
@@ -593,6 +598,7 @@ export default function CifDossierSummaryPage() {
         const response = await supabase.rpc('link_financial_source_document', {
           p_document_id: doc.id,
           p_investisseur_id: isExisting ? match![1] : newPlacement!.investor_id,
+          p_confirm_other_holder: holderDiffersFromUpload && !!financialOwnerConfirmed[doc.id],
           p_item_index: isExisting ? Number(match![2]) : null,
           p_type_placement: isExisting ? null : newPlacement!.type_placement,
           p_organisme: isExisting ? null : newPlacement!.organisme.trim(),
@@ -620,6 +626,9 @@ export default function CifDossierSummaryPage() {
       }
       setReviewingSourceDocumentId(null);
       setFinancialNewPlacement((current) => {
+        const next = { ...current }; delete next[doc.id]; return next;
+      });
+      setFinancialOwnerConfirmed((current) => {
         const next = { ...current }; delete next[doc.id]; return next;
       });
       setSourceReviewTargets((current) => {
@@ -1541,6 +1550,20 @@ export default function CifDossierSummaryPage() {
                 };
                 const isFinancialNew = doc.categorie === 'patrimoine_financier'
                   && (sourceReviewTargets[doc.id] === '__new__' || targetOptions.length === 0);
+                const selectedFinancialHolderId = isFinancialNew
+                  ? financialInputs.investor_id
+                  : selectedTarget?.kind === 'financial' ? selectedTarget.key.split(':')[0] : '';
+                const financialHolderDiffersFromUpload = doc.categorie === 'patrimoine_financier'
+                  && doc.portee_document === 'investisseur'
+                  && Boolean(selectedFinancialHolderId)
+                  && selectedFinancialHolderId !== doc.investisseur_id
+                  && !(doc.concerne_investisseur_ids ?? []).includes(selectedFinancialHolderId);
+                const originallyAssignedHolderName = investors
+                  .filter((investor) => investor.investisseur_id === doc.investisseur_id)
+                  .map((investor) => [investor.investisseurs?.prenom, investor.investisseurs?.nom].filter(Boolean).join(' '))[0] ?? 'Identifiant à l’import';
+                const verifiedHolderName = investors
+                  .filter((investor) => investor.investisseur_id === selectedFinancialHolderId)
+                  .map((investor) => [investor.investisseurs?.prenom, investor.investisseurs?.nom].filter(Boolean).join(' '))[0] ?? 'l’autre titulaire';
                 const updateFinancial = (field: keyof typeof financialInputs, value:string) =>
                   setFinancialNewPlacement((current) => ({
                     ...current,
@@ -1596,18 +1619,25 @@ export default function CifDossierSummaryPage() {
                         {doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && <p className="mt-2 text-xs leading-5 text-amber-200">Rattache le crédit correspondant puis valide les montants extraits. Une pièce validée sans données de crédit ne complète pas la synthèse.</p>}
                         {doc.categorie === 'patrimoine_financier' && <p className="mt-2 text-xs leading-5 text-amber-200">Ce justificatif doit être associé à un placement identifié. {Number((doc.metadata?.extraction as Record<string,unknown> | undefined)?.text_length ?? 0) === 0 ? 'Le PDF ne contient pas de texte exploitable automatiquement : vérifie visuellement le relevé et sa valorisation.' : 'Vérifie les données du relevé avant toute saisie.'}</p>}
                         {doc.categorie === 'patrimoine_financier' && <label className="mt-4 block text-xs font-semibold text-slate-300">Placement à rattacher
-                          <select value={sourceReviewTargets[doc.id] ?? (targetOptions.length === 0 ? '__new__' : '')} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
+                          <select value={sourceReviewTargets[doc.id] ?? (targetOptions.length === 0 ? '__new__' : '')} onChange={(event) => { setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value })); setFinancialOwnerConfirmed((current) => ({ ...current, [doc.id]:false })); }} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
                             {targetOptions.length > 0 && <option value="">Choisir un placement existant</option>}
                             {targetOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                             <option value="__new__">+ Créer une fiche de placement et rattacher le document</option>
                           </select>
                         </label>}
+                        {financialHolderDiffersFromUpload && <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/20 p-3">
+                          <p className="text-xs leading-5 text-amber-100">Cette pièce a été déposée sous <strong>{originallyAssignedHolderName}</strong>. Tu as choisi <strong>{verifiedHolderName}</strong> comme titulaire du placement. Confirme ce choix uniquement après vérification du nom sur le contrat ou le relevé. Le déposant initial restera historisé.</p>
+                          <label className="mt-3 flex items-start gap-2 text-xs font-medium text-amber-100">
+                            <input type="checkbox" checked={!!financialOwnerConfirmed[doc.id]} onChange={(event) => setFinancialOwnerConfirmed((current) => ({ ...current, [doc.id]:event.target.checked }))} className="mt-0.5 h-4 w-4" />
+                            <span>J’ai vérifié le justificatif et confirme le rattachement de ce placement à {verifiedHolderName}.</span>
+                          </label>
+                        </div>}
                         {isFinancialNew && <div className="mt-3 space-y-3 rounded-xl border border-blue-400/25 bg-blue-950/20 p-3">
                           <p className="text-xs font-semibold text-blue-200">Nouvelle fiche — sans montant supposé</p>
                           <label className="block text-xs text-slate-300">Titulaire
-                            <select value={financialInputs.investor_id} onChange={(event) => updateFinancial('investor_id',event.target.value)} disabled={doc.portee_document === 'investisseur'} className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white" >
+                            <select value={financialInputs.investor_id} onChange={(event) => { updateFinancial('investor_id',event.target.value); setFinancialOwnerConfirmed((current) => ({ ...current, [doc.id]:false })); }} className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white" >
                               <option value="">Sélectionner un titulaire</option>
-                              {investors.filter((investor) => doc.portee_document !== 'investisseur' || investor.investisseur_id === doc.investisseur_id).map((investor) =>
+                              {investors.map((investor) =>
                                 <option key={investor.investisseur_id} value={investor.investisseur_id}>{[investor.investisseurs?.prenom,investor.investisseurs?.nom].filter(Boolean).join(' ')}</option>)}
                             </select>
                           </label>
@@ -1640,7 +1670,7 @@ export default function CifDossierSummaryPage() {
                           <textarea value={sourceReviewNotes[doc.id] ?? ''} onChange={(event) => setSourceReviewNotes((current) => ({ ...current, [doc.id]:event.target.value }))} rows={3} placeholder="Ex. Plaquette LMNP conservée comme justificatif ; aucun chiffre réinjecté automatiquement." className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-blue-400" />
                         </label>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <button type="button" disabled={reviewBusy || (doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && !selectedTarget) || (doc.categorie === 'patrimoine_financier' && (!selectedTarget && !isFinancialNew || isFinancialNew && (!financialInputs.investor_id || !financialInputs.type_placement || !financialInputs.organisme.trim() || !!financialInputs.montant.trim() && !financialInputs.date_valeur)))} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{isFinancialNew ? 'Créer le placement et rattacher' : selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
+                          <button type="button" disabled={reviewBusy || (doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && !selectedTarget) || (doc.categorie === 'patrimoine_financier' && ((financialHolderDiffersFromUpload && !financialOwnerConfirmed[doc.id]) || (!selectedTarget && !isFinancialNew) || (isFinancialNew && (!financialInputs.investor_id || !financialInputs.type_placement || !financialInputs.organisme.trim() || (!!financialInputs.montant.trim() && !financialInputs.date_valeur)))))} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{isFinancialNew ? 'Créer le placement et rattacher' : selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
                           <button type="button" disabled={reviewBusy || busy} onClick={() => void analyzeSourceDocument(doc)} className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-500/20 disabled:opacity-50">Relancer l’analyse</button>
                           <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'rejected', null)} className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50">Rejeter la pièce</button>
                         </div>
