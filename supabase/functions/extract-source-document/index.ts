@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { extractText, getDocumentProxy } from 'npm:unpdf@1.8.1';
+import { unzipSync } from 'npm:fflate@0.8.2';
 
 const allowedOrigins = new Set([
   'https://eric-bellaiche.fr',
@@ -879,6 +880,86 @@ async function sha256Hex(bytes: Uint8Array) {
   return [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
+
+function xmlUnescape(value: string):string {
+  const named: Record<string,string> = {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"};
+  return value.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi,
+    (whole,ref:string)=>{
+      if(ref[0]==='#'){
+        const cp=ref[1]?.toLowerCase()==='x' ? parseInt(ref.slice(2),16) : parseInt(ref.slice(1),10);
+        return Number.isInteger(cp)&&cp>0&&cp<=0x10ffff ? String.fromCodePoint(cp) : whole;
+      }
+      return named[ref.toLowerCase()]??whole;
+    });
+}
+function docxWords(fragment:string):string {
+  return [...fragment.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:br(?:\s[^>]*)?\/>/g)]
+    .map((match)=>match[1]!==undefined?xmlUnescape(match[1]):' ')
+    .join('').replace(/\s+/g,' ').trim();
+}
+function parseDocxContents(bytes:Uint8Array) {
+  if(bytes.length<4||bytes[0]!==0x50||bytes[1]!==0x4b)throw new Error('Document Word DOCX invalide (archive ZIP absente)');
+  const zipped=unzipSync(bytes,{filter:(entry)=>entry.name==='word/document.xml'&&entry.originalSize<=3_000_000});
+  const xmlBytes=zipped['word/document.xml'];
+  if(!xmlBytes)throw new Error('Structure Word DOCX inaccessible ou trop volumineuse');
+  const xml=new TextDecoder('utf-8',{fatal:true}).decode(xmlBytes);
+  const tableRows:Array<string[]>=[];
+  for(const table of xml.matchAll(/<w:tbl(?:\s[^>]*)?>([\s\S]*?)<\/w:tbl>/g)){
+    for(const row of table[1].matchAll(/<w:tr(?:\s[^>]*)?>([\s\S]*?)<\/w:tr>/g)){
+      const cells=[...row[1].matchAll(/<w:tc(?:\s[^>]*)?>([\s\S]*?)<\/w:tc>/g)]
+        .map((cell)=>docxWords(cell[1]));
+      if(cells.some(Boolean)&&cells.length<=24)tableRows.push(cells);
+    }
+  }
+  const outside=xml.replace(/<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g,'');
+  const paragraphs=[...outside.matchAll(/<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g)]
+    .map((p)=>docxWords(p[1])).filter(Boolean).slice(0,150);
+  if(tableRows.length===0&&paragraphs.length===0)throw new Error('Word DOCX sans texte exploitable');
+  if(tableRows.length>3000)throw new Error('Document Word trop long pour extraction sécurisée');
+  return {paragraphs,tableRows};
+}
+function financialDocxPreview(
+  parsed:{paragraphs:string[],tableRows:string[][]}, members:Member[],documentId:string,fileName:string
+) {
+  const owners:Array<{id:string|null;role:string;label:string;third_party:boolean}>=[];
+  const suggestions:Array<{holder:string;investisseur_id:string|null;third_party:boolean;support:string;montant:number;row:number}>=[];
+  const findHolder=(name:string)=>{
+    const needle=identityText(name);
+    const member=members.find((m)=>identityText(m.prenom)===needle || identityText(m.prenom+' '+m.nom)===needle);
+    return {id:member?.investisseur_id??null, role:member?.role_dossier??'',label:name,third_party:!member};
+  };
+  for(let i=0;i<parsed.tableRows.length;i++){
+    const cells=parsed.tableRows[i];
+    if(cells.length!==3)continue;
+    if(!cells[1]?.trim()&&cells[0]&&cells[2]){
+      owners[0]=findHolder(cells[0]);owners[1]=findHolder(cells[2]);continue;
+    }
+    for(const [index,col] of [[0,0],[1,2]] as const) {
+      const holder=owners[index];
+      const value=String(cells[col]??'').trim();
+      if(!holder||!value||!/^[-\d\s.,€]+$/.test(value)||!/\d/.test(value))continue;
+      const amount=parseFrenchNumber(value);
+      if(amount===null||amount<0||amount>100000000)continue;
+      suggestions.push({holder:holder.label,investisseur_id:holder.id,third_party:holder.third_party,
+        support:cells[1]??'',montant:amount,row:i+1});
+    }
+  }
+  return {
+    patches:[],
+    summary:{
+      parser:'financial_docx_tables_fr_v1',file_name:fileName,source_document_id:documentId,
+      extracted_rows:suggestions.length,
+      recognized_household_rows:suggestions.filter((r)=>!r.third_party).length,
+      third_party_rows:suggestions.filter((r)=>r.third_party).length,
+      financial_rows:suggestions.slice(0,150),
+      narrative:parsed.paragraphs.slice(0,30),
+      needs_document_date_review:true,requires_cif_reconciliation:true,
+      reason:'Lecture du document réussie, valeurs et titulaires à rapprocher avant intégration.',
+    },
+    status:'to_review',
+  };
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   const headers = cors(origin);
@@ -949,6 +1030,30 @@ Deno.serve(async (req) => {
     const fileHash = await sha256Hex(bytes);
     const lowerName = String(doc.nom_fichier ?? '').toLowerCase();
     const isPdf = blob.type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isDocx = lowerName.endsWith('.docx');
+    if(isDocx) {
+      const parsedDocx=parseDocxContents(bytes);
+      const scopeIds=doc.portee_document==='foyer'
+        ? members.map((m)=>m.investisseur_id)
+        : uniqueIds((doc.concerne_investisseur_ids??[]).map(String));
+      const parsed=doc.categorie==='patrimoine_financier'
+        ? financialDocxPreview(parsedDocx,members,documentId,doc.nom_fichier)
+        : {patches:[],summary:{parser:'docx_text_v1',file_name:doc.nom_fichier,
+          source_document_id:documentId,paragraph_count:parsedDocx.paragraphs.length,
+          table_rows:parsedDocx.tableRows.length,requires_cif_review:true},status:'to_review'};
+      const extraction={
+        parser_version:'source-doc-v4',category:doc.categorie,format:'docx',
+        text_length:JSON.stringify(parsedDocx).length,
+        scope_detection:{configured_scope:doc.portee_document,
+          concerned_investor_ids:scopeIds},
+        summary:parsed.summary,patches:[],
+      };
+      const {data:applied,error:applyError}=await admin.rpc('apply_source_document_extraction',{
+        p_document_id:documentId,p_extraction:extraction,p_status:'to_review',p_hash_sha256:fileHash,
+      });
+      if(applyError)throw applyError;
+      return new Response(JSON.stringify({ok:true,document_id:documentId,result:applied}),{headers});
+    }
 
     if (!isPdf) {
       const explicitIds = uniqueIds((doc.concerne_investisseur_ids ?? []).map(String));
