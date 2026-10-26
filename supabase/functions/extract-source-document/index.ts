@@ -735,26 +735,40 @@ async function readPdfEmbeddedImageOcr(pdf:any, pageLimit=12){
 
 async function creditLayoutLines(pdf:any):Promise<string[]> {
   const lines:string[] = [];
-  for (let pageNo=1;pageNo<=pdf.numPages;pageNo++) {
+  for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
     const page=await pdf.getPage(pageNo);
     const data=await page.getTextContent();
-    const tokens=(data.items??[]).filter((item:any)=>typeof item?.str==='string' && item.str.trim())
-      .map((item:any)=>({text:String(item.str).trim(),x:Number(item.transform?.[4]??0),y:Number(item.transform?.[5]??0)}))
-      .filter((item:any)=>Number.isFinite(item.x)&&Number.isFinite(item.y))
-      .sort((a:any,b:any)=>b.y-a.y||a.x-b.x);
-    const groups:Array<Array<{text:string;x:number;y:number}>>=[];
-    for(const token of tokens){
-      const group=groups.find((g)=>Math.abs(g[0].y-token.y)<=2.2);
-      if(group)group.push(token);else groups.push([token]);
+    // Avoid the former O(number of tokens × number of rows) group.find loop.
+    const buckets=new Map<number,Array<Array<{text:string;x:number;y:number}>>>();
+    for(const value of (data.items??[])){
+      if(typeof value?.str!=='string'||!value.str.trim())continue;
+      const token={text:String(value.str).trim(),
+        x:Number(value.transform?.[4]??NaN),y:Number(value.transform?.[5]??NaN)};
+      if(!Number.isFinite(token.x)||!Number.isFinite(token.y))continue;
+      const k=Math.round(token.y/2.2);
+      let best:Array<{text:string;x:number;y:number}>|undefined;
+      for(const neighbor of [k-1,k,k+1]){
+        const groups=buckets.get(neighbor)??[];
+        for(const group of groups){
+          if(Math.abs(group[0].y-token.y)<=2.2){best=group;break;}
+        }
+        if(best)break;
+      }
+      if(best)best.push(token);
+      else{
+        const groups=buckets.get(k)??[];
+        groups.push([token]);
+        buckets.set(k,groups);
+      }
     }
+    const groups=[...buckets.values()].flat().sort((a,b)=>b[0].y-a[0].y);
     for(const group of groups){
       group.sort((a,b)=>a.x-b.x);
-      lines.push(group.map((x)=>x.text).join(' '));
+      lines.push(group.map((t)=>t.text).join(' '));
     }
   }
   return lines;
 }
-
 async function parseCredit(
   pdf: any,
   pages: string[],
@@ -765,7 +779,10 @@ async function parseCredit(
   members: Member[],
 ) {
   const all = pages.join('\n');
-  const layoutLines=await creditLayoutLines(pdf);
+  // Most source PDFs already have line breaks; skip a second all-page
+  // getTextContent pass if the PDF extraction contains sufficient schedule rows.
+  const nativeTextRows=parseCreditScheduleLines(pages.flatMap((p)=>p.split('\n')));
+  const layoutLines=nativeTextRows.length>=12 ? [] : await creditLayoutLines(pdf);
   const creditPages=[...pages, layoutLines.join('\n')];
   const rate = findLineNumber(creditPages, /(?:taux (?:actuel du pr[êe]t|nominal|d[ée]biteur|du pr[êe]t|du cr[ée]dit)|taux d['’]int[ée]r[êe]t)/i, { min: 0, max: 20, percent: true });
   const taeg = findLineNumber(creditPages, /(?:TAEG|taux annuel effectif global)/i, { min: 0, max: 30, percent: true });
@@ -806,9 +823,12 @@ async function parseCredit(
   let selected=nativeEvidence;
   let ocrResult:{lines:string[];pages:number;images_scanned:number;errors:string[];mode:string}|null=null;
   let ocrEvidence:ScheduleEvidence|null=null;
-  if(nativeEvidence.validation.status!=='verified'||
-     nativeEvidence.rows.every((row)=>!row.balanceReliable)){
-    ocrResult=await readPdfEmbeddedImageOcr(pdf);
+  // OCR raster processing is expensive in Supabase Edge CPU budget.
+  // For a text-native amortization schedule, an invalid column mapping is an
+  // arithmetic ambiguity, not proof that raster OCR is required.
+  // OCR only when no usable numeric PDF rows exist.
+  if(nativeEvidence.rows.length<8){
+    ocrResult=await readPdfEmbeddedImageOcr(pdf,2);
     if(ocrResult.lines.length){
       ocrEvidence=validateCreditSchedule(parseCreditScheduleLines(ocrResult.lines,'ocr_embedded_image'),'ocr_embedded_image');
       if(ocrEvidence.validation.status==='verified'&&nativeEvidence.validation.status!=='verified'){
