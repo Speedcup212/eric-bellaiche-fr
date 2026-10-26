@@ -29,7 +29,7 @@ const has = (s, x) => s.includes(x);
 // 8–15 : novice sur la première page et saisies simples
  test('08 — Nombre d’enfants ne peut pas être négatif côté HTML', has(entry, 'min="0"'));
  test('09 — Nombre d’enfants validé côté logique', has(entry, 'Number.isInteger') && (has(entry, 'positif ou nul') || has(entry, 'supérieur ou égal à 0')));
- test('10 — Email Identifiant 2 contrôlé explicitement', has(entry, 'isValidEmail') && has(entry, 'adresse email personnelle valide'));
+ test('10 — Email Identifiant 2 ou foyer contrôlé explicitement', has(entry, 'isValidEmail') && has(entry, 'adresse email valide pour le foyer ou la deuxième personne'));
  test('11 — Mobile Identifiant 2 contrôlé s’il est saisi', has(entry, 'isValidMobile') && has(entry, 'numéro de mobile valide'));
  test('12 — Erreur de première page rendue dans une alerte accessible', has(entry, 'role="alert"') && has(entry, 'family-setup-alert'));
  test('13 — Erreur de première page amenée à l’écran', has(entry, 'family-setup-alert') && has(entry, 'scrollIntoView'));
