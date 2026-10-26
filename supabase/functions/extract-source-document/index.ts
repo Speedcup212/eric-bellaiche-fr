@@ -695,8 +695,10 @@ async function parseCredit(
     ? nextDue : null;
   const firstRow = scheduleRows[0] ?? null;
   const lastRow = scheduleRows.at(-1) ?? null;
-  const changedPayment = firstRow
-    ? scheduleRows.find((row) => Math.abs(row.payment - firstRow.payment) > 0.01 && row.payment > 0)
+  // A "future" instalment must follow the upcoming instalment, not the first historic row.
+  const changedPayment = nextDue
+    ? scheduleRows.find((row) => row.date > nextDue.date &&
+      Math.abs(row.payment - nextDue.payment) > 0.01 && row.payment > 0)
     : null;
 
   const fact: Json = { source_document_id: documentId, source_file: fileName };
