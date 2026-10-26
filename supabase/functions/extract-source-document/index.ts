@@ -935,7 +935,7 @@ async function parseCredit(
       current_payment_found: Boolean(currentPayment),
       balance_date: currentBalance?.date ?? null,
       source_document_id: documentId,
-      safe_crd_rule: 'same-line-label-only',
+      safe_crd_rule: 'date_scoped_consecutive_instalments_arithmetic_validation_not_bank_confirmed',
       insurance_cost_documented: fact.assurance_cout_documente ?? null,
     },
     // A partial amortization analysis is not a completed loan reconciliation.
