@@ -921,6 +921,7 @@ async function parseCredit(
         ocr:ocrResult?{mode:ocrResult.mode,images_scanned:ocrResult.images_scanned,
           pages_with_text:ocrResult.pages,rows:ocrEvidence?.rows.length??0,
           status:ocrEvidence?.validation.status??'unavailable',
+          column_validation:ocrEvidence?.validation??null,
           errors:ocrResult.errors}: {mode:'not_needed_validated_native_pdf',status:'not_run'},
         selected: selected===nativeEvidence?'pdf_native':'ocr_embedded_image',
         disagreement:pdfOcrMismatch,
@@ -1332,13 +1333,67 @@ Deno.serve(async (req) => {
       if(doc.categorie!=='tableau_amortissement'){
         return new Response(JSON.stringify({error:'Prévisualisation réservée aux tableaux d’amortissement'}),{status:400,headers});
       }
+      if(doc.statut_analyse!=='validated'){
+        return new Response(JSON.stringify({error:'Valide d’abord le document et son rattachement au crédit.'}),{status:409,headers});
+      }
+      const {data:identity,error:identityError}=await userClient.auth.getUser();
+      if(identityError||!identity?.user?.id){
+        return new Response(JSON.stringify({error:'Session conseiller invalide'}),{status:401,headers});
+      }
+      const {data:staff,error:staffError}=await admin.from('app_users')
+        .select('role,actif').eq('auth_user_id',identity.user.id).maybeSingle();
+      if(staffError||!staff?.actif||!['cif','admin'].includes(staff.role)){
+        return new Response(JSON.stringify({error:'Confirmation réservée au cabinet'}),{status:403,headers});
+      }
       const loanFact=parsed?.patches?.[0]?.fields?.__merge_credit_items?.[0]??{};
+      const summary=parsed.summary??{};
+      const readers=(summary.readers??{}) as Record<string,any>;
+      const selectedReader=String(readers.selected??'');
+      const reader=(readers[selectedReader]??{}) as Record<string,any>;
+      const proof=(reader.column_validation??{}) as Record<string,any>;
+      const amount=loanFact.capital_restant_du;
+      const date=loanFact.capital_restant_du_date;
+      const balanced=typeof amount==='number'&&Number.isFinite(amount)&&amount>=0&&amount<=1000000000;
+      const validDate=typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&date<=new Date().toISOString().slice(0,10);
+      const verified=summary.parser==='credit_schedule_dual_v5' &&
+        balanced && validDate && summary.current_balance_found===true &&
+        proof.status==='verified'&&proof.pairs_checked>=5&&proof.pairs_valid>=5&&
+        proof.pairs_valid/proof.pairs_checked>=0.94 &&
+        readers.disagreement!==true &&
+        ['pdf_native','ocr_embedded_image'].includes(selectedReader);
+      let previewId:string|null=null;
+      if(verified){
+        const evidence={
+          parser:summary.parser,
+          disagreement:false,
+          selected_reader:selectedReader,
+          reader_proof:proof,
+          rows_read:summary.schedule_rows_read,
+          document_reference:doc.nom_fichier,
+        };
+        const {data:stored,error:storeError}=await admin.rpc('store_credit_crd_preview',{
+          p_document_id:documentId,
+          p_staff_user_id:identity.user.id,
+          p_document_sha256:fileHash,
+          p_balance:amount,
+          p_balance_date:date,
+          p_selected_reader:selectedReader,
+          p_pairs_checked:proof.pairs_checked,
+          p_pairs_valid:proof.pairs_valid,
+          p_evidence:evidence,
+        });
+        if(storeError)throw storeError;
+        previewId=stored as string;
+      }
       return new Response(JSON.stringify({
         ok:true,preview_only:true,document_id:documentId,
         summary:parsed.summary,
-        theoretical_balance:loanFact.capital_restant_du??null,
-        theoretical_balance_date:loanFact.capital_restant_du_date??null,
-        note:'Aucune donnée client modifiée. CRD théorique issu du tableau, à confirmer sur relevé bancaire.',
+        theoretical_balance:balanced?amount:null,
+        theoretical_balance_date:validDate?date:null,
+        confirmation_available:Boolean(previewId),
+        confirmation_preview_id:previewId,
+        confirmation_expires_in_minutes:previewId?30:null,
+        note:'Résultat du tableau d’amortissement : CRD théorique à confirmer manuellement, non attestation bancaire. Aucun crédit modifié.',
       }),{headers});
     }
 
