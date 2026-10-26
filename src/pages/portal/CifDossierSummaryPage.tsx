@@ -420,7 +420,7 @@ export default function CifDossierSummaryPage() {
   const [auditPromptLoadError, setAuditPromptLoadError] = useState('');
   const [auditPdfError, setAuditPdfError] = useState('');
   const [uploadingAuditPdf, setUploadingAuditPdf] = useState(false);
-  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
+  const [dossier, setDossier] = useState<DossierRow | null>(null); const [investors, setInvestors] = useState<InvestorRow[]>([]); const [sections, setSections] = useState<SectionRow[]>([]); const [contexts, setContexts] = useState<ContextRow[]>([]); const [provenance, setProvenance] = useState<ProvenanceRow[]>([]); const [checklist, setChecklist] = useState<ChecklistRow[]>([]); const [householdConfirmations, setHouseholdConfirmations] = useState<HouseholdConfirmationRow[]>([]); const [qpiSessions, setQpiSessions] = useState<QpiSessionRow[]>([]); const [qpiControls, setQpiControls] = useState<QpiControlRow[]>([]); const [qpiResults, setQpiResults] = useState<QpiResultSummaryRow[]>([]); const [sourceDocuments, setSourceDocuments] = useState<SourceDocumentRow[]>([]); const [recueilCompleteness, setRecueilCompleteness] = useState<RecueilCompletenessRow[]>([]); const [analyzingSourceIds, setAnalyzingSourceIds] = useState<Set<string>>(new Set()); const analysisAttemptedRef = useRef(new Set<string>()); const [sourceAnalysisMessage, setSourceAnalysisMessage] = useState(''); const [reviewingSourceDocumentId, setReviewingSourceDocumentId] = useState<string | null>(null); const [sourceReviewBusyId, setSourceReviewBusyId] = useState<string | null>(null); const [sourceReviewNotes, setSourceReviewNotes] = useState<Record<string,string>>({}); const [sourceReviewTargets, setSourceReviewTargets] = useState<Record<string,string>>({}); const [financialNewPlacement, setFinancialNewPlacement] = useState<Record<string,{ investor_id:string; type_placement:string; organisme:string; montant:string; date_valeur:string }>>({}); const [resolvingControlId, setResolvingControlId] = useState<string | null>(null); const [errorMessage, setErrorMessage] = useState(''); const [loading, setLoading] = useState(true); const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]); const [generatingDocuments, setGeneratingDocuments] = useState(false); const [generatingRegulatoryType, setGeneratingRegulatoryType] = useState<'der' | 'mission' | null>(null); const [generationErrors, setGenerationErrors] = useState<Record<string,string>>({});
 
   useEffect(() => { let active = true; const load = async () => { if (!dossierId) throw new Error('Dossier manquant.'); const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('Session expirée.'); const { data: current, error: roleError } = await supabase.from('app_users').select('role,actif').eq('auth_user_id', auth.user.id).maybeSingle(); if (roleError) throw roleError; if (!current?.actif || !['cif', 'admin'].includes(current.role)) throw new Error('Accès réservé au cabinet.');
     const results = await Promise.all([
@@ -575,19 +575,53 @@ export default function CifDossierSummaryPage() {
     setSourceAnalysisMessage('');
     try {
       const fieldsApplied = Number(doc.metadata?.fields_applied ?? 0);
-      const { data, error } = await supabase.rpc('review_source_document', {
-        p_document_id: doc.id,
-        p_decision: decision,
-        p_note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
-        p_target_kind: target?.kind ?? null,
-        p_target_key: target?.key ?? null,
-        p_target_label: target?.label ?? null,
-      });
+      let data: Record<string,unknown> | null = null;
+      let error: { message: string } | null = null;
+      if (doc.categorie === 'patrimoine_financier' && decision === 'validated') {
+        const isExisting = target?.kind === 'financial';
+        const newPlacement = financialNewPlacement[doc.id];
+        const match = isExisting ? /^([0-9a-f-]{36}):(\\d+)$/.exec(target.key) : null;
+        if (isExisting && !match) throw new Error('Sélection du placement invalide.');
+        if (!isExisting && (!newPlacement?.investor_id || !newPlacement.type_placement || !newPlacement.organisme.trim())) {
+          throw new Error('Renseigne le titulaire, le type et l’organisme du placement.');
+        }
+        const amountText = newPlacement?.montant.trim().replace(/\\s/g,'').replace(',','.') ?? '';
+        const amount = amountText ? Number(amountText) : null;
+        if (!isExisting && amountText && (amount === null || !Number.isFinite(amount) || amount < 0 || !newPlacement?.date_valeur)) {
+          throw new Error('Pour saisir un montant, indique une valeur positive et une date de valorisation vérifiées.');
+        }
+        const response = await supabase.rpc('link_financial_source_document', {
+          p_document_id: doc.id,
+          p_investisseur_id: isExisting ? match![1] : newPlacement!.investor_id,
+          p_item_index: isExisting ? Number(match![2]) : null,
+          p_type_placement: isExisting ? null : newPlacement!.type_placement,
+          p_organisme: isExisting ? null : newPlacement!.organisme.trim(),
+          p_montant: isExisting ? null : amount,
+          p_date_valeur: isExisting ? null : newPlacement!.date_valeur || null,
+          p_note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
+        });
+        data = response.data as Record<string,unknown> | null;
+        error = response.error;
+      } else {
+        const response = await supabase.rpc('review_source_document', {
+          p_document_id: doc.id,
+          p_decision: decision,
+          p_note: (sourceReviewNotes[doc.id] ?? '').trim() || null,
+          p_target_kind: target?.kind ?? null,
+          p_target_key: target?.key ?? null,
+          p_target_label: target?.label ?? null,
+        });
+        data = response.data as Record<string,unknown> | null;
+        error = response.error;
+      }
       if (error) throw error;
       if (!data || (typeof data === 'object' && 'ok' in data && data.ok !== true)) {
         throw new Error('La validation du document n’a pas été enregistrée.');
       }
       setReviewingSourceDocumentId(null);
+      setFinancialNewPlacement((current) => {
+        const next = { ...current }; delete next[doc.id]; return next;
+      });
       setSourceReviewTargets((current) => {
         const next = { ...current };
         delete next[doc.id];
@@ -599,11 +633,13 @@ export default function CifDossierSummaryPage() {
         return next;
       });
       setSourceAnalysisMessage(decision === 'validated'
-        ? target
-          ? 'Pièce validée et rattachée à « ' + target.label + ' ». Les valeurs fiables reconnues ont été reportées dans le recueil.'
-          : fieldsApplied > 0
-            ? 'Pièce contrôlée et validée. Les données déjà intégrées sont conservées.'
-            : 'Pièce contrôlée et validée sans intégration de donnée.'
+        ? doc.categorie === 'patrimoine_financier'
+          ? 'Justificatif rattaché au placement. Seuls les montants saisis et datés par le conseiller sont intégrés.'
+          : target
+            ? 'Pièce validée et rattachée à « ' + target.label + ' ». Les valeurs fiables reconnues ont été reportées dans le recueil.'
+            : fieldsApplied > 0
+              ? 'Pièce contrôlée et validée. Les données déjà intégrées sont conservées.'
+              : 'Pièce contrôlée et validée sans intégration de donnée.'
         : 'Pièce rejetée : elle ne sera pas utilisée comme justificatif exploitable.');
       await refreshSourceDocumentData();
     } catch (error) {
@@ -1478,7 +1514,16 @@ export default function CifDossierSummaryPage() {
                 const targetOptions = doc.categorie === 'patrimoine_immobilier'
                   ? professionalPatrimony.properties.map((item) => ({ value:'property|' + item.id, kind:'property', key:item.id, label:item.title + (item.city && item.city !== '—' ? ' · ' + item.city : '') }))
                   : doc.categorie === 'patrimoine_financier'
-                    ? professionalPatrimony.financialAssets.map((item) => ({ value:'financial|' + item.id, kind:'financial', key:item.id, label:item.type + ' · ' + item.owner + (item.institution !== 'À préciser' ? ' · ' + item.institution : '') }))
+                    ? sections.filter((section) => section.section_code === 'financial').flatMap((section) => {
+                        const items = Array.isArray(section.payload?.items) ? section.payload.items as Record<string,unknown>[] : [];
+                        return items.map((item,index) => ({
+                          value:'financial|' + section.investisseur_id + ':' + index,
+                          kind:'financial',key:section.investisseur_id + ':' + index,
+                          label:professionalText(item.type_placement ?? item.type ?? item.categorie,'Placement') +
+                            ' · ' + (investors.find((person) => person.investisseur_id === section.investisseur_id)?.investisseurs?.prenom ?? 'Client') +
+                            ' · ' + professionalText(item.organisme ?? item.etablissement,'Établissement non indiqué'),
+                        }));
+                      })
                     : doc.categorie === 'tableau_amortissement'
                       ? sections.filter((section) => section.section_code === 'credits').flatMap((section) => {
                           const items = Array.isArray(section.payload?.items) ? section.payload.items as Record<string,unknown>[] : [];
@@ -1490,6 +1535,17 @@ export default function CifDossierSummaryPage() {
                         })
                       : [];
                 const selectedTarget = targetOptions.find((item) => item.value === (sourceReviewTargets[doc.id] ?? '')) ?? null;
+                const financialInputs = financialNewPlacement[doc.id] ?? {
+                  investor_id: doc.portee_document === 'investisseur' ? doc.investisseur_id ?? '' : '',
+                  type_placement:'',organisme:'',montant:'',date_valeur:'',
+                };
+                const isFinancialNew = doc.categorie === 'patrimoine_financier'
+                  && (sourceReviewTargets[doc.id] === '__new__' || targetOptions.length === 0);
+                const updateFinancial = (field: keyof typeof financialInputs, value:string) =>
+                  setFinancialNewPlacement((current) => ({
+                    ...current,
+                    [doc.id]: { ...financialInputs, [field]:value },
+                  }));
                 const reviewBusy = sourceReviewBusyId === doc.id;
                 return <div key={doc.id} className="border-b border-[#203954] last:border-b-0">
                   <div className="grid gap-3 px-4 py-3.5 hover:bg-[#10243E]/80 md:grid-cols-[minmax(0,1.6fr)_minmax(120px,0.7fr)_minmax(120px,0.55fr)_auto] md:items-center md:gap-4 md:px-5">
@@ -1538,7 +1594,43 @@ export default function CifDossierSummaryPage() {
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-300">Décision conseiller</p>
                         <p className="mt-1 text-sm font-semibold text-white">Contrôler puis clôturer la pièce</p>
                         {doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && <p className="mt-2 text-xs leading-5 text-amber-200">Rattache le crédit correspondant puis valide les montants extraits. Une pièce validée sans données de crédit ne complète pas la synthèse.</p>}
-                        {targetOptions.length > 0 && <label className="mt-4 block text-xs font-semibold text-slate-300">Rattachement métier facultatif
+                        {doc.categorie === 'patrimoine_financier' && <p className="mt-2 text-xs leading-5 text-amber-200">Ce justificatif doit être associé à un placement identifié. {Number((doc.metadata?.extraction as Record<string,unknown> | undefined)?.text_length ?? 0) === 0 ? 'Le PDF ne contient pas de texte exploitable automatiquement : vérifie visuellement le relevé et sa valorisation.' : 'Vérifie les données du relevé avant toute saisie.'{'}'}</p>}
+                        {doc.categorie === 'patrimoine_financier' && <label className="mt-4 block text-xs font-semibold text-slate-300">Placement à rattacher
+                          <select value={sourceReviewTargets[doc.id] ?? (targetOptions.length === 0 ? '__new__' : '')} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
+                            {targetOptions.length > 0 && <option value="">Choisir un placement existant</option>}
+                            {targetOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                            <option value="__new__">+ Créer une fiche de placement et rattacher le document</option>
+                          </select>
+                        </label>}
+                        {isFinancialNew && <div className="mt-3 space-y-3 rounded-xl border border-blue-400/25 bg-blue-950/20 p-3">
+                          <p className="text-xs font-semibold text-blue-200">Nouvelle fiche — sans montant supposé</p>
+                          <label className="block text-xs text-slate-300">Titulaire
+                            <select value={financialInputs.investor_id} onChange={(event) => updateFinancial('investor_id',event.target.value)} disabled={doc.portee_document === 'investisseur'} className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white" >
+                              <option value="">Sélectionner un titulaire</option>
+                              {investors.filter((investor) => doc.portee_document !== 'investisseur' || investor.investisseur_id === doc.investisseur_id).map((investor) =>
+                                <option key={investor.investisseur_id} value={investor.investisseur_id}>{[investor.investisseurs?.prenom,investor.investisseurs?.nom].filter(Boolean).join(' ')}</option>)}
+                            </select>
+                          </label>
+                          <label className="block text-xs text-slate-300">Famille du placement
+                            <select value={financialInputs.type_placement} onChange={(event) => updateFinancial('type_placement',event.target.value)} className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white">
+                              <option value="">Sélectionner un type</option>
+                              {['Livrets et épargne bancaire','Assurance-vie / capitalisation','PER / épargne retraite','Épargne salariale','PEA / compte-titres','SCPI / OPCI','Autres placements'].map((item)=><option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </label>
+                          <label className="block text-xs text-slate-300">Organisme / nom du contrat
+                            <input value={financialInputs.organisme} onChange={(event)=>updateFinancial('organisme',event.target.value)} maxLength={150} placeholder="Ex. AEF – dénomination à vérifier" className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white placeholder:text-slate-500" />
+                          </label>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <label className="block text-xs text-slate-300">Encours vérifié (€), facultatif
+                              <input type="text" inputMode="decimal" value={financialInputs.montant} onChange={(event)=>updateFinancial('montant',event.target.value)} placeholder="Ex. 12500,00" className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white placeholder:text-slate-500" />
+                            </label>
+                            <label className="block text-xs text-slate-300">Date de valorisation {financialInputs.montant.trim() ? '(obligatoire)' : '(facultative)'}
+                              <input type="date" value={financialInputs.date_valeur} onChange={(event)=>updateFinancial('date_valeur',event.target.value)} className="mt-1 w-full rounded-lg border border-[#315173] bg-[#0B1A2F] px-2 py-2 text-sm text-white" />
+                            </label>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Sans montant vérifié, la fiche sera créée et justifiée, mais ne modifiera pas la valorisation de la synthèse.</p>
+                        </div>}
+                        {doc.categorie !== 'patrimoine_financier' && targetOptions.length > 0 && <label className="mt-4 block text-xs font-semibold text-slate-300">Rattachement métier facultatif
                           <select value={sourceReviewTargets[doc.id] ?? ''} onChange={(event) => setSourceReviewTargets((current) => ({ ...current, [doc.id]:event.target.value }))} className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400">
                             <option value="">Aucun rattachement</option>
                             {targetOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -1548,7 +1640,7 @@ export default function CifDossierSummaryPage() {
                           <textarea value={sourceReviewNotes[doc.id] ?? ''} onChange={(event) => setSourceReviewNotes((current) => ({ ...current, [doc.id]:event.target.value }))} rows={3} placeholder="Ex. Plaquette LMNP conservée comme justificatif ; aucun chiffre réinjecté automatiquement." className="mt-2 w-full rounded-xl border border-[#315173] bg-[#0B1A2F] px-3 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-slate-600 focus:border-blue-400" />
                         </label>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <button type="button" disabled={reviewBusy || (doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && !selectedTarget)} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
+                          <button type="button" disabled={reviewBusy || (doc.categorie === 'tableau_amortissement' && fieldsApplied === 0 && !selectedTarget) || (doc.categorie === 'patrimoine_financier' && (!selectedTarget && !isFinancialNew || isFinancialNew && (!financialInputs.investor_id || !financialInputs.type_placement || !financialInputs.organisme.trim() || !!financialInputs.montant.trim() && !financialInputs.date_valeur)))} onClick={() => void finalizeSourceDocumentReview(doc, 'validated', selectedTarget ? { kind:selectedTarget.kind, key:selectedTarget.key, label:selectedTarget.label } : null)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{reviewBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{isFinancialNew ? 'Créer le placement et rattacher' : selectedTarget ? 'Rattacher et valider' : fieldsApplied > 0 ? 'Valider le contrôle' : 'Valider sans intégration'}</button>
                           <button type="button" disabled={reviewBusy || busy} onClick={() => void analyzeSourceDocument(doc)} className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-500/20 disabled:opacity-50">Relancer l’analyse</button>
                           <button type="button" disabled={reviewBusy} onClick={() => void finalizeSourceDocumentReview(doc, 'rejected', null)} className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50">Rejeter la pièce</button>
                         </div>
