@@ -1934,16 +1934,98 @@ export default function CifDossierSummaryPage() {
       </div>; })}</div>
     </section>}
 
-    {activeTab === 'synthese' && <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="rounded-2xl bg-blue-50 p-3"><Home className="h-5 w-5 text-blue-700" /></div><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Photographie patrimoniale du foyer</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Les chiffres utiles pour travailler le dossier</h2><p className="mt-1 text-sm text-slate-500">Lecture par problématique patrimoniale. Aucune valeur n’est déduite lorsqu’une donnée nécessaire manque.</p></div></div>
-      <div className="mt-6 grid gap-4 xl:grid-cols-3">
-        <WorkBlock title="Revenus & capacité" subtitle="Flux, charges et marge de manœuvre"><WorkLine label="Revenus annuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'Non renseigné'} attention={!snapshot.annualIncome.found} /><WorkLine label="Revenus mensuels" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value / 12) : 'Non calculable'} attention={!snapshot.annualIncome.found} /><WorkLine label="Charges annuelles" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseigné'} attention={!snapshot.annualCharges.found} /><WorkLine label="Capacité d’épargne" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'Non renseigné'} attention={!snapshot.savingsCapacityMonthly.found} /><WorkLine label="Reste disponible mensuel" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null} /></WorkBlock>
-        <WorkBlock title="Fiscal" subtitle="Fiscalité personnelle et leviers disponibles"><WorkLine label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} attention={!snapshot.tmi.found} /><WorkLine label="Revenu imposable" value={snapshot.taxableIncome.found ? euro(snapshot.taxableIncome.value) : 'Non renseigné'} attention={!snapshot.taxableIncome.found} /><WorkLine label="RFR" value={snapshot.rfr.found ? euro(snapshot.rfr.value) : 'Non renseigné'} attention={!snapshot.rfr.found} /><WorkLine label="IR net" value={snapshot.incomeTax.found ? euro(snapshot.incomeTax.value) : 'Non renseigné'} attention={!snapshot.incomeTax.found} /><WorkLine label="Plafond PER disponible" value={snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'Non renseigné'} attention={!snapshot.perCeiling.found} /><WorkLine label="IFI" value={snapshot.ifi.found ? euro(snapshot.ifi.value) : 'Non concerné / non renseigné'} /><WorkLine label="Déficit foncier reportable" value={snapshot.landDeficit.found ? euro(snapshot.landDeficit.value) : 'Non renseigné'} /></WorkBlock>
-        <WorkBlock title="Placements & liquidités" subtitle="Actifs financiers mobilisables et encours">{professionalPatrimony.financialAssets.some((item) => item.needsDateReview || item.possibleOverlap || item.sourceRejected) && <WorkLine label="Qualité des encours" value={professionalPatrimony.financialAssets.some((item) => item.sourceRejected) ? 'Document source rejeté — inventaire provisoire à justifier' : 'Montants déclarés — dates / doublons à vérifier'} attention />}<WorkLine label="Actifs financiers" value={snapshot.financialAssets.found ? euro(snapshot.financialAssets.value) : 'Non valorisés'} attention={!snapshot.financialAssets.found} /><WorkLine label="Familles de placements" value={household.financialCategories.length ? household.financialCategories.map((c) => financialCategoryLabel[c] ?? c).join(', ') : 'Aucun placement identifié'} attention={!household.financialCategories.length} /><WorkLine label="Patrimoine net estimé" value={snapshot.patrimonyNet !== null ? euro(snapshot.patrimonyNet) : 'Non calculable'} attention={snapshot.patrimonyNet === null} /></WorkBlock>
-        <WorkBlock title="Immobilier" subtitle="Valeur, détention et patrimoine net"><WorkLine label="Nombre de biens" value={`${household.realEstate.count}`} /><WorkLine label="Immobilier brut" value={euro(household.realEstate.totalValue)} /><WorkLine label="Biens communs" value={euro(household.realEstate.jointValue)} /><WorkLine label="Immobilier net estimé" value={snapshot.netRealEstate !== null ? euro(snapshot.netRealEstate) : 'Non calculable'} attention={snapshot.netRealEstate === null} /><WorkLine label="Ressaisies neutralisées" value={`${household.realEstate.duplicatesIgnored}`} /></WorkBlock>
-        <WorkBlock title="Crédits & endettement" subtitle="Poids de la dette et solvabilité">{sourceDocuments.some((doc) => doc.categorie === 'tableau_amortissement' && (doc.statut_analyse === 'to_review' || analyzingSourceIds.has(doc.id))) && <WorkLine label="Tableau d’amortissement" value={sourceDocuments.some((doc) => analyzingSourceIds.has(doc.id) && doc.categorie === 'tableau_amortissement') ? 'Retraitement en cours' : 'Pièce à contrôler — montants non validés'} attention />}<WorkLine label="Mensualités crédits" value={snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) : 'Non renseigné'} attention={!snapshot.monthlyDebt.found} /><WorkLine label="Capital restant dû" value={snapshot.debtOutstanding.found ? euro(snapshot.debtOutstanding.value) + (professionalPatrimony.credits.some((credit)=>credit.isTheoreticalBalance) ? ' · théorique' : '') : 'Non renseigné'} attention={!snapshot.debtOutstanding.found || professionalPatrimony.credits.some((credit)=>credit.isTheoreticalBalance)} /><WorkLine label="Taux d’endettement" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} attention={snapshot.debtRatio === null} /><WorkLine label="Disponible bancaire" value={snapshot.bankAvailableMonthly !== null ? `${euro(snapshot.bankAvailableMonthly)} / mois` : 'Non calculable'} attention={snapshot.bankAvailableMonthly === null} /></WorkBlock>
-        <WorkBlock title="Succession / transmission" subtitle="Organisation familiale et transmission patrimoniale"><WorkLine label="Situation familiale" value={snapshot.familyStatus.found ? snapshot.familyStatus.value : 'Non renseignée'} attention={!snapshot.familyStatus.found} /><WorkLine label="Régime / convention" value={snapshot.matrimonialRegime.found ? snapshot.matrimonialRegime.value : 'Non renseigné'} attention={!snapshot.matrimonialRegime.found} /><WorkLine label="Enfants" value={snapshot.children.found ? new Intl.NumberFormat('fr-FR').format(snapshot.children.value) : 'Non renseigné'} attention={!snapshot.children.found} /><WorkLine label="Notaire" value={snapshot.notary.found ? snapshot.notary.value : 'Non renseigné'} /><WorkLine label="Clause / avantage identifié" value={snapshot.transmissionClause.found ? snapshot.transmissionClause.value : 'Aucun élément identifié'} /><WorkLine label="Objectif transmission" value={snapshot.transmissionGoals.length ? snapshot.transmissionGoals.join(' · ') : 'Aucun objectif spécifique identifié'} /></WorkBlock>
+    {activeTab === 'synthese' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-5 shadow-sm sm:p-8">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl bg-blue-950/50 p-3"><Home className="h-5 w-5 text-blue-300" /></div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-300">Photographie patrimoniale du foyer</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">Vue de pilotage patrimonial</h2>
+          <p className="mt-1 text-sm text-slate-400">Montants indicatifs fondés sur le recueil et les pièces disponibles. Aucune information manquante n’est présumée nulle.</p>
+        </div>
       </div>
-      {household.warnings.length > 0 && <div className="mt-3 rounded-2xl border border-amber-500/60 bg-amber-950/20 p-4 text-sm text-amber-100"><strong>À contrôler :</strong> {household.warnings.join(' ')}</div>}
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-blue-500/30 bg-[#0D223D] p-4">
+          <p className="text-xs text-slate-300">Patrimoine net indicatif</p>
+          <p className="mt-2 text-xl font-bold text-white">{patrimonialOverview.householdNet !== null ? euro(patrimonialOverview.householdNet) : 'À compléter'}</p>
+          <p className="mt-1 text-xs text-amber-300">Non certifié · {patrimonialOverview.netComplete ? 'inventaire déclaré' : 'données incomplètes'}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-500/30 bg-[#0D223D] p-4">
+          <p className="text-xs text-slate-300">Dette totale connue</p>
+          <p className="mt-2 text-xl font-bold text-white">{euro(patrimonialOverview.debtKnown)}</p>
+          <p className="mt-1 text-xs text-slate-400">{patrimonialOverview.theoreticalDebts ? 'Inclut un CRD théorique à date' : 'Selon les crédits déclarés'}{!patrimonialOverview.allDebtKnown ? ' · total partiel' : ''}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-500/30 bg-[#0D223D] p-4">
+          <p className="text-xs text-slate-300">Actifs financiers déclarés</p>
+          <p className="mt-2 text-xl font-bold text-white">{euro(patrimonialOverview.financialKnown)}</p>
+          <p className="mt-1 text-xs text-amber-300">{euro(patrimonialOverview.financialDeclared)} sans preuve de valorisation suffisante</p>
+        </div>
+        <div className="rounded-2xl border border-blue-500/30 bg-[#0D223D] p-4">
+          <p className="text-xs text-slate-300">Taux de charges de crédit / revenus</p>
+          <p className="mt-2 text-xl font-bold text-white">{snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'À compléter'}</p>
+          <p className="mt-1 text-xs text-slate-400">Calcul sur revenus déclarés · hors analyse HCSF</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <WorkBlock title="Revenus & capacité" subtitle="Flux du foyer et effort financier">
+          <WorkLine label="Revenus annuels déclarés" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value) : 'Non renseignés'} attention={!snapshot.annualIncome.found}/>
+          <WorkLine label="Moyenne mensuelle déclarée" value={snapshot.annualIncome.found ? euro(snapshot.annualIncome.value / 12) : 'Non calculable'} attention={!snapshot.annualIncome.found}/>
+          <WorkLine label="Charges annuelles hors crédit" value={snapshot.annualCharges.found ? euro(snapshot.annualCharges.value) : 'Non renseignées'} attention={!snapshot.annualCharges.found}/>
+          <WorkLine label="Capacité d’épargne déclarée" value={snapshot.savingsCapacityMonthly.found ? `${euro(snapshot.savingsCapacityMonthly.value)} / mois` : 'Non renseignée'} attention={!snapshot.savingsCapacityMonthly.found}/>
+          <WorkLine label="Reste à vivre estimé" value={snapshot.remainingMonthly !== null ? euro(snapshot.remainingMonthly) : 'Non calculable'} attention={snapshot.remainingMonthly === null}/>
+        </WorkBlock>
+        <WorkBlock title="Fiscal" subtitle="Données déclaratives à rapprocher de l’année de l’avis">
+          <WorkLine label="TMI" value={snapshot.tmi.found ? percent(snapshot.tmi.value) : 'Non renseignée'} attention={!snapshot.tmi.found}/>
+          <WorkLine label="Revenu imposable (avis)" value={snapshot.taxableIncome.found ? euro(snapshot.taxableIncome.value) : 'Non renseigné'} attention={!snapshot.taxableIncome.found}/>
+          <WorkLine label="RFR (avis)" value={snapshot.rfr.found ? euro(snapshot.rfr.value) : 'Non renseigné'} attention={!snapshot.rfr.found}/>
+          <WorkLine label="IR net (avis)" value={snapshot.incomeTax.found ? euro(snapshot.incomeTax.value) : 'Non renseigné'} attention={!snapshot.incomeTax.found}/>
+          <WorkLine label="Plafond PER déclaré (à ventiler)" value={snapshot.perCeiling.found ? euro(snapshot.perCeiling.value) : 'Non renseigné'} attention={!snapshot.perCeiling.found}/>
+          <WorkLine label="IFI" value={snapshot.ifi.found ? euro(snapshot.ifi.value) : 'Non documenté'} attention={!snapshot.ifi.found}/>
+          <WorkLine label="Déficit foncier reportable" value={snapshot.landDeficit.found ? euro(snapshot.landDeficit.value) : 'Non renseigné'}/>
+        </WorkBlock>
+        <WorkBlock title="Placements & liquidités" subtitle="Montants connus, preuves et dates de valeur">
+          <WorkLine label="Encours avec justificatif daté" value={euro(patrimonialOverview.financialVerified)}/>
+          <WorkLine label="Encours déclarés à justifier" value={euro(patrimonialOverview.financialDeclared)} attention={patrimonialOverview.financialDeclared>0}/>
+          <WorkLine label="Total financier indicatif" value={euro(patrimonialOverview.financialKnown)}/>
+          <WorkLine label="Encours inconnus" value={`${patrimonialOverview.financialUnknown} ligne(s)`} attention={patrimonialOverview.financialUnknown>0}/>
+          <WorkLine label="Dates / doublons à rapprocher" value={`${patrimonialOverview.dateWarnings} date(s), ${patrimonialOverview.overlapWarnings} doublon(s)`} attention={patrimonialOverview.dateWarnings>0||patrimonialOverview.overlapWarnings>0}/>
+          <WorkLine label="Patrimoine net indicatif du foyer" value={patrimonialOverview.householdNet !== null ? euro(patrimonialOverview.householdNet) : 'Non calculable'} attention/>
+        </WorkBlock>
+        <WorkBlock title="Immobilier" subtitle="Valorisation et dette immobilière rapprochée">
+          <WorkLine label="Nombre de biens" value={`${household.realEstate.count}`}/>
+          <WorkLine label="Immobilier brut déclaré" value={euro(household.realEstate.totalValue)}/>
+          <WorkLine label="Biens communs" value={euro(household.realEstate.jointValue)}/>
+          <WorkLine label="Équité immobilière indicative" value={patrimonialOverview.realEstateNet !== null ? euro(patrimonialOverview.realEstateNet) : 'Rattachement des dettes à compléter'} attention={patrimonialOverview.realEstateNet === null}/>
+        </WorkBlock>
+        <WorkBlock title="Crédits & endettement" subtitle="Encours, échéances et capacité théorique">
+          <WorkLine label="Mensualités des crédits" value={snapshot.monthlyDebt.found ? euro(snapshot.monthlyDebt.value) : 'Non renseignées'} attention={!snapshot.monthlyDebt.found}/>
+          <WorkLine label="Capital restant dû" value={patrimonialOverview.allDebtKnown ? euro(patrimonialOverview.debtKnown) : `${euro(patrimonialOverview.debtKnown)} (partiel)`} attention={!patrimonialOverview.allDebtKnown}/>
+          {patrimonialOverview.theoreticalDebts>0 && <WorkLine label="Nature du CRD" value="Théorique selon échéancier" attention/>}
+          {patrimonialOverview.asOfDates.length>0 && <WorkLine label="Date(s) des soldes" value={patrimonialOverview.asOfDates.map((date)=>professionalDate(date)).join(' · ')}/>}
+          <WorkLine label="Taux charges de crédit / revenus" value={snapshot.debtRatio !== null ? percent(snapshot.debtRatio) : 'Non calculable'} attention={snapshot.debtRatio === null}/>
+          <WorkLine label="Marge de mensualité théorique à 35 %" value={snapshot.bankAvailableMonthly !== null ? `${euro(snapshot.bankAvailableMonthly)} / mois` : 'Non calculable'} attention={snapshot.bankAvailableMonthly === null}/>
+        </WorkBlock>
+        <WorkBlock title="Succession / transmission" subtitle="Situation familiale et objectifs">
+          <WorkLine label="Situation familiale" value={snapshot.familyStatus.found ? snapshot.familyStatus.value : 'Non renseignée'} attention={!snapshot.familyStatus.found}/>
+          <WorkLine label="Régime matrimonial" value={snapshot.matrimonialRegime.found ? snapshot.matrimonialRegime.value : 'Non renseigné'} attention={!snapshot.matrimonialRegime.found}/>
+          <WorkLine label="Enfants" value={snapshot.children.found ? new Intl.NumberFormat('fr-FR').format(snapshot.children.value) : 'Non renseigné'} attention={!snapshot.children.found}/>
+          <WorkLine label="Notaire" value={snapshot.notary.found ? snapshot.notary.value : 'Non renseigné'}/>
+          <WorkLine label="Clause / avantage identifié" value={snapshot.transmissionClause.found ? snapshot.transmissionClause.value : 'Aucune information recueillie'} attention={!snapshot.transmissionClause.found}/>
+          <WorkLine label="Objectif transmission" value={snapshot.transmissionGoals.length ? snapshot.transmissionGoals.join(' · ') : 'Non précisé'}/>
+        </WorkBlock>
+      </div>
+      {synthesisAlerts.length>0 && <div className="mt-5 rounded-2xl border border-[#665125] bg-[#211D16] p-4">
+        <h3 className="text-sm font-bold text-amber-200">Contrôles utiles avant préconisation</h3>
+        <p className="mt-1 text-xs text-slate-300">Incohérences et limites du dossier, classées avant arbitrage. Aucun montant provisoire n’est certifié par cet écran.</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {[...synthesisAlerts].sort((a,b)=>Number(b.level==='blocking')-Number(a.level==='blocking')).map((alert,index)=>
+            <div key={index} className="rounded-xl border border-amber-900/50 bg-[#101C2D] p-3">
+              <p className="text-xs font-bold text-amber-200">{alert.level==='blocking'?'Bloquant · ':'À fiabiliser · '}{alert.label}</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">{alert.detail}</p>
+            </div>)}
+        </div>
+      </div>}
+      {household.warnings.length>0 && <p className="mt-3 text-xs text-amber-200">Consolidation du foyer : {household.warnings.join(' ')}</p>}
+      <p className="mt-4 text-xs text-slate-400">Méthode : actif immobilier + encours financiers comptés une seule fois – ensemble des dettes connues. Un CRD issu de l’échéancier reste théorique et daté. La marge à 35 % n’est ni une trésorerie disponible ni une validation bancaire.</p>
     </section>}
 
     {activeTab === 'patrimoine' && <section className="rounded-3xl border border-[#25405F] bg-[#08182B] p-6 shadow-[0_18px_45px_rgba(2,10,25,0.24)] sm:p-8">
