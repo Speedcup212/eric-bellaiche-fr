@@ -580,7 +580,7 @@ export default function CifDossierSummaryPage() {
       if (doc.categorie === 'patrimoine_financier' && decision === 'validated') {
         const isExisting = target?.kind === 'financial';
         const newPlacement = financialNewPlacement[doc.id];
-        const match = isExisting ? /^([0-9a-f-]{36}):(\d+)$/.exec(target.key) : null;
+        const match = isExisting ? /^([0-9a-f-]{36}):(\d+)$/.exec(target?.key ?? '') : null;
         if (isExisting && !match) throw new Error('Sélection du placement invalide.');
         if (!isExisting && (!newPlacement?.investor_id || !newPlacement.type_placement || !newPlacement.organisme.trim())) {
           throw new Error('Renseigne le titulaire, le type et l’organisme du placement.');
