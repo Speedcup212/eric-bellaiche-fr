@@ -1137,6 +1137,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     documentId = typeof body?.document_id === 'string' ? body.document_id : '';
+    const previewOnly=body?.preview_only===true;
     if (!/^[0-9a-f-]{36}$/i.test(documentId)) return new Response(JSON.stringify({ error: 'Document invalide' }), { status: 400, headers });
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -1276,10 +1277,12 @@ Deno.serve(async (req) => {
 
     const resolvedScope = concernedIds.length > 1 ? 'foyer' : 'investisseur';
 
-    await admin.from('documents_sources').update({
-      portee_document: resolvedScope,
-      concerne_investisseur_ids: concernedIds,
-    }).eq('id', documentId);
+    if(!previewOnly){
+      await admin.from('documents_sources').update({
+        portee_document: resolvedScope,
+        concerne_investisseur_ids: concernedIds,
+      }).eq('id', documentId);
+    }
 
     let parsed: any;
 
@@ -1321,6 +1324,20 @@ Deno.serve(async (req) => {
       summary: parsed.summary,
       patches: parsed.patches,
     };
+
+    if(previewOnly){
+      if(doc.categorie!=='tableau_amortissement'){
+        return new Response(JSON.stringify({error:'Prévisualisation réservée aux tableaux d’amortissement'}),{status:400,headers});
+      }
+      const loanFact=parsed?.patches?.[0]?.fields?.__merge_credit_items?.[0]??{};
+      return new Response(JSON.stringify({
+        ok:true,preview_only:true,document_id:documentId,
+        summary:parsed.summary,
+        theoretical_balance:loanFact.capital_restant_du??null,
+        theoretical_balance_date:loanFact.capital_restant_du_date??null,
+        note:'Aucune donnée client modifiée. CRD théorique issu du tableau, à confirmer sur relevé bancaire.',
+      }),{headers});
+    }
 
     const { data: applied, error: applyError } = await admin.rpc('apply_source_document_extraction', {
       p_document_id: documentId,
