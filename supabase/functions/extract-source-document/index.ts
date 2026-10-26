@@ -580,42 +580,159 @@ async function parseTaxNotice(pdf: any, pages: string[], documentId: string, fil
 }
 
 
-type CreditScheduleRow = { n:number; date:string; payment:number; fees:number; interest:number; capital:number; crd:number; unpaid:number; balanceReliable:boolean };
+
+type CreditScheduleRow = {
+  n:number;date:string;payment:number;fees:number;interest:number;capital:number;crd:number;unpaid:number;
+  balanceReliable:boolean; rawValues:number[]; reader:'pdf_native'|'ocr_embedded_image';
+};
+type ScheduleEvidence = {
+  rows:CreditScheduleRow[];
+  validation: {status:'verified'|'insufficient'|'ambiguous'; source:string; numeric_columns:number|null;
+    balance_column:number|null; principal_column:number|null; pairs_checked:number; pairs_valid:number;
+    decreasing_pairs:number; method:string};
+};
 function creditDate(raw:string) {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return raw;
   const fr = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
   return fr ? fr[3]+'-'+fr[2]+'-'+fr[1] : null;
 }
-function parseCreditScheduleLines(lines:string[]): CreditScheduleRow[] {
-  const rows: CreditScheduleRow[] = [];
+function parseCreditScheduleLines(lines:string[],reader:'pdf_native'|'ocr_embedded_image'='pdf_native'): CreditScheduleRow[] {
+  const rows:CreditScheduleRow[] = [];
   const moneyRe = /-?(?:\d{1,3}(?:[ .\u00a0\u202f]\d{3})+|\d+)(?:,\d{2}|\.\d{2})/g;
   for (const original of lines) {
-    const line = original.replace(/[\u00a0\u202f]/g,' ').replace(/\s+/g,' ').trim();
-    const head = line.match(/^(\d{1,4})\s+(\d{2}[./-]\d{2}[./-]\d{4}|\d{4}-\d{2}-\d{2})\s+(.+)$/);
-    if (!head) continue;
-    const date=creditDate(head[2]);
-    if (!date) continue;
-    const values = [...head[3].matchAll(moneyRe)].map((m)=>parseFrenchNumber(m[0]));
-    if (values.length < 4 || values.length > 7 || values.some((v)=>v === null)) continue;
-    const v = values as number[];
-    if (v[0] < 0 || v[0] > 200000 || v.some((number)=>Math.abs(number)>10000000)) continue;
-    const six = v.length === 6;
-    const four = v.length === 4;
+    const line=original.replace(/[\u00a0\u202f]/g,' ').replace(/\s+/g,' ').trim();
+    const match=line.match(/^(\d{1,4})\s+(\d{2}[./-]\d{2}[./-]\d{4}|\d{4}-\d{2}-\d{2})\s+(.+)$/);
+    if(!match)continue;
+    const date=creditDate(match[2]);if(!date)continue;
+    const values=[...match[3].matchAll(moneyRe)].map((m)=>parseFrenchNumber(m[0]));
+    if(values.length<4||values.length>7||values.some((v)=>v===null))continue;
+    const v=values as number[];
+    if(v[0]<=0||v[0]>200000||v.some((n)=>!Number.isFinite(n)||Math.abs(n)>10000000))continue;
     rows.push({
-      n:Number(head[1]), date, payment:v[0],
-      fees:six ? v[1] : 0,
-      interest:six ? v[2] : v[1],
-      capital:six ? v[3] : v[2],
-      crd:v[3+(six?1:0)],
-      unpaid:six ? v[5] : v.length === 5 ? v[4] : 0,
-      balanceReliable:six || four,
+      n:Number(match[1]),date,payment:v[0],fees:0,interest:0,capital:0,crd:0,unpaid:0,
+      balanceReliable:false,rawValues:v,reader,
     });
   }
-  const byKey = new Map<string,CreditScheduleRow>();
-  for (const row of rows) byKey.set(row.n+'|'+row.date,row);
-  return [...byKey.values()].sort((a,b)=>a.date.localeCompare(b.date) || a.n-b.n);
+  const byKey=new Map<string,CreditScheduleRow>();
+  for(const row of rows)byKey.set(row.n+'|'+row.date,row);
+  return [...byKey.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
 }
+function validateCreditSchedule(rawRows:CreditScheduleRow[],reader:'pdf_native'|'ocr_embedded_image'):ScheduleEvidence {
+  const rows=[...rawRows].sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
+  const layouts:Array<{width:number;balance:number;principal:number;checked:number;valid:number;declining:number;score:number}>=[];
+  for(const width of [4,5,6,7]){
+    const ofWidth=rows.filter((row)=>row.rawValues.length===width);
+    if(ofWidth.length<6)continue;
+    // A fifth numeric field can mean "outstanding" OR "unpaid"; never assume its role.
+    for(const balance of [width-1,width-2]){
+      if(balance<3)continue;
+      for(let principal=1;principal<width;principal++){
+        if(principal===balance)continue;
+        let checked=0,valid=0,declining=0;
+        for(let i=1;i<ofWidth.length;i++){
+          const previous=ofWidth[i-1],current=ofWidth[i];
+          if(current.n!==previous.n+1||current.date<=previous.date)continue;
+          const before=previous.rawValues[balance],after=current.rawValues[balance];
+          const paidCapital=current.rawValues[principal];
+          if(before<0||after<0||before>10000000||after>10000000||after>before+0.15||paidCapital<0)continue;
+          const difference=before-after;
+          checked++;
+          if(difference>0.15) declining++;
+          if(Math.abs(difference-paidCapital)<=Math.max(0.35,current.payment*0.001))valid++;
+        }
+        if(checked<5||declining<3||valid/checked<0.94)continue;
+        layouts.push({width,balance,principal,checked,valid,declining,
+          score:(valid/checked)*10000+checked+declining*0.01});
+      }
+    }
+  }
+  layouts.sort((a,b)=>b.score-a.score);
+  const top=layouts[0]??null,second=layouts[1]??null;
+  // A different column pair that checks almost as well requires manual arbitration.
+  const ambiguous=Boolean(top&&second&&top.width===second.width&&
+    (top.balance!==second.balance||top.principal!==second.principal)&&
+    second.valid/second.checked>=0.94&&
+    Math.abs(top.score-second.score)<2);
+  if(top&&!ambiguous){
+    for(const row of rows){
+      if(row.rawValues.length!==top.width)continue;
+      const v=row.rawValues;
+      row.crd=v[top.balance];
+      row.capital=v[top.principal];
+      row.interest=Math.max(0,row.payment-row.capital);
+      row.balanceReliable=true;
+    }
+  }
+  return {rows,validation:{
+    status:top?(ambiguous?'ambiguous':'verified'):'insufficient',source:reader,
+    numeric_columns:top?.width??null,balance_column:top?.balance??null,
+    principal_column:top?.principal??null,pairs_checked:top?.checked??0,
+    pairs_valid:top?.valid??0,decreasing_pairs:top?.declining??0,
+    method:'adjacent CRD difference equals principal repaid on successive dated instalments',
+  }};
+}
+/** Only the embedded raster images of a scanned PDF can be OCRed here.
+ * Vector-only PDF rasterization needs a dedicated compatible renderer. */
+async function encodeRawImageAsPng(image:any):Promise<Uint8Array|null>{
+  const width=Number(image?.width??0),height=Number(image?.height??0);
+  if(!Number.isInteger(width)||!Number.isInteger(height)||width<600||height<600||width*height>4500000)return null;
+  const data=image?.data;if(!(data instanceof Uint8Array||data instanceof Uint8ClampedArray))return null;
+  let pixels:Uint8Array;
+  if(data.length===width*height*4){
+    pixels=new Uint8Array(data);
+  }else if(data.length===width*height*3){
+    pixels=new Uint8Array(width*height*4);
+    for(let k=0;k<width*height;k++){pixels[4*k]=data[3*k];pixels[4*k+1]=data[3*k+1];pixels[4*k+2]=data[3*k+2];pixels[4*k+3]=255;}
+  }else if(data.length===width*height){
+    pixels=new Uint8Array(width*height*4);
+    for(let k=0;k<width*height;k++){pixels[4*k]=data[k];pixels[4*k+1]=data[k];pixels[4*k+2]=data[k];pixels[4*k+3]=255;}
+  }else return null;
+  const png=(await import('npm:upng-js@2.1.0')).default;
+  const encoded=png.encode([pixels.buffer],width,height,0);
+  return new Uint8Array(encoded);
+}
+async function readPdfEmbeddedImageOcr(pdf:any, pageLimit=12){
+  const pageTexts:string[]=[];
+  const errors:string[]=[];
+  let imagesScanned=0;
+  for(let pageNo=1;pageNo<=Math.min(pdf.numPages,pageLimit);pageNo++){
+    let content='';
+    try{
+      const page=await pdf.getPage(pageNo);
+      const ops=await page.getOperatorList();
+      const seen=new Set<string>();
+      for(let i=0;i<ops.fnArray.length&&imagesScanned<pageLimit;i++){
+        const args=ops.argsArray[i];
+        if(!Array.isArray(args))continue;
+        const id=typeof args[0]==='string' ? args[0] : null;
+        if(id&&(!/(?:^img_|^g_.*img)/.test(id)||seen.has(id)))continue;
+        if(id)seen.add(id);
+        let img:any=null;
+        try{
+          if(id){
+            const store=id.startsWith('g_')?page.commonObjs:page.objs;
+            if(!store?.has?.(id))continue;
+            img=store.get(id);
+          }else if(args[0]&&typeof args[0]==='object'&&'width'in args[0]&&'data'in args[0])img=args[0];
+          if(!img)continue;
+          const png=await encodeRawImageAsPng(img);
+          if(!png)continue;
+          imagesScanned++;
+          const result=await ocrImage(png);
+          if(result.confidence>0)content+='\n'+result.text;
+        }catch(err){errors.push('page '+pageNo+': '+String(err).slice(0,90));}
+        if(imagesScanned>=pageLimit)break;
+      }
+    }catch(err){errors.push('page '+pageNo+': '+String(err).slice(0,90));}
+    pageTexts.push(content);
+  }
+  return {lines:pageTexts.flatMap((txt)=>txt.split('\n')), pages:pageTexts.filter(Boolean).length,
+    images_scanned:imagesScanned,errors:errors.slice(0,4),
+    mode:imagesScanned?'embedded_pdf_images':'unavailable_no_compatible_pdf_raster',
+  };
+}
+
 async function creditLayoutLines(pdf:any):Promise<string[]> {
   const lines:string[] = [];
   for (let pageNo=1;pageNo<=pdf.numPages;pageNo++) {
@@ -684,11 +801,37 @@ async function parseCredit(
     return null;
   };
 
-  const scheduleRows=parseCreditScheduleLines([...pages.flatMap((p)=>p.split('\n')), ...layoutLines]);
+  const nativeEvidence=validateCreditSchedule(
+    parseCreditScheduleLines([...pages.flatMap((p)=>p.split('\n')), ...layoutLines]),'pdf_native');
+  let selected=nativeEvidence;
+  let ocrResult:{lines:string[];pages:number;images_scanned:number;errors:string[];mode:string}|null=null;
+  let ocrEvidence:ScheduleEvidence|null=null;
+  if(nativeEvidence.validation.status!=='verified'||
+     nativeEvidence.rows.every((row)=>!row.balanceReliable)){
+    ocrResult=await readPdfEmbeddedImageOcr(pdf);
+    if(ocrResult.lines.length){
+      ocrEvidence=validateCreditSchedule(parseCreditScheduleLines(ocrResult.lines,'ocr_embedded_image'),'ocr_embedded_image');
+      if(ocrEvidence.validation.status==='verified'&&nativeEvidence.validation.status!=='verified'){
+        selected=ocrEvidence;
+      }
+    }
+  }
+  const scheduleRows=selected.rows;
+  const mutuallyVerified=ocrEvidence?.validation.status==='verified'
+    &&nativeEvidence.validation.status==='verified';
+  const pdfOcrMismatch=Boolean(mutuallyVerified&&
+    ocrEvidence?.rows.find((row)=>row.date<=new Date().toISOString().slice(0,10)&&row.balanceReliable)
+    &&nativeEvidence.rows.find((row)=>row.date<=new Date().toISOString().slice(0,10)&&row.balanceReliable)
+    &&(()=>{
+       const lastPdf=nativeEvidence.rows.filter((row)=>row.date<=new Date().toISOString().slice(0,10)&&row.balanceReliable).at(-1);
+       const lastOcr=ocrEvidence?.rows.filter((row)=>row.date<=new Date().toISOString().slice(0,10)&&row.balanceReliable).at(-1);
+       return lastPdf&&lastOcr&&lastPdf.date===lastOcr.date&&Math.abs(lastPdf.crd-lastOcr.crd)>0.50;
+     })());
+
   const today=new Date().toISOString().slice(0,10);
   const lastPaid=scheduleRows.filter((row)=>row.date<=today).at(-1)??null;
   const nextDue=scheduleRows.find((row)=>row.date>today)??null;
-  const currentBalance=lastPaid&&nextDue&&lastPaid.balanceReliable&&
+  const currentBalance=!pdfOcrMismatch&&lastPaid&&nextDue&&lastPaid.balanceReliable&&
     lastPaid.crd>=0&&lastPaid.crd<=10000000 ? lastPaid : null;
   const currentPayment=nextDue&&
     (Date.parse(nextDue.date+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))<=45*86400000
@@ -771,7 +914,17 @@ async function parseCredit(
       source_pages: sourcePages,
     }] : [],
     summary: {
-      parser: 'credit_schedule_fr_v4',
+      parser: 'credit_schedule_dual_v5',
+      readers:{
+        pdf_native:{status:nativeEvidence.validation.status,rows:nativeEvidence.rows.length,
+          column_validation:nativeEvidence.validation},
+        ocr:ocrResult?{mode:ocrResult.mode,images_scanned:ocrResult.images_scanned,
+          pages_with_text:ocrResult.pages,rows:ocrEvidence?.rows.length??0,
+          status:ocrEvidence?.validation.status??'unavailable',
+          errors:ocrResult.errors}: {mode:'not_needed_validated_native_pdf',status:'not_run'},
+        selected: selected===nativeEvidence?'pdf_native':'ocr_embedded_image',
+        disagreement:pdfOcrMismatch,
+      },
       file_name: fileName,
       extracted_fields: extractedFields,
       extracted_field_count: extractedFields.length,
@@ -786,7 +939,8 @@ async function parseCredit(
       insurance_cost_documented: fact.assurance_cout_documente ?? null,
     },
     // A partial amortization analysis is not a completed loan reconciliation.
-    status: extractedFields.length && scheduleRows.length > 0 && Boolean(currentPayment)
+    status: extractedFields.length && scheduleRows.length > 0 &&
+      Boolean(currentPayment) && Boolean(currentBalance) && !pdfOcrMismatch
       ? 'extracted' : 'to_review',
   };
 }
