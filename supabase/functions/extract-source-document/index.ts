@@ -1173,11 +1173,13 @@ Deno.serve(async (req) => {
     }));
     const primaryId = members.find((m) => m.role_dossier === 'investisseur_1')?.investisseur_id ?? doc.investisseur_id;
 
-    await admin.from('documents_sources').update({
-      statut_analyse: 'processing',
-      metadata: { ...(doc.metadata ?? {}), analysis_started_at: new Date().toISOString(), analysis_error: null },
-      updated_at: new Date().toISOString(),
-    }).eq('id', documentId);
+    if(!previewOnly){
+      await admin.from('documents_sources').update({
+        statut_analyse: 'processing',
+        metadata: { ...(doc.metadata ?? {}), analysis_started_at: new Date().toISOString(), analysis_error: null },
+        updated_at: new Date().toISOString(),
+      }).eq('id', documentId);
+    }
 
     if (!doc.storage_bucket || !doc.storage_path) throw new Error('Fichier source non disponible');
     const { data: blob, error: downloadError } = await admin.storage.from(doc.storage_bucket).download(doc.storage_path);
