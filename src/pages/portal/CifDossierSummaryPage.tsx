@@ -702,26 +702,64 @@ export default function CifDossierSummaryPage() {
       return summary.parser === 'credit_schedule_fr_v3'
         && Number(summary.schedule_rows_read ?? 0) === 0;
     };
+    const needsAutoCRD = (doc: SourceDocumentRow) => {
+      if (doc.categorie!=='tableau_amortissement' || doc.statut_analyse!=='validated') return false;
+      return sections.some((section)=>{
+        if(section.section_code!=='credits' || !Array.isArray(section.payload?.items))return false;
+        return (section.payload.items as Record<string,unknown>[]).some((item)=>{
+          if(item.source_document_id!==doc.id)return false;
+          const existing=professionalNumber(item.capital_restant_du??item.crd);
+          if(existing===null)return true;
+          if(item.capital_restant_du_nature!=='theorique_echeancier')return false;
+          const date=typeof item.capital_restant_du_date==='string'?item.capital_restant_du_date:'';
+          return /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+            Date.now()-new Date(date+'T00:00:00Z').getTime()>45*86400000;
+        });
+      });
+    };
     const pending = sourceDocuments.filter((doc) => (
-      doc.statut_analyse === 'uploaded' || needsLegacyCreditRefresh(doc) ||
+      doc.statut_analyse === 'uploaded' || needsLegacyCreditRefresh(doc) || needsAutoCRD(doc) ||
       (doc.statut_analyse === 'to_review' && doc.nom_fichier.toLowerCase().endsWith('.docx') && String(doc.metadata?.analysis_error ?? '').includes('Invalid file signature'))
-    ) && !analysisAttemptedRef.current.has(doc.id));
+    ) && !analysisAttemptedRef.current.has(doc.id + ':' + (needsAutoCRD(doc) ? 'auto_crd_v1' : doc.statut_analyse)));
     if (!pending.length) return;
-    pending.forEach((doc) => analysisAttemptedRef.current.add(doc.id));
+    pending.forEach((doc) => analysisAttemptedRef.current.add(doc.id + ':' + (needsAutoCRD(doc) ? 'auto_crd_v1' : doc.statut_analyse)));
     let cancelled = false;
     const run = async () => {
       for (const doc of pending) {
         if (cancelled) return;
+        const autoMode=needsAutoCRD(doc);
         setAnalyzingSourceIds((current) => new Set([...current, doc.id]));
-        const { error } = await supabase.functions.invoke('extract-source-document', { body: { document_id: doc.id } });
-        if (error && !cancelled) setSourceAnalysisMessage(`Analyse différée pour ${doc.nom_fichier} : ${messageFromError(error)}`);
+        const {data,error} = await supabase.functions.invoke('extract-source-document', {
+          body:{document_id:doc.id,auto_mode:autoMode},
+        });
+        if(error && !cancelled){
+          setSourceAnalysisMessage(`Lecture différée pour ${doc.nom_fichier} : ${messageFromError(error)}`);
+        }else if(autoMode && !cancelled){
+          const check=(data?.auto_crd??{}) as Record<string,unknown>;
+          const status=String(check.status??'exception');
+          const summary=(check.summary??{}) as Record<string,unknown>;
+          const readers=(summary.readers??{}) as Record<string,unknown>;
+          const native=(readers.pdf_native??{}) as Record<string,unknown>;
+          const ocr=(readers.ocr??{}) as Record<string,unknown>;
+          setAutoCreditChecks((previous)=>({...previous,[doc.id]:{
+            status,reason:String(check.reason??''),
+            balance:typeof check.balance==='number'?check.balance:null,
+            date:typeof check.balance_date==='string'?check.balance_date:null,
+            pdfRows:typeof native.rows==='number'?native.rows:null,
+            pdfStatus:String(native.status??'inconnu'),
+            ocrStatus:String(ocr.status??'non exécuté'),
+          }}));
+          if(status==='exception')setSourceAnalysisMessage(
+            `CRD non intégré pour ${doc.nom_fichier} : ${String(check.reason??'contrôles de lecture insuffisants')}`
+          );
+        }
         setAnalyzingSourceIds((current) => { const next = new Set(current); next.delete(doc.id); return next; });
       }
       if (!cancelled) await refreshSourceDocumentData().catch((error) => setSourceAnalysisMessage(messageFromError(error)));
     };
     void run();
     return () => { cancelled = true; };
-  }, [dossierId, sourceDocuments]);
+  }, [dossierId, sourceDocuments, sections]);
 
   const household = useMemo(() => consolidateHousehold(sections.map((row) => ({ investisseur_id: row.investisseur_id, role_dossier: investors.find((i) => i.investisseur_id === row.investisseur_id)?.role_dossier ?? '', section_code: row.section_code, payload: row.payload }))), [sections, investors]);
   const clientDisplayName = useMemo(() => {
