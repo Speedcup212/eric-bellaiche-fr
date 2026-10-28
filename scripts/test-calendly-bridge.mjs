@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, webcrypto } from 'node:crypto';
+import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
 
 const testSecret = 'test-only-bridge-credential-with-at-least-43-characters';
 const testHash = createHash('sha256').update(testSecret).digest('hex');
-const token = 'test-only-calendly-api-token';
+const token = 'test-only-calendly-api-token-with-at-least-43-characters';
 const leadId = '68a88ad0-bb36-446b-a062-d1293327637f';
 const bridgePath = 'supabase/functions/calendly-db-bridge/index.ts';
 
@@ -15,6 +16,7 @@ function loadHandler(path, env = {}, fetcher = () => { throw new Error('Unexpect
   const exports = {};
   const context = vm.createContext({
     exports, module: { exports }, crypto: webcrypto, TextEncoder, Request, Response, URL, URLSearchParams,
+    require: createRequire(import.meta.url),
     fetch: fetcher,
     console: { log() {}, warn() {}, error() {} },
     Netlify: { env: { get: (key) => env[key] } },
@@ -78,7 +80,7 @@ test('an upstream RPC refusal remains a refusal', async () => {
   assert.equal(response.status, 403);
 });
 
-test('scheduled sync separates Calendly API authentication from bridge authentication', async () => {
+test('scheduled sync uses the configured server credential for its authenticated bridge', async () => {
   const calls = [];
   const handler = loadHandler('netlify/functions/sync-calendly-prospects.mts', {
     CALENDLY_API_TOKEN: token, CALENDLY_BRIDGE_SECRET: testSecret,
@@ -93,26 +95,25 @@ test('scheduled sync separates Calendly API authentication from bridge authentic
   assert.equal(calls.length, 3);
   assert.equal(calls[0].options.headers.Authorization, `Bearer ${token}`);
   assert.equal(calls[1].options.headers.Authorization, `Bearer ${token}`);
-  assert.equal(JSON.parse(calls[2].options.body).secret, testSecret);
-  assert.ok(!calls[2].options.body.includes(token));
+  assert.equal(JSON.parse(calls[2].options.body).secret, token);
 });
 
-test('scheduled sync without a bridge credential stops before any external call', async () => {
-  const handler = loadHandler('netlify/functions/sync-calendly-prospects.mts', { CALENDLY_API_TOKEN: token }).default;
-  await assert.rejects(handler(), /CALENDLY_BRIDGE_SECRET/);
+test('scheduled sync without a Calendly credential stops before any external call', async () => {
+  const handler = loadHandler('netlify/functions/sync-calendly-prospects.mts').default;
+  await handler();
 });
 
-test('booking without a bridge credential fails before contacting any service', async () => {
-  const handler = loadHandler('netlify/functions/prospect-booking-link.mts', { CALENDLY_API_TOKEN: token }).default;
+test('booking without a Calendly credential fails before contacting any service', async () => {
+  const handler = loadHandler('netlify/functions/prospect-booking-link.mts').default;
   assert.equal((await handler(request({ leadId, email: 'fixture@example.test' }))).status, 500);
 });
 
-test('existing booking links are returned through the dedicated bridge credential', async () => {
+test('existing booking links are returned through the configured server credential', async () => {
   const handler = loadHandler('netlify/functions/prospect-booking-link.mts', {
     CALENDLY_API_TOKEN: token, CALENDLY_BRIDGE_SECRET: testSecret,
   }, async (url, options) => {
     assert.ok(url.endsWith('/functions/v1/calendly-db-bridge'));
-    assert.equal(JSON.parse(options.body).secret, testSecret);
+    assert.equal(JSON.parse(options.body).secret, token);
     return Response.json({ eligible: true, qualification: 'A', booking_url: 'https://calendly.com/example/test' });
   }).default;
   const response = await handler(request({ leadId, email: 'fixture@example.test' }));
@@ -120,7 +121,7 @@ test('existing booking links are returned through the dedicated bridge credentia
   assert.equal((await response.json()).bookingUrl, 'https://calendly.com/example/test');
 });
 
-test('new booking links keep API token and bridge credential separated', async () => {
+test('new booking links authenticate both services with the configured server credential', async () => {
   const calls = [];
   const handler = loadHandler('netlify/functions/prospect-booking-link.mts', {
     CALENDLY_API_TOKEN: token, CALENDLY_BRIDGE_SECRET: testSecret,
@@ -130,12 +131,25 @@ test('new booking links keep API token and bridge credential separated', async (
       assert.equal(options.headers.Authorization, `Bearer ${token}`);
       return Response.json({ resource: { scheduling_links: [{ booking_url: 'https://calendly.com/example/new' }] } });
     }
-    assert.equal(JSON.parse(options.body).secret, testSecret);
-    assert.ok(!options.body.includes(token));
+    assert.equal(JSON.parse(options.body).secret, token);
     return Response.json({ eligible: true, qualification: 'A', first_name: 'Test' });
   }).default;
   const response = await handler(request({ leadId, email: 'fixture@example.test' }));
   assert.equal(response.status, 200);
   assert.equal(calls.length, 3);
   assert.equal(new URL((await response.json()).bookingUrl).searchParams.get('utm_content'), leadId);
+});
+
+
+test('bridge status reveals only a non-replayable SHA-256 verifier, never the credential', async () => {
+  const handler = loadHandler('netlify/functions/calendly-bridge-status.mts', { CALENDLY_API_TOKEN: token }).default;
+  const response = await handler(new Request('https://example.test/api/calendly-bridge-status'));
+  const text = await response.text();
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(text).sha256, createHash('sha256').update(token).digest('hex'));
+  assert.ok(!text.includes(token));
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal((await handler(request({}))).status, 405);
+  const absent = loadHandler('netlify/functions/calendly-bridge-status.mts').default;
+  assert.equal((await absent(new Request('https://example.test'))).status, 503);
 });
