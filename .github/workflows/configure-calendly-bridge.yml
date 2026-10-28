@@ -1,0 +1,65 @@
+name: Configure Calendly bridge credential
+
+on:
+  push:
+    branches: [fix/calendly-bridge-env-20261028]
+    paths: [.github/workflows/configure-calendly-bridge.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: configure-calendly-bridge
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Configure and verify the production Functions credential
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { randomBytes, createHash } from 'node:crypto';
+          import { spawnSync } from 'node:child_process';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          if (!process.env.NETLIFY_AUTH_TOKEN) throw new Error('NETLIFY_AUTH_TOKEN is not configured in GitHub Actions.');
+          const credential = randomBytes(48).toString('base64url');
+          console.log('::add-mask::' + credential);
+          const site = '3416bd60-2577-431f-a991-40847c2b657b';
+          function cli(args) {
+            const result = spawnSync('npx', ['--yes', 'netlify-cli@latest', ...args], {
+              encoding: 'utf8', env: process.env, timeout: 240000, maxBuffer: 4 * 1024 * 1024,
+            });
+            if (result.status !== 0) {
+              const safe = String(result.stderr || result.stdout || result.error || 'Command failed')
+                .replaceAll(credential, '[REDACTED]')
+                .replaceAll(process.env.NETLIFY_AUTH_TOKEN, '[REDACTED]');
+              throw new Error(safe);
+            }
+            return result.stdout;
+          }
+          cli(['env:set', 'CALENDLY_BRIDGE_SECRET', credential, '--secret', '--scope', 'functions', '--context', 'production', '--site', site, '--force']);
+          const listing = cli(['env:list', '--scope', 'functions', '--context', 'production', '--site', site, '--json']);
+          if (!listing.includes('CALENDLY_BRIDGE_SECRET')) throw new Error('Credential was not found after configuration.');
+          const digest = createHash('sha256').update(credential).digest('hex');
+          const path = 'supabase/functions/calendly-db-bridge/index.ts';
+          const source = readFileSync(path, 'utf8');
+          if (!/const BRIDGE_SECRET_SHA256 = '[a-f0-9]{64}';/.test(source)) throw new Error('Expected bridge fingerprint declaration missing.');
+          writeFileSync(path, source.replace(/const BRIDGE_SECRET_SHA256 = '[a-f0-9]{64}';/, "const BRIDGE_SECRET_SHA256 = '" + digest + "';"));
+          console.log('Production Functions credential configured and re-read successfully.');
+          console.log('Public verification fingerprint: ' + digest);
+          NODE
+      - name: Commit only the public credential fingerprint
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/calendly-db-bridge/index.ts
+          git commit -m 'fix(calendly): pin fingerprint of verified production bridge credential'
+          git push origin HEAD:fix/calendly-bridge-env-20261028
