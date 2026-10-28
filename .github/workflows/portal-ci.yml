@@ -77,6 +77,8 @@ jobs:
         run: npm run test:adequation-documents
       - name: Source document enrichment
         run: npm run test:source-documents
+      - name: Calendly bridge authentication
+        run: npm run test:calendly-bridge
       - name: Typecheck portal
         run: npm run typecheck:portal
       - name: Lint portal

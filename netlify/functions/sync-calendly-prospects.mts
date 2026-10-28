@@ -50,7 +50,7 @@ async function calendlyFetch<T>(path: string, token: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, calendlyToken: string) {
+async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, bridgeSecret: string) {
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
   const { firstName, lastName } = splitName(invitee);
   const mobile = normalize(invitee.text_reminder_number) || answerFor(invitee, [/t[ée]l[ée]phone/i, /mobile/i, /phone/i]);
@@ -67,7 +67,7 @@ async function syncInvitee(event: CalendlyEvent, invitee: CalendlyInvitee, calen
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       operation: 'sync',
-      secret: calendlyToken,
+      secret: bridgeSecret,
       params: {
         p_event_uri: event.uri,
         p_invitee_uri: invitee.uri,
@@ -93,6 +93,8 @@ export default async () => {
     console.log('Calendly sync inactive: CALENDLY_API_TOKEN missing.');
     return;
   }
+  const bridgeSecret = normalize(Netlify.env.get('CALENDLY_BRIDGE_SECRET'));
+  if (!bridgeSecret) throw new Error('Calendly sync configuration missing: CALENDLY_BRIDGE_SECRET');
 
   const syncFrom = syncFromRaw ? new Date(syncFromRaw) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const max = new Date(Date.now() + 366 * 24 * 60 * 60 * 1000);
@@ -114,7 +116,7 @@ export default async () => {
     for (const invitee of invitees.collection ?? []) {
       const createdAt = invitee.created_at ? new Date(invitee.created_at) : null;
       if (createdAt && createdAt < syncFrom) { skipped += 1; continue; }
-      const result = await syncInvitee(event, invitee, token);
+      const result = await syncInvitee(event, invitee, bridgeSecret);
       if (result.action === 'created') created += 1;
       else if (result.action === 'existing_client' || result.action === 'already_synced') existing += 1;
       else skipped += 1;
