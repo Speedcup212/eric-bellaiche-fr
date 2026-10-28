@@ -32,10 +32,11 @@
     "lint:portal": "eslint src/lib src/portal src/pages/portal src/App.tsx scripts",
     "test:deploy-gate": "npm run test:recueil-100 && npm run test:couple-shared && npm run test:couple-policy && npm run test:final-journey && npm run test:validation-ux && npm run test:preflight-clients && npm run test:portal-safety && npm run typecheck:portal && npm run lint:portal",
     "test:release-policy": "node scripts/test-netlify-release-policy.mjs",
-    "test:release-gate": "npm run test:deploy-gate && npm run test:source-documents && npm run test:level5 && npm run test:advisor-summary && npm run test:household-consolidation && npm run test:adequation-documents && npm run test:release-policy && npm run test:credit-crd-layout && npm run test:patrimonial-synthesis && npm run test:fiscal-source-priority",
+    "test:release-gate": "npm run test:deploy-gate && npm run test:source-documents && npm run test:level5 && npm run test:advisor-summary && npm run test:household-consolidation && npm run test:adequation-documents && npm run test:release-policy && npm run test:credit-crd-layout && npm run test:patrimonial-synthesis && npm run test:fiscal-source-priority && npm run test:calendly-bridge",
     "test:credit-crd-layout": "node scripts/test-credit-crd-layout.mjs",
     "test:patrimonial-synthesis": "node scripts/test-patrimonial-synthesis.mjs",
-    "test:fiscal-source-priority": "node scripts/test-fiscal-source-priority.mjs"
+    "test:fiscal-source-priority": "node scripts/test-fiscal-source-priority.mjs",
+    "test:calendly-bridge": "node --test scripts/test-calendly-bridge.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

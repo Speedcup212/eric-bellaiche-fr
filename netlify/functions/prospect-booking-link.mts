@@ -17,14 +17,14 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
-async function prospectRpc(params: { token: string; leadId: string; email: string; bookingUrl?: string | null }) {
+async function prospectRpc(params: { bridgeSecret: string; leadId: string; email: string; bookingUrl?: string | null }) {
   const supabaseUrl = Netlify.env.get('VITE_SUPABASE_URL') || FALLBACK_SUPABASE_URL;
   const response = await fetch(`${supabaseUrl}/functions/v1/calendly-db-bridge`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       operation: 'booking',
-      secret: params.token,
+      secret: params.bridgeSecret,
       params: {
         p_lead_id: params.leadId,
         p_email: params.email,
@@ -68,14 +68,15 @@ export default async (req: Request) => {
   if (req.method !== 'POST') return json(405, { error: 'Méthode non autorisée.' });
   try {
     const token = (Netlify.env.get('CALENDLY_API_TOKEN') || '').trim();
-    if (!token) return json(500, { error: 'Configuration de réservation incomplète.' });
+    const bridgeSecret = (Netlify.env.get('CALENDLY_BRIDGE_SECRET') || '').trim();
+    if (!token || !bridgeSecret) return json(500, { error: 'Configuration de réservation incomplète.' });
 
     const payload = await req.json() as { leadId?: string; email?: string };
     const leadId = String(payload.leadId ?? '').trim();
     const email = String(payload.email ?? '').trim().toLowerCase();
     if (!validUuid(leadId) || !validEmail(email)) return json(400, { error: 'Prospect invalide.' });
 
-    const authorization = await prospectRpc({ token, leadId, email });
+    const authorization = await prospectRpc({ bridgeSecret, leadId, email });
     if (!authorization.eligible) return json(403, { error: 'Ce parcours ne donne pas accès à la réservation individuelle.' });
 
     if (authorization.booking_url?.startsWith('https://calendly.com/')) {
@@ -83,7 +84,7 @@ export default async (req: Request) => {
     }
 
     const shareUrl = await createShare(token);
-    await prospectRpc({ token, leadId, email, bookingUrl: shareUrl });
+    await prospectRpc({ bridgeSecret, leadId, email, bookingUrl: shareUrl });
 
     const prefill = new URL(shareUrl);
     if (authorization.first_name) prefill.searchParams.set('name', authorization.first_name);
