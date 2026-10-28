@@ -1,6 +1,6 @@
-// Only the SHA-256 digest is public. The random credential stays in Netlify's
-// CALENDLY_BRIDGE_SECRET server environment variable.
-const BRIDGE_SECRET_SHA256 = '3dd0aeb4dd995b7badc50706a9a071146cb232fa338c52b8aef446a1f2e74629';
+// Only the SHA-256 verifier is public. The high-entropy credential stays in
+// Netlify's existing CALENDLY_API_TOKEN server environment variable.
+const BRIDGE_SECRET_SHA256 = '6283f70601798ba7af81f0176d68f08e5faacf2a81ff873cdb4a2f9b74c8df84';
 const MAX_BODY_BYTES = 32_000;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
@@ -62,4 +62,3 @@ export function createBridgeHandler(expectedHash = BRIDGE_SECRET_SHA256) {
 }
 
 Deno.serve(createBridgeHandler());
-
